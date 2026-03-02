@@ -1,0 +1,198 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(uuid())
+  username  String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  roomPlayers    RoomPlayer[]
+  teams          Team[]
+  bids           AuctionBid[]
+}
+
+model Room {
+  id        String     @id @default(uuid())
+  code      String     @unique
+  hostId    String
+  status    RoomStatus @default(WAITING)
+  maxPlayers Int       @default(10)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  players        RoomPlayer[]
+  auctionResults AuctionResult[]
+  matches        Match[]
+  teams          Team[]
+}
+
+enum RoomStatus {
+  WAITING
+  AUCTION
+  MATCH
+  COMPLETED
+}
+
+model RoomPlayer {
+  id       String @id @default(uuid())
+  userId   String
+  roomId   String
+  joinedAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+  room Room @relation(fields: [roomId], references: [id])
+
+  @@unique([userId, roomId])
+}
+
+model Team {
+  id       String @id @default(uuid())
+  name     String
+  userId   String
+  roomId   String
+  purse    Float  @default(100)
+  
+  user    User   @relation(fields: [userId], references: [id])
+  room    Room   @relation(fields: [roomId], references: [id])
+  
+  auctionResults AuctionResult[]
+  matchesHome    Match[]         @relation("HomeTeam")
+  matchesAway    Match[]         @relation("AwayTeam")
+  battingStats   BattingStats[]
+  bowlingStats   BowlingStats[]
+
+  @@unique([userId, roomId])
+}
+
+model Player {
+  id            String     @id @default(uuid())
+  name          String
+  role          PlayerRole
+  battingSkill  Int        @default(50)
+  bowlingSkill  Int        @default(50)
+  basePrice     Float      @default(1)
+  nationality   String     @default("Indian")
+  imageUrl      String?
+
+  auctionResults AuctionResult[]
+  battingStats   BattingStats[]
+  bowlingStats   BowlingStats[]
+}
+
+enum PlayerRole {
+  BATSMAN
+  BOWLER
+  ALL_ROUNDER
+  WICKET_KEEPER
+}
+
+model AuctionResult {
+  id        String @id @default(uuid())
+  roomId    String
+  playerId  String
+  teamId    String
+  soldPrice Float
+  round     Int    @default(1)
+  createdAt DateTime @default(now())
+
+  room   Room   @relation(fields: [roomId], references: [id])
+  player Player @relation(fields: [playerId], references: [id])
+  team   Team   @relation(fields: [teamId], references: [id])
+
+  @@unique([roomId, playerId])
+}
+
+model AuctionBid {
+  id        String   @id @default(uuid())
+  roomId    String
+  playerId  String
+  userId    String
+  amount    Float
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+}
+
+model Match {
+  id            String      @id @default(uuid())
+  roomId        String
+  homeTeamId    String
+  awayTeamId    String
+  status        MatchStatus @default(SCHEDULED)
+  innings       Int         @default(1)
+  pitchType     PitchType   @default(BALANCED)
+  homeScore     Int         @default(0)
+  homeWickets   Int         @default(0)
+  homeOvers     Float       @default(0)
+  awayScore     Int         @default(0)
+  awayWickets   Int         @default(0)
+  awayOvers     Float       @default(0)
+  result        String?
+  matchNumber   Int         @default(1)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  room     Room @relation(fields: [roomId], references: [id])
+  homeTeam Team @relation("HomeTeam", fields: [homeTeamId], references: [id])
+  awayTeam Team @relation("AwayTeam", fields: [awayTeamId], references: [id])
+
+  battingStats BattingStats[]
+  bowlingStats BowlingStats[]
+}
+
+enum MatchStatus {
+  SCHEDULED
+  LIVE
+  COMPLETED
+}
+
+enum PitchType {
+  BATTING
+  BOWLING
+  BALANCED
+  SPINNING
+}
+
+model BattingStats {
+  id        String @id @default(uuid())
+  matchId   String
+  playerId  String
+  teamId    String
+  runs      Int    @default(0)
+  balls     Int    @default(0)
+  fours     Int    @default(0)
+  sixes     Int    @default(0)
+  isOut     Boolean @default(false)
+  dismissal String?
+
+  match  Match  @relation(fields: [matchId], references: [id])
+  player Player @relation(fields: [playerId], references: [id])
+  team   Team   @relation(fields: [teamId], references: [id])
+
+  @@unique([matchId, playerId])
+}
+
+model BowlingStats {
+  id        String @id @default(uuid())
+  matchId   String
+  playerId  String
+  teamId    String
+  overs     Float  @default(0)
+  maidens   Int    @default(0)
+  runs      Int    @default(0)
+  wickets   Int    @default(0)
+  extras    Int    @default(0)
+
+  match  Match  @relation(fields: [matchId], references: [id])
+  player Player @relation(fields: [playerId], references: [id])
+  team   Team   @relation(fields: [teamId], references: [id])
+
+  @@unique([matchId, playerId])
+}

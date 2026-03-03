@@ -17,7 +17,7 @@ export interface IPLTeam {
 export const IPL_TEAMS: IPLTeam[] = [
     { id: 'csk', name: 'Chennai Super Kings', shortName: 'CSK', color: '#FFC107', colorDark: '#E5A800', colorLight: '#FFD54F', emoji: '🦁', logo: '/images/teams/csk.png', city: 'Chennai' },
     { id: 'mi', name: 'Mumbai Indians', shortName: 'MI', color: '#004BA0', colorDark: '#003D82', colorLight: '#1976D2', emoji: '🔵', logo: '/images/teams/mi.png', city: 'Mumbai' },
-    { id: 'rcb', name: 'Royal Challengers Bangalore', shortName: 'RCB', color: '#EC1C24', colorDark: '#C81017', colorLight: '#EF5350', emoji: '👑', logo: '/images/teams/rcb.png', city: 'Bangalore' },
+    { id: 'rcb', name: 'Royal Challengers Bengaluru', shortName: 'RCB', color: '#EC1C24', colorDark: '#C81017', colorLight: '#EF5350', emoji: '👑', logo: '/images/teams/rcb.png', city: 'Bengaluru' },
     { id: 'kkr', name: 'Kolkata Knight Riders', shortName: 'KKR', color: '#3A225D', colorDark: '#2A1845', colorLight: '#7B1FA2', emoji: '⚔️', logo: '/images/teams/kkr.png', city: 'Kolkata' },
     { id: 'dc', name: 'Delhi Capitals', shortName: 'DC', color: '#0078BC', colorDark: '#005A8E', colorLight: '#42A5F5', emoji: '🐯', logo: '/images/teams/dc.png', city: 'Delhi' },
     { id: 'srh', name: 'Sunrisers Hyderabad', shortName: 'SRH', color: '#FF822A', colorDark: '#E06A10', colorLight: '#FFB74D', emoji: '🌅', logo: '/images/teams/srh.png', city: 'Hyderabad' },

@@ -1,6 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { initAuction, getAuctionState, nextPlayer, placeBid, sellCurrentPlayer } from '@/lib/auctionEngine';
-import { getRoomState } from '@/lib/roomManager';
+import {
+    initAuction,
+    getAuctionState,
+    nextPlayer,
+    placeBid,
+    sellCurrentPlayer,
+    skipPlayer,
+    skipSet,
+    endAuction,
+} from '@/lib/auctionEngine';
+import { getRoomState, fillRoomWithBots } from '@/lib/roomManager';
 import { TEAM_NAMES } from '@/data/players';
 
 function getSession(request: NextRequest) {
@@ -17,10 +26,19 @@ export async function POST(request: NextRequest) {
         const { action, roomCode, amount } = await request.json();
 
         if (action === 'init') {
-            const room = await getRoomState(roomCode);
+            let room = await getRoomState(roomCode);
             if (!room) return NextResponse.json({ error: 'Room not found' }, { status: 404 });
             if (room.hostId !== session.userId) {
                 return NextResponse.json({ error: 'Only host can start auction' }, { status: 403 });
+            }
+
+            // Auto-fill bots to 10 players if needed
+            if (room.players.length < 10) {
+                const missing = 10 - room.players.length;
+                await fillRoomWithBots(roomCode, missing);
+                // Refresh room state after adding bots
+                const updatedRoom = await getRoomState(roomCode);
+                if (updatedRoom) room = updatedRoom;
             }
 
             const players = room.players.map((p, i) => ({
@@ -59,6 +77,26 @@ export async function POST(request: NextRequest) {
 
         if (action === 'status') {
             const state = await getAuctionState(roomCode);
+            return NextResponse.json({ state });
+        }
+
+        // Host overrides
+        if (action === 'skipPlayer') {
+            const room = await getRoomState(roomCode);
+            if (!room || room.hostId !== session.userId) return NextResponse.json({ error: 'Host only' }, { status: 403 });
+            const state = await skipPlayer(roomCode);
+            return NextResponse.json({ state });
+        }
+        if (action === 'skipSet') {
+            const room = await getRoomState(roomCode);
+            if (!room || room.hostId !== session.userId) return NextResponse.json({ error: 'Host only' }, { status: 403 });
+            const state = await skipSet(roomCode);
+            return NextResponse.json({ state });
+        }
+        if (action === 'endAuction') {
+            const room = await getRoomState(roomCode);
+            if (!room || room.hostId !== session.userId) return NextResponse.json({ error: 'Host only' }, { status: 403 });
+            const state = await endAuction(roomCode);
             return NextResponse.json({ state });
         }
 

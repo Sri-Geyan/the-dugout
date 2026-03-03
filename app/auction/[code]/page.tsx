@@ -24,10 +24,11 @@ interface AuctionState {
     currentBid: number;
     currentBidder: { userId: string; username: string; teamName: string } | null;
     timerEnd: number | null;
-    teams: { userId: string; username: string; teamName: string; teamId?: string; purse: number; squad: { player: { name: string }; soldPrice: number }[] }[];
+    teams: { userId: string; username: string; teamName: string; teamId?: string; purse: number; squad: { player: { id: string; name: string }; soldPrice: number }[] }[];
     soldPlayers: { player: { name: string; role: string }; soldTo: { username: string; teamName: string }; soldPrice: number }[];
+    unsoldPlayers: any[];
     currentPlayerIndex: number;
-    remainingPlayers: unknown[];
+    remainingPlayers: any[];
     // Slot-based fields
     auctionSets: AuctionSetInfo[];
     currentSetIndex: number;
@@ -43,6 +44,9 @@ export default function AuctionPage() {
     const [auction, setAuction] = useState<AuctionState | null>(null);
     const [loading, setLoading] = useState(true);
     const [hostId, setHostId] = useState<string | null>(null);
+    const [isSquadsModalOpen, setIsSquadsModalOpen] = useState(false);
+    const [showSoldPopup, setShowSoldPopup] = useState(false);
+    const [lastSale, setLastSale] = useState<{ player: any; bid: number; team: string; status: string } | null>(null);
 
     const fetchAuction = useCallback(async () => {
         try {
@@ -55,6 +59,36 @@ export default function AuctionPage() {
             console.error('Failed to fetch auction:', err);
         }
     }, [code]);
+
+    // Effect to detect new sales
+    useEffect(() => {
+        if (auction?.status === 'sold' && auction.soldPlayers.length > 0) {
+            const latestSale = auction.soldPlayers[auction.soldPlayers.length - 1];
+            setLastSale({
+                player: latestSale.player,
+                bid: latestSale.soldPrice,
+                team: latestSale.soldTo.teamName,
+                status: 'sold',
+            });
+            setShowSoldPopup(true);
+            const timer = setTimeout(() => setShowSoldPopup(false), 4000);
+            return () => clearTimeout(timer);
+        } else if (auction?.status === 'unsold' && auction.unsoldPlayers?.length > 0) {
+            // Optional: Show popup for unsold too, but in red
+            const latestUnsold = auction.unsoldPlayers[auction.unsoldPlayers.length - 1];
+            setLastSale({
+                player: latestUnsold,
+                bid: 0,
+                team: 'Unsold',
+                status: 'unsold',
+            });
+            setShowSoldPopup(true);
+            const timer = setTimeout(() => setShowSoldPopup(false), 3000);
+            return () => clearTimeout(timer);
+        } else {
+            setShowSoldPopup(false);
+        }
+    }, [auction?.status, auction?.soldPlayers?.length, auction?.unsoldPlayers?.length]);
 
     useEffect(() => {
         const init = async () => {
@@ -132,6 +166,44 @@ export default function AuctionPage() {
         }
     };
 
+    const handleSkipPlayer = async () => {
+        try {
+            const res = await fetch('/api/auction', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'skipPlayer', roomCode: code }),
+            });
+            const data = await res.json();
+            if (data.state) setAuction(data.state);
+        } catch (err) { console.error(err); }
+    };
+
+    const handleSkipSet = async () => {
+        if (!confirm('Are you sure you want to skip the rest of this set?')) return;
+        try {
+            const res = await fetch('/api/auction', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'skipSet', roomCode: code }),
+            });
+            const data = await res.json();
+            if (data.state) setAuction(data.state);
+        } catch (err) { console.error(err); }
+    };
+
+    const handleEndAuction = async () => {
+        if (!confirm('Are you absolutely sure you want to stop the auction for everyone?')) return;
+        try {
+            const res = await fetch('/api/auction', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'endAuction', roomCode: code }),
+            });
+            const data = await res.json();
+            if (data.state) setAuction(data.state);
+        } catch (err) { console.error(err); }
+    };
+
     const isHost = hostId === userId;
     const userTeam = auction?.teams.find(t => t.userId === userId);
     const canBid = auction?.status === 'bidding' && auction?.currentBidder?.userId !== userId;
@@ -174,19 +246,48 @@ export default function AuctionPage() {
                             {auction && ` • Player ${auction.currentPlayerIndex} of ${auction.totalPlayers || 250}`}
                         </p>
                     </div>
-                    {auction?.status === 'completed' && isHost && (
+                    {auction?.status === 'completed' && (
                         <button
                             onClick={async () => {
-                                await fetch(`/api/rooms/${code}`, {
-                                    method: 'PATCH',
-                                    headers: { 'Content-Type': 'application/json' },
-                                    body: JSON.stringify({ status: 'match' }),
-                                });
-                                router.push(`/match/${code}`);
+                                try {
+                                    // Update room status to 'selection'
+                                    await fetch(`/api/rooms/${code}`, {
+                                        method: 'PATCH',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({ status: 'selection' }),
+                                    });
+
+                                    // Auto-select playing 11 for bot teams
+                                    const botTeams = auction.teams.filter(t => t.userId !== userId);
+                                    for (const bot of botTeams) {
+                                        const topPlayers = [...bot.squad]
+                                            .sort((a, b) => b.soldPrice - a.soldPrice)
+                                            .slice(0, 11)
+                                            .map(s => s.player.id);
+
+                                        if (topPlayers.length === 11) {
+                                            await fetch('/api/selection', {
+                                                method: 'POST',
+                                                headers: { 'Content-Type': 'application/json' },
+                                                body: JSON.stringify({
+                                                    roomCode: code,
+                                                    teamId: bot.userId,
+                                                    selectedIds: topPlayers,
+                                                }),
+                                            });
+                                        }
+                                    }
+
+                                    router.push(`/selection/${code}`);
+                                } catch (err) {
+                                    console.error('Failed to transition to selection:', err);
+                                    router.push(`/selection/${code}`);
+                                }
                             }}
                             className="btn-primary"
+                            style={{ animation: 'pulse 2s infinite' }}
                         >
-                            Start Matches →
+                            Select Playing 11 →
                         </button>
                     )}
                 </div>
@@ -261,6 +362,10 @@ export default function AuctionPage() {
                             isHost={isHost}
                             onNext={handleNext}
                             onSell={handleSell}
+                            onSkipPlayer={handleSkipPlayer}
+                            onSkipSet={handleSkipSet}
+                            onEndAuction={handleEndAuction}
+                            onViewTeams={() => setIsSquadsModalOpen(true)}
                         />
 
                         {/* Recent Sales */}
@@ -346,6 +451,109 @@ export default function AuctionPage() {
                     </div>
                 </div>
             </main>
+
+            {/* Custom Sold Popup Overlay */}
+            {showSoldPopup && lastSale && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none" style={{
+                    background: 'radial-gradient(circle at center, rgba(0,0,0,0.4) 0%, rgba(0,0,0,0.8) 100%)',
+                    backdropFilter: 'blur(4px)',
+                }}>
+                    <div className={`p-8 rounded-3xl text-center transform scale-110 pointer-events-auto transition-all animate-bounce-in`} style={{
+                        background: 'var(--color-bg-elevated)',
+                        border: `2px solid ${lastSale.status === 'sold' ? 'var(--color-success)' : 'var(--color-danger)'}`,
+                        boxShadow: `0 20px 40px -10px ${lastSale.status === 'sold' ? 'rgba(34, 197, 94, 0.3)' : 'rgba(239, 68, 68, 0.3)'}`,
+                    }}>
+                        <div className="text-6xl mb-4">
+                            {lastSale.status === 'sold' ? '🤝' : '❌'}
+                        </div>
+                        <h2 className="text-3xl font-black uppercase tracking-widest mb-2" style={{
+                            color: lastSale.status === 'sold' ? 'var(--color-success)' : 'var(--color-danger)',
+                        }}>
+                            {lastSale.status === 'sold' ? 'SOLD!' : 'UNSOLD'}
+                        </h2>
+                        <h3 className="text-2xl font-bold mb-4">{lastSale.player.name}</h3>
+
+                        {lastSale.status === 'sold' && (
+                            <div className="flex items-center justify-center gap-4 bg-black/40 py-3 px-6 rounded-xl border border-white/5">
+                                <div className="text-left">
+                                    <p className="text-xs uppercase tracking-wider text-white/50">Sold To</p>
+                                    <p className="text-xl font-bold">{lastSale.team}</p>
+                                </div>
+                                <div className="w-px h-10 bg-white/10" />
+                                <div className="text-right">
+                                    <p className="text-xs uppercase tracking-wider text-white/50">Price</p>
+                                    <p className="text-xl font-black gold-text">₹{lastSale.bid} Cr</p>
+                                </div>
+                            </div>
+                        )}
+                        <p className="text-xs mt-4 opacity-50">Resuming auction...</p>
+                    </div>
+                </div>
+            )}
+
+            {/* View Squads Modal */}
+            {isSquadsModalOpen && auction && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{
+                    background: 'rgba(0,0,0,0.8)',
+                    backdropFilter: 'blur(8px)',
+                }}>
+                    <div className="w-full max-w-4xl max-h-[85vh] flex flex-col rounded-2xl overflow-hidden" style={{
+                        background: 'var(--color-bg-primary)',
+                        border: '1px solid var(--color-border)',
+                    }}>
+                        <div className="p-4 border-b flex justify-between items-center" style={{ borderColor: 'var(--color-border)', background: 'var(--color-bg-elevated)' }}>
+                            <h2 className="text-xl font-bold">All Franchise Squads</h2>
+                            <button onClick={() => setIsSquadsModalOpen(false)} className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center">
+                                ✕
+                            </button>
+                        </div>
+                        <div className="flex-1 overflow-y-auto p-6 scrollbar-thin">
+                            <div className="grid md:grid-cols-2 gap-6">
+                                {auction.teams.map(team => {
+                                    const iplTeam = IPL_TEAMS.find(t => t.name === team.teamName || t.id === team.teamId);
+                                    const teamColor = iplTeam?.color || 'var(--color-gold)';
+                                    return (
+                                        <div key={team.userId} className="p-4 rounded-xl border" style={{ borderColor: `${teamColor}30`, background: `${teamColor}05` }}>
+                                            <div className="flex justify-between items-start mb-4">
+                                                <div className="flex items-center gap-3">
+                                                    {iplTeam && (
+                                                        <img src={iplTeam.logo} alt={iplTeam.shortName} className="w-10 h-10 object-contain" />
+                                                    )}
+                                                    <div>
+                                                        <h3 className="font-bold text-lg" style={{ color: teamColor }}>{iplTeam?.name || team.teamName}</h3>
+                                                        <p className="text-xs opacity-70">By {team.username}</p>
+                                                    </div>
+                                                </div>
+                                                <div className="text-right">
+                                                    <div className="font-black text-xl gold-text">₹{team.purse} Cr</div>
+                                                    <div className="text-xs opacity-70">Remaining</div>
+                                                </div>
+                                            </div>
+
+                                            <div className="space-y-1">
+                                                <div className="flex justify-between text-xs font-semibold mb-2 text-white/40 uppercase tracking-wider px-2">
+                                                    <span>Player ({team.squad.length}/25)</span>
+                                                    <span>Price</span>
+                                                </div>
+                                                {team.squad.length === 0 ? (
+                                                    <div className="text-center py-4 text-xs opacity-50 bg-black/20 rounded-lg">No players acquired yet</div>
+                                                ) : (
+                                                    team.squad.map((s, i) => (
+                                                        <div key={i} className="flex justify-between items-center text-sm py-1.5 px-3 rounded bg-black/40 border border-white/5">
+                                                            <span>{s.player.name}</span>
+                                                            <span className="font-semibold gold-text">₹{s.soldPrice}</span>
+                                                        </div>
+                                                    ))
+                                                )}
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

@@ -113,6 +113,8 @@ export default function DashboardPage() {
         const room = rooms.find(r => r.code === code);
         if (!room) return;
         if (room.status === 'auction') router.push(`/auction/${code}`);
+        else if (room.status === 'selection') router.push(`/selection/${code}`);
+        else if (room.status === 'league') router.push(`/league/${code}`);
         else if (room.status === 'match') router.push(`/match/${code}`);
         else router.push(`/room/${code}`);
     };

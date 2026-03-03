@@ -1,0 +1,398 @@
+import redis from './redis';
+
+// ======================================================
+// League State Interfaces
+// ======================================================
+
+export interface LeagueTeam {
+    userId: string;
+    username: string;
+    teamName: string;
+    teamId?: string;
+    squad: { player: { id: string; name: string; role: string; battingSkill: number; bowlingSkill: number; nationality?: string }; soldPrice: number }[];
+}
+
+export interface FixtureEntry {
+    id: string;
+    homeTeamUserId: string;
+    homeTeamName: string;
+    awayTeamUserId: string;
+    awayTeamName: string;
+    scheduledOrder: number;
+    status: 'pending' | 'pre_match' | 'live' | 'completed';
+    matchId?: string;
+    homeScore?: number;
+    homeWickets?: number;
+    homeOvers?: number;
+    awayScore?: number;
+    awayWickets?: number;
+    awayOvers?: number;
+    result?: string;
+}
+
+export interface TeamStanding {
+    userId: string;
+    teamName: string;
+    teamId?: string;
+    matches: number;
+    wins: number;
+    losses: number;
+    ties: number;
+    points: number;
+    nrr: number;
+    runsScored: number;
+    runsConceded: number;
+    oversFaced: number;   // in balls
+    oversBowled: number;  // in balls
+}
+
+export interface PlayerStats {
+    playerId: string;
+    playerName: string;
+    teamName: string;
+    teamId?: string;
+    matches: number;
+    runs: number;
+    balls: number;
+    fours: number;
+    sixes: number;
+    wickets: number;
+    oversBowled: number; // in balls
+    runsConceded: number;
+    catches: number;
+    impactScore: number;
+}
+
+export interface LeagueState {
+    roomCode: string;
+    status: 'active' | 'completed';
+    fixtures: FixtureEntry[];
+    standings: TeamStanding[];
+    playerStats: PlayerStats[];
+    currentMatchIndex: number;
+    totalMatches: number;
+    orangeCap: { playerId: string; playerName: string; teamName: string; runs: number } | null;
+    purpleCap: { playerId: string; playerName: string; teamName: string; wickets: number } | null;
+    mvp: { playerId: string; playerName: string; teamName: string; impactScore: number } | null;
+}
+
+// ======================================================
+// Fixture Generation — Round-Robin
+// ======================================================
+
+export function generateFixtures(teams: LeagueTeam[]): FixtureEntry[] {
+    const n = teams.length;
+    const fixtures: FixtureEntry[] = [];
+    let order = 1;
+
+    // Standard round-robin: each team plays every other team once
+    for (let i = 0; i < n; i++) {
+        for (let j = i + 1; j < n; j++) {
+            fixtures.push({
+                id: `fixture-${order}`,
+                homeTeamUserId: teams[i].userId,
+                homeTeamName: teams[i].teamName,
+                awayTeamUserId: teams[j].userId,
+                awayTeamName: teams[j].teamName,
+                scheduledOrder: order,
+                status: 'pending',
+            });
+            order++;
+        }
+    }
+
+    // Shuffle fixtures for variety (Fisher-Yates)
+    for (let i = fixtures.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [fixtures[i], fixtures[j]] = [fixtures[j], fixtures[i]];
+    }
+
+    // Re-assign order after shuffle
+    fixtures.forEach((f, idx) => {
+        f.scheduledOrder = idx + 1;
+        f.id = `fixture-${idx + 1}`;
+    });
+
+    return fixtures;
+}
+
+// ======================================================
+// League Initialization
+// ======================================================
+
+export function initLeagueState(roomCode: string, teams: LeagueTeam[]): LeagueState {
+    const fixtures = generateFixtures(teams);
+
+    const standings: TeamStanding[] = teams.map(t => ({
+        userId: t.userId,
+        teamName: t.teamName,
+        teamId: t.teamId,
+        matches: 0, wins: 0, losses: 0, ties: 0,
+        points: 0, nrr: 0,
+        runsScored: 0, runsConceded: 0,
+        oversFaced: 0, oversBowled: 0,
+    }));
+
+    return {
+        roomCode,
+        status: 'active',
+        fixtures,
+        standings,
+        playerStats: [],
+        currentMatchIndex: 0,
+        totalMatches: fixtures.length,
+        orangeCap: null,
+        purpleCap: null,
+        mvp: null,
+    };
+}
+
+// ======================================================
+// Standings Update after a match
+// ======================================================
+
+export interface MatchResult {
+    homeUserId: string;
+    awayUserId: string;
+    homeScore: number;
+    homeWickets: number;
+    homeOvers: number;  // decimal e.g. 18.3
+    homeBalls: number;
+    awayScore: number;
+    awayWickets: number;
+    awayOvers: number;
+    awayBalls: number;
+    result: string;
+    winnerUserId: string | null; // null = tie
+    battingStats: { playerId: string; playerName: string; teamName: string; teamId?: string; runs: number; balls: number; fours: number; sixes: number; isOut: boolean }[];
+    bowlingStats: { playerId: string; playerName: string; teamName: string; teamId?: string; overs: number; balls: number; runs: number; wickets: number }[];
+}
+
+export function updateStandings(state: LeagueState, matchResult: MatchResult): void {
+    const home = state.standings.find(s => s.userId === matchResult.homeUserId);
+    const away = state.standings.find(s => s.userId === matchResult.awayUserId);
+
+    if (!home || !away) return;
+
+    // Update matches count
+    home.matches++;
+    away.matches++;
+
+    // Calculate balls for NRR
+    const homeBallsFaced = oversToBalls(matchResult.homeOvers, matchResult.homeBalls);
+    const awayBallsFaced = oversToBalls(matchResult.awayOvers, matchResult.awayBalls);
+
+    // Home team batting first, away team chasing
+    home.runsScored += matchResult.homeScore;
+    home.oversFaced += homeBallsFaced;
+    home.runsConceded += matchResult.awayScore;
+    home.oversBowled += awayBallsFaced;
+
+    away.runsScored += matchResult.awayScore;
+    away.oversFaced += awayBallsFaced;
+    away.runsConceded += matchResult.homeScore;
+    away.oversBowled += homeBallsFaced;
+
+    // Win/loss/tie
+    if (matchResult.winnerUserId === matchResult.homeUserId) {
+        home.wins++;
+        home.points += 2;
+        away.losses++;
+    } else if (matchResult.winnerUserId === matchResult.awayUserId) {
+        away.wins++;
+        away.points += 2;
+        home.losses++;
+    } else {
+        // Tie
+        home.ties++;
+        away.ties++;
+        home.points += 1;
+        away.points += 1;
+    }
+
+    // Recalculate NRR for all teams
+    for (const team of state.standings) {
+        if (team.oversFaced > 0 && team.oversBowled > 0) {
+            const scoringRate = (team.runsScored / team.oversFaced) * 6;
+            const concedingRate = (team.runsConceded / team.oversBowled) * 6;
+            team.nrr = Math.round((scoringRate - concedingRate) * 1000) / 1000;
+        }
+    }
+
+    // Sort standings: points DESC, then NRR DESC
+    state.standings.sort((a, b) => {
+        if (b.points !== a.points) return b.points - a.points;
+        return b.nrr - a.nrr;
+    });
+}
+
+function oversToBalls(overs: number, extraBalls: number): number {
+    return Math.floor(overs) * 6 + extraBalls;
+}
+
+// ======================================================
+// Player Stats Accumulation
+// ======================================================
+
+export function updatePlayerStats(state: LeagueState, matchResult: MatchResult): void {
+    // Update batting stats
+    for (const bat of matchResult.battingStats) {
+        let ps = state.playerStats.find(p => p.playerId === bat.playerId);
+        if (!ps) {
+            ps = {
+                playerId: bat.playerId,
+                playerName: bat.playerName,
+                teamName: bat.teamName,
+                teamId: bat.teamId,
+                matches: 0, runs: 0, balls: 0, fours: 0, sixes: 0,
+                wickets: 0, oversBowled: 0, runsConceded: 0, catches: 0,
+                impactScore: 0,
+            };
+            state.playerStats.push(ps);
+        }
+        ps.runs += bat.runs;
+        ps.balls += bat.balls;
+        ps.fours += bat.fours;
+        ps.sixes += bat.sixes;
+    }
+
+    // Update bowling stats
+    for (const bowl of matchResult.bowlingStats) {
+        let ps = state.playerStats.find(p => p.playerId === bowl.playerId);
+        if (!ps) {
+            ps = {
+                playerId: bowl.playerId,
+                playerName: bowl.playerName,
+                teamName: bowl.teamName,
+                teamId: bowl.teamId,
+                matches: 0, runs: 0, balls: 0, fours: 0, sixes: 0,
+                wickets: 0, oversBowled: 0, runsConceded: 0, catches: 0,
+                impactScore: 0,
+            };
+            state.playerStats.push(ps);
+        }
+        ps.wickets += bowl.wickets;
+        ps.oversBowled += Math.floor(bowl.overs) * 6 + bowl.balls;
+        ps.runsConceded += bowl.runs;
+    }
+
+    // Mark matches played (deduplicate via unique players per match)
+    const matchPlayers = new Set([
+        ...matchResult.battingStats.map(b => b.playerId),
+        ...matchResult.bowlingStats.map(b => b.playerId),
+    ]);
+    for (const pid of matchPlayers) {
+        const ps = state.playerStats.find(p => p.playerId === pid);
+        if (ps) ps.matches++;
+    }
+
+    // Recalculate impact scores
+    for (const ps of state.playerStats) {
+        ps.impactScore = calculateImpact(ps);
+    }
+
+    // Update caps & MVP
+    updateCaps(state);
+}
+
+// ======================================================
+// Caps & MVP
+// ======================================================
+
+function calculateImpact(ps: PlayerStats): number {
+    const strikeRate = ps.balls > 0 ? (ps.runs / ps.balls) * 100 : 0;
+    const srModifier = strikeRate > 150 ? 1.3 : strikeRate > 130 ? 1.15 : strikeRate > 100 ? 1.0 : 0.85;
+    const battingImpact = ps.runs * srModifier;
+
+    const economy = ps.oversBowled > 0 ? (ps.runsConceded / ps.oversBowled) * 6 : 99;
+    const econModifier = economy < 6 ? 1.4 : economy < 7.5 ? 1.2 : economy < 9 ? 1.0 : 0.8;
+    const bowlingImpact = ps.wickets * 25 * econModifier;
+
+    return Math.round((battingImpact + bowlingImpact) * 100) / 100;
+}
+
+function updateCaps(state: LeagueState): void {
+    // Orange Cap: most runs
+    const topRunScorer = [...state.playerStats].sort((a, b) => b.runs - a.runs)[0];
+    if (topRunScorer && topRunScorer.runs > 0) {
+        state.orangeCap = {
+            playerId: topRunScorer.playerId,
+            playerName: topRunScorer.playerName,
+            teamName: topRunScorer.teamName,
+            runs: topRunScorer.runs,
+        };
+    }
+
+    // Purple Cap: most wickets
+    const topWicketTaker = [...state.playerStats].sort((a, b) => {
+        if (b.wickets !== a.wickets) return b.wickets - a.wickets;
+        // Tiebreak: better economy
+        const ecoA = a.oversBowled > 0 ? (a.runsConceded / a.oversBowled) * 6 : 99;
+        const ecoB = b.oversBowled > 0 ? (b.runsConceded / b.oversBowled) * 6 : 99;
+        return ecoA - ecoB;
+    })[0];
+    if (topWicketTaker && topWicketTaker.wickets > 0) {
+        state.purpleCap = {
+            playerId: topWicketTaker.playerId,
+            playerName: topWicketTaker.playerName,
+            teamName: topWicketTaker.teamName,
+            wickets: topWicketTaker.wickets,
+        };
+    }
+
+    // MVP: highest impact
+    const topMvp = [...state.playerStats].sort((a, b) => b.impactScore - a.impactScore)[0];
+    if (topMvp && topMvp.impactScore > 0) {
+        state.mvp = {
+            playerId: topMvp.playerId,
+            playerName: topMvp.playerName,
+            teamName: topMvp.teamName,
+            impactScore: topMvp.impactScore,
+        };
+    }
+}
+
+// ======================================================
+// Squad Validation
+// ======================================================
+
+export interface SquadValidationResult {
+    valid: boolean;
+    errors: { teamName: string; message: string }[];
+}
+
+export function validateSquads(teams: LeagueTeam[]): SquadValidationResult {
+    const errors: { teamName: string; message: string }[] = [];
+
+    for (const team of teams) {
+        if (team.squad.length > 25) {
+            errors.push({ teamName: team.teamName, message: `Squad exceeds 25 players (${team.squad.length})` });
+        }
+
+        const overseas = team.squad.filter(s => s.player.nationality === 'Overseas').length;
+        if (overseas > 8) {
+            errors.push({ teamName: team.teamName, message: `Too many overseas players (${overseas}/8 max)` });
+        }
+
+        const indian = team.squad.filter(s => s.player.nationality === 'Indian').length;
+        if (indian < 7) {
+            errors.push({ teamName: team.teamName, message: `Not enough Indian players (${indian}/7 min)` });
+        }
+    }
+
+    return { valid: errors.length === 0, errors };
+}
+
+// ======================================================
+// Persistence (Redis)
+// ======================================================
+
+export async function saveLeagueState(state: LeagueState): Promise<void> {
+    await redis.set(`league:${state.roomCode}`, JSON.stringify(state), 'EX', 86400 * 7);
+}
+
+export async function getLeagueState(roomCode: string): Promise<LeagueState | null> {
+    const raw = await redis.get(`league:${roomCode}`);
+    if (!raw) return null;
+    return JSON.parse(raw);
+}

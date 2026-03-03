@@ -9,6 +9,10 @@ interface ScoreCardProps {
     runRate: number;
     isCurrentBatting: boolean;
     target?: number | null;
+    runsRequired?: number;
+    ballsRemaining?: number;
+    requiredRunRate?: number;
+    showFullScorecard?: boolean;
 }
 
 export default function ScoreCard({
@@ -20,11 +24,15 @@ export default function ScoreCard({
     runRate,
     isCurrentBatting,
     target,
+    runsRequired,
+    ballsRemaining,
+    requiredRunRate,
+    showFullScorecard,
 }: ScoreCardProps) {
     const oversDisplay = `${overs}.${balls}`;
 
     return (
-        <div className={`rounded-xl p-5 transition-all duration-300 ${isCurrentBatting ? 'panel-gold' : 'panel'}`}>
+        <div className={`rounded-xl p-5 transition-all duration-300 ${isCurrentBatting ? 'panel-gold' : 'panel'} relative`}>
             <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
                     <div className="w-3 h-3 rounded-full" style={{

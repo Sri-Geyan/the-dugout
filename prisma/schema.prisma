@@ -27,17 +27,73 @@ model Room {
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
 
-  players        RoomPlayer[]
-  auctionResults AuctionResult[]
-  matches        Match[]
-  teams          Team[]
+  players           RoomPlayer[]
+  auctionResults    AuctionResult[]
+  matches           Match[]
+  teams             Team[]
+  fixtures          Fixture[]
+  playerLeagueStats PlayerLeagueStats[]
 }
 
 enum RoomStatus {
   WAITING
+  RETENTION
   AUCTION
+  SELECTION
+  LEAGUE
   MATCH
   COMPLETED
+}
+
+model Fixture {
+  id              String        @id @default(uuid())
+  roomId          String
+  homeTeamId      String
+  awayTeamId      String
+  matchId         String?
+  scheduledOrder  Int
+  status          FixtureStatus @default(PENDING)
+  homeScore       Int?
+  homeWickets     Int?
+  homeOvers       Float?
+  awayScore       Int?
+  awayWickets     Int?
+  awayOvers       Float?
+  result          String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  room     Room @relation(fields: [roomId], references: [id])
+
+  @@unique([roomId, scheduledOrder])
+}
+
+enum FixtureStatus {
+  PENDING
+  LIVE
+  COMPLETED
+}
+
+model PlayerLeagueStats {
+  id            String @id @default(uuid())
+  roomId        String
+  playerId      String
+  playerName    String
+  teamName      String
+  teamId        String
+  matches       Int    @default(0)
+  runs          Int    @default(0)
+  balls         Int    @default(0)
+  fours         Int    @default(0)
+  sixes         Int    @default(0)
+  wickets       Int    @default(0)
+  oversBowled   Float  @default(0)
+  runsConceded  Int    @default(0)
+  catches       Int    @default(0)
+
+  room Room @relation(fields: [roomId], references: [id])
+
+  @@unique([roomId, playerId])
 }
 
 model RoomPlayer {
@@ -118,6 +174,20 @@ model AuctionBid {
   createdAt DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id])
+}
+
+model Retention {
+  id         String   @id @default(uuid())
+  roomId     String
+  teamId     String   // userId of the team owner
+  playerId   String   // matched id from IPL_PLAYERS
+  playerName String
+  slot       Int      // 1, 2, 3, or 4
+  cost       Float    // 16 | 12 | 8 | 6 Cr
+  createdAt  DateTime @default(now())
+
+  @@unique([roomId, playerId])
+  @@unique([roomId, teamId, slot])
 }
 
 model Match {

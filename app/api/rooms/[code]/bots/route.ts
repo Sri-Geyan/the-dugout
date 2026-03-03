@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import prisma from '@/lib/prisma';
-import { joinRoom, getRoomState } from '@/lib/roomManager';
+import { joinRoom, getRoomState, fillRoomWithBots } from '@/lib/roomManager';
 import redis from '@/lib/redis';
 import { v4 as uuidv4 } from 'uuid';
 import { IPL_TEAMS } from '@/data/teams';
@@ -49,50 +49,7 @@ export async function POST(
             return NextResponse.json({ error: 'Room is full' }, { status: 400 });
         }
 
-        const addedBots: { username: string; teamName: string }[] = [];
-        const existingNames = room.players.map(p => p.username);
-        const takenTeamIds = room.players.filter(p => p.teamId).map(p => p.teamId);
-
-        for (let i = 0; i < count; i++) {
-            // Pick a bot profile not already in the room and with available team
-            const available = BOT_PROFILES.filter(
-                b => !existingNames.includes(b.username) && !takenTeamIds.includes(b.teamId)
-            );
-            if (available.length === 0) break;
-
-            const bot = available[i % available.length];
-            const team = IPL_TEAMS.find(t => t.id === bot.teamId)!;
-            const botId = uuidv4();
-
-            // Create bot user in database
-            await prisma.user.upsert({
-                where: { username: bot.username },
-                update: {},
-                create: {
-                    id: botId,
-                    username: bot.username,
-                },
-            });
-
-            const botUser = await prisma.user.findUnique({ where: { username: bot.username } });
-            if (!botUser) continue;
-
-            // Join the room
-            const updatedRoom = await joinRoom(code, botUser.id, bot.username);
-            if (updatedRoom) {
-                const player = updatedRoom.players.find(p => p.userId === botUser.id);
-                if (player) {
-                    player.teamName = team.name;
-                    player.teamId = team.id;
-                }
-
-                await redis.set(`room:${code}`, JSON.stringify(updatedRoom), 'EX', 86400);
-                existingNames.push(bot.username);
-                takenTeamIds.push(bot.teamId);
-                addedBots.push({ username: bot.username, teamName: team.name });
-            }
-        }
-
+        const addedBots = await fillRoomWithBots(code, count);
         const finalState = await getRoomState(code);
         return NextResponse.json({ room: finalState, addedBots });
     } catch (error) {

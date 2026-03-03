@@ -21,6 +21,9 @@ export interface MatchState {
     result: string | null;
     matchPhase: 'powerplay' | 'middle' | 'death';
     freeHit: boolean;
+    runsRequired?: number;
+    ballsRemaining?: number;
+    requiredRunRate?: number;
 }
 
 export interface MatchTeam {
@@ -295,6 +298,9 @@ export function initMatchState(
         result: null,
         matchPhase: 'powerplay',
         freeHit: false,
+        runsRequired: 0,
+        ballsRemaining: TOTAL_OVERS * 6,
+        requiredRunRate: 0,
     };
 }
 

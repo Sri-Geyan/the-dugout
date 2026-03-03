@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { initMatchState, processNextBall, saveMatchState, getMatchState } from '@/lib/matchEngine';
 import { v4 as uuidv4 } from 'uuid';
+import { getLeagueState } from '@/lib/leagueEngine';
+import { getAuctionState } from '@/lib/auctionEngine';
+import redis from '@/lib/redis';
 
 function getSession(request: NextRequest) {
     const sessionCookie = request.cookies.get('session');
@@ -13,11 +16,72 @@ export async function POST(request: NextRequest) {
     if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
 
     try {
-        const { action, matchId, roomCode, homeTeam, awayTeam, pitchType } = await request.json();
+        const body = await request.json();
+        const { action, matchId, roomCode, homeTeam, awayTeam, pitchType } = body;
 
         if (action === 'init') {
+            const { fixtureId, roomCode: bodyRoomCode, pitchType: bodyPitchType } = body;
+            const rCode = roomCode || bodyRoomCode;
             const id = matchId || uuidv4();
-            const state = initMatchState(id, roomCode, homeTeam, awayTeam, pitchType || 'BALANCED');
+
+            let hTeam = homeTeam;
+            let aTeam = awayTeam;
+
+            if (fixtureId && rCode) {
+                const leagueState = await getLeagueState(rCode);
+                const fixture = leagueState?.fixtures.find(f => f.id === fixtureId);
+
+                if (fixture) {
+                    const auctionState = await getAuctionState(rCode);
+                    const teams = auctionState?.teams || [];
+
+                    const homeLeagueTeam = teams.find(t => t.userId === fixture.homeTeamUserId);
+                    const awayLeagueTeam = teams.find(t => t.userId === fixture.awayTeamUserId);
+
+                    if (homeLeagueTeam && awayLeagueTeam) {
+                        const getPreMatchSelection = async (uId: string) => {
+                            const data = await redis.get(`selection:${rCode}:${fixtureId}:${uId}`);
+                            return data ? JSON.parse(data) : null;
+                        };
+
+                        const homeSelectedIds = await getPreMatchSelection(fixture.homeTeamUserId);
+                        const awaySelectedIds = await getPreMatchSelection(fixture.awayTeamUserId);
+
+                        const mapToMatchTeam = (leagueTeam: any, selectedIds: string[] | null) => {
+                            let playingSquad = leagueTeam.squad;
+
+                            if (selectedIds && selectedIds.length === 11) {
+                                playingSquad = leagueTeam.squad.filter((s: any) => selectedIds.includes(s.player.id));
+                            } else {
+                                playingSquad = [...leagueTeam.squad].sort((a: any, b: any) => b.soldPrice - a.soldPrice).slice(0, 11);
+                            }
+
+                            return {
+                                teamId: leagueTeam.userId,
+                                name: leagueTeam.teamName,
+                                userId: leagueTeam.userId,
+                                score: 0, wickets: 0, overs: 0, balls: 0, extras: 0, runRate: 0,
+                                players: playingSquad.map((s: any) => ({
+                                    id: s.player.id,
+                                    name: s.player.name,
+                                    role: s.player.role,
+                                    battingSkill: s.player.battingSkill,
+                                    bowlingSkill: s.player.bowlingSkill,
+                                }))
+                            };
+                        };
+
+                        hTeam = mapToMatchTeam(homeLeagueTeam, homeSelectedIds);
+                        aTeam = mapToMatchTeam(awayLeagueTeam, awaySelectedIds);
+                    }
+                }
+            }
+
+            if (!hTeam || !aTeam) {
+                return NextResponse.json({ error: 'Missing team data for initialization' }, { status: 400 });
+            }
+
+            const state = initMatchState(id, rCode, hTeam, aTeam, bodyPitchType || 'BALANCED');
             await saveMatchState(state);
             return NextResponse.json({ state });
         }

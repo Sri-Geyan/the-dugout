@@ -19,8 +19,8 @@ export interface AuctionSet {
  * Organize 250 players into IPL-style auction sets
  * Order: Marquee → Capped Indian (by role) → Overseas (by role) → Uncapped → Accelerated
  */
-function buildAuctionSets(): AuctionSet[] {
-    const all = [...IPL_PLAYERS];
+function buildAuctionSets(excludeIds: Set<string> = new Set()): AuctionSet[] {
+    const all = [...IPL_PLAYERS].filter(p => !excludeIds.has(p.id));
     const used = new Set<string>();
 
     const pick = (filter: (p: CricketPlayer) => boolean, sort?: (a: CricketPlayer, b: CricketPlayer) => number): CricketPlayer[] => {
@@ -177,8 +177,13 @@ const MAX_SQUAD_SIZE = 25;
 const BID_INCREMENT = 0.25;
 const BID_TIMER_SECONDS = 15;
 
-export async function initAuction(roomCode: string, players: { userId: string; username: string; teamName: string }[]): Promise<AuctionState> {
-    const auctionSets = buildAuctionSets();
+export async function initAuction(
+    roomCode: string,
+    players: { userId: string; username: string; teamName: string; startingPurse?: number }[],
+    excludePlayerIds: string[] = []
+): Promise<AuctionState> {
+    const excludeIds = new Set(excludePlayerIds);
+    const auctionSets = buildAuctionSets(excludeIds);
 
     // Flatten all players from sets to get remaining players for the first set
     const allPlayersFlat: CricketPlayer[] = [];
@@ -188,8 +193,8 @@ export async function initAuction(roomCode: string, players: { userId: string; u
         userId: p.userId,
         username: p.username,
         teamName: p.teamName,
-        purse: INITIAL_PURSE,
-        maxPurse: INITIAL_PURSE,
+        purse: p.startingPurse ?? INITIAL_PURSE,
+        maxPurse: p.startingPurse ?? INITIAL_PURSE,
         squad: [],
         maxSquadSize: MAX_SQUAD_SIZE,
     }));
@@ -329,6 +334,48 @@ export async function sellCurrentPlayer(roomCode: string): Promise<AuctionState 
     }
 
     state.timerEnd = null;
+    await saveAuctionState(roomCode, state);
+    return state;
+}
+
+export async function skipPlayer(roomCode: string): Promise<AuctionState | null> {
+    const state = await getAuctionState(roomCode);
+    if (!state || !state.currentPlayer) return null;
+
+    state.unsoldPlayers.push(state.currentPlayer);
+    state.status = 'unsold';
+    state.timerEnd = null;
+
+    await saveAuctionState(roomCode, state);
+    return state;
+}
+
+export async function skipSet(roomCode: string): Promise<AuctionState | null> {
+    const state = await getAuctionState(roomCode);
+    if (!state) return null;
+
+    if (state.currentPlayer && state.status === 'bidding') {
+        state.unsoldPlayers.push(state.currentPlayer);
+    }
+    for (const p of state.remainingPlayers) {
+        state.unsoldPlayers.push(p);
+    }
+    state.remainingPlayers = [];
+    state.currentPlayer = null;
+    state.status = 'idle';
+    state.timerEnd = null;
+
+    await saveAuctionState(roomCode, state);
+    return state;
+}
+
+export async function endAuction(roomCode: string): Promise<AuctionState | null> {
+    const state = await getAuctionState(roomCode);
+    if (!state) return null;
+
+    state.status = 'completed';
+    state.timerEnd = null;
+
     await saveAuctionState(roomCode, state);
     return state;
 }

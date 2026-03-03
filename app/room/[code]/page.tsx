@@ -57,6 +57,7 @@ export default function RoomPage() {
             if (res.ok) {
                 const data = await res.json();
                 setRoom(data.room);
+                if (data.room.status === 'retention') router.push(`/retention/${code}`);
                 if (data.room.status === 'auction') router.push(`/auction/${code}`);
                 if (data.room.status === 'match') router.push(`/match/${code}`);
             }
@@ -64,6 +65,22 @@ export default function RoomPage() {
             console.error('Failed to fetch room:', err);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const startRetention = async () => {
+        setStarting(true);
+        try {
+            await fetch('/api/retention', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'init', roomCode: code }),
+            });
+            router.push(`/retention/${code}`);
+        } catch (err) {
+            console.error('Failed to start retention:', err);
+        } finally {
+            setStarting(false);
         }
     };
 
@@ -238,7 +255,7 @@ export default function RoomPage() {
                     <div className="panel-gold text-center">
                         <h3 className="text-sm font-semibold mb-2">Host Controls</h3>
                         <p className="text-xs mb-4" style={{ color: 'var(--color-text-secondary)' }}>
-                            Start the auction when all players have joined. Minimum 2 players required.
+                            Start the retention phase first, then proceed to auction. Minimum 2 players required.
                         </p>
                         <div className="flex items-center justify-center gap-3 flex-wrap">
                             <button
@@ -249,12 +266,21 @@ export default function RoomPage() {
                                 {addingBots ? 'Adding...' : '🤖 Add 2 Bot Players'}
                             </button>
                             <button
-                                id="start-auction-btn"
-                                onClick={startAuction}
+                                id="start-retention-btn"
+                                onClick={startRetention}
                                 disabled={starting || room.players.length < 2}
                                 className="btn-primary px-8 py-3"
                             >
-                                {starting ? 'Starting...' : `Start Auction (${room.players.length} players)`}
+                                {starting ? 'Starting...' : `🏏 Start Retention Phase (${room.players.length} players)`}
+                            </button>
+                            <button
+                                id="skip-retention-btn"
+                                onClick={startAuction}
+                                disabled={starting || room.players.length < 2}
+                                className="btn-secondary px-6 py-3 text-xs opacity-60"
+                                title="Skip retention and go straight to the Mega Auction"
+                            >
+                                Skip → Auction
                             </button>
                         </div>
                     </div>

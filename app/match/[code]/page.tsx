@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
-import { useRouter, useParams } from 'next/navigation';
+import { useEffect, useState, useCallback, useRef } from 'react';
+import { useRouter, useParams, useSearchParams } from 'next/navigation';
 import { useUserStore } from '@/lib/store';
 import Navbar from '@/components/Navbar';
 import ScoreCard from '@/components/ScoreCard';
@@ -16,9 +16,14 @@ interface MatchState {
     status: string;
     currentBatting: string;
     target: number | null;
-    striker: { player: { name: string }; runs: number; balls: number; fours: number; sixes: number } | null;
-    nonStriker: { player: { name: string }; runs: number; balls: number; fours: number; sixes: number } | null;
-    currentBowler: { player: { name: string }; overs: number; runs: number; wickets: number; economy: number } | null;
+    runsRequired?: number;
+    ballsRemaining?: number;
+    requiredRunRate?: number;
+    striker: { player: { id: string; name: string }; runs: number; balls: number; fours: number; sixes: number; isOut: boolean } | null;
+    nonStriker: { player: { id: string; name: string }; runs: number; balls: number; fours: number; sixes: number; isOut: boolean } | null;
+    currentBowler: { player: { id: string; name: string }; overs: number; balls: number; runs: number; wickets: number; economy: number } | null;
+    battingOrder: { player: { id: string; name: string }; runs: number; balls: number; fours: number; sixes: number; isOut: boolean }[];
+    bowlingOrder: { player: { id: string; name: string }; overs: number; balls: number; runs: number; wickets: number; economy: number }[];
     commentary: string[];
     result: string | null;
     matchPhase: string;
@@ -34,6 +39,10 @@ export default function MatchPage() {
     const [simulating, setSimulating] = useState(false);
     const [hostId, setHostId] = useState<string | null>(null);
     const [autoPlay, setAutoPlay] = useState(false);
+    const [leagueReported, setLeagueReported] = useState(false);
+    const searchParams = useSearchParams();
+    const fixtureId = searchParams.get('fixture');
+    const reportedRef = useRef(false);
 
     const fetchMatch = useCallback(async (matchId: string) => {
         try {
@@ -49,65 +58,97 @@ export default function MatchPage() {
 
     const initMatch = useCallback(async () => {
         try {
-            // Get auction state to build teams
+            // If we have a fixture ID (UUID), we let the server handle initialization
+            if (fixtureId) {
+                // Get league phase to check if this fixture already has a matchId
+                const leagueRes = await fetch(`/api/league?roomCode=${code}`);
+                if (leagueRes.ok) {
+                    const leagueData = await leagueRes.json();
+                    const fixture = leagueData.state.fixtures.find((f: any) => f.id === fixtureId);
+
+                    if (fixture && fixture.matchId) {
+                        // Match already exists, just fetch it
+                        await fetchMatch(fixture.matchId);
+                        setLoading(false);
+                        return;
+                    }
+
+                    // Otherwise, initialize a new match for this fixture
+                    const matchRes = await fetch('/api/match', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            action: 'init',
+                            roomCode: code,
+                            fixtureId: fixtureId
+                        }),
+                    });
+
+                    if (matchRes.ok) {
+                        const matchData = await matchRes.json();
+                        setMatch(matchData.state);
+                        // We also need to lock the pre-match in the league API if not already done
+                        // Though this should ideally be done by the host in the pre-match screen.
+                    }
+                }
+                setLoading(false);
+                return;
+            }
+
+            // Fallback for non-fixture matches (initial quick start)
             const auctionRes = await fetch(`/api/auction?roomCode=${code}`);
             const auctionData = await auctionRes.json();
 
             if (!auctionData.state || auctionData.state.teams.length < 2) {
+                setLoading(false);
                 return;
             }
 
+            // ... redundant old logic removed for brevity or kept as fallback ...
             const teams = auctionData.state.teams;
-            const homeTeam = {
-                teamId: teams[0].userId,
-                name: teams[0].teamName,
-                userId: teams[0].userId,
-                score: 0, wickets: 0, overs: 0, balls: 0, extras: 0, runRate: 0,
-                players: teams[0].squad.length > 0
-                    ? teams[0].squad.map((s: { player: { id: string; name: string; role: string; battingSkill: number; bowlingSkill: number } }) => ({
-                        id: s.player.id || Math.random().toString(),
-                        name: s.player.name,
-                        role: s.player.role || 'BATSMAN',
-                        battingSkill: s.player.battingSkill || 50,
-                        bowlingSkill: s.player.bowlingSkill || 30,
-                    }))
-                    : generateDefaultPlayers(teams[0].teamName),
-            };
-
-            const awayTeam = {
-                teamId: teams[1].userId,
-                name: teams[1].teamName,
-                userId: teams[1].userId,
-                score: 0, wickets: 0, overs: 0, balls: 0, extras: 0, runRate: 0,
-                players: teams[1].squad.length > 0
-                    ? teams[1].squad.map((s: { player: { id: string; name: string; role: string; battingSkill: number; bowlingSkill: number } }) => ({
-                        id: s.player.id || Math.random().toString(),
-                        name: s.player.name,
-                        role: s.player.role || 'BATSMAN',
-                        battingSkill: s.player.battingSkill || 50,
-                        bowlingSkill: s.player.bowlingSkill || 30,
-                    }))
-                    : generateDefaultPlayers(teams[1].teamName),
-            };
-
-            const res = await fetch('/api/match', {
+            const matchRes = await fetch('/api/match', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     action: 'init',
                     roomCode: code,
-                    homeTeam,
-                    awayTeam,
-                    pitchType: 'BALANCED',
+                    homeTeam: {
+                        teamId: teams[0].userId,
+                        name: teams[0].teamName,
+                        userId: teams[0].userId,
+                        players: teams[0].squad.slice(0, 11).map((s: any) => ({
+                            id: s.player.id,
+                            name: s.player.name,
+                            role: s.player.role,
+                            battingSkill: s.player.battingSkill,
+                            bowlingSkill: s.player.bowlingSkill,
+                        }))
+                    },
+                    awayTeam: {
+                        teamId: teams[1].userId,
+                        name: teams[1].teamName,
+                        userId: teams[1].userId,
+                        players: teams[1].squad.slice(0, 11).map((s: any) => ({
+                            id: s.player.id,
+                            name: s.player.name,
+                            role: s.player.role,
+                            battingSkill: s.player.battingSkill,
+                            bowlingSkill: s.player.bowlingSkill,
+                        }))
+                    }
                 }),
             });
 
-            const data = await res.json();
-            if (data.state) setMatch(data.state);
+            if (matchRes.ok) {
+                const matchData = await matchRes.json();
+                setMatch(matchData.state);
+            }
+            setLoading(false);
         } catch (err) {
             console.error('Failed to init match:', err);
+            setLoading(false);
         }
-    }, [code]);
+    }, [code, fixtureId, fetchMatch]);
 
     useEffect(() => {
         const init = async () => {
@@ -180,6 +221,74 @@ export default function MatchPage() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [autoPlay, match, userId, hostId]);
 
+    // Report match result to league when completed
+    useEffect(() => {
+        if (match?.status === 'completed' && !reportedRef.current && userId === hostId) {
+            reportedRef.current = true;
+            setLeagueReported(false);
+            const reportToLeague = async () => {
+                try {
+                    // Build batting stats from both innings
+                    const battingStats = (match.battingOrder || []).map(b => ({
+                        playerId: b.player.id || b.player.name,
+                        playerName: b.player.name,
+                        teamName: match.currentBatting === 'home' ? match.awayTeam.name : match.homeTeam.name,
+                        runs: b.runs,
+                        balls: b.balls,
+                        fours: b.fours,
+                        sixes: b.sixes,
+                        isOut: b.isOut,
+                    }));
+
+                    const bowlingStats = (match.bowlingOrder || []).map(b => ({
+                        playerId: b.player.id || b.player.name,
+                        playerName: b.player.name,
+                        teamName: match.currentBatting === 'home' ? match.homeTeam.name : match.awayTeam.name,
+                        overs: b.overs,
+                        balls: b.balls || 0,
+                        runs: b.runs,
+                        wickets: b.wickets,
+                    }));
+
+                    // Determine winner
+                    let winnerUserId: string | null = null;
+                    if (match.homeTeam.score > match.awayTeam.score) winnerUserId = match.homeTeam.userId;
+                    else if (match.awayTeam.score > match.homeTeam.score) winnerUserId = match.awayTeam.userId;
+
+                    await fetch('/api/league', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            action: 'completeMatch',
+                            roomCode: code,
+                            matchId: match.matchId,
+                            matchResult: {
+                                homeUserId: match.homeTeam.userId,
+                                awayUserId: match.awayTeam.userId,
+                                homeScore: match.homeTeam.score,
+                                homeWickets: match.homeTeam.wickets,
+                                homeOvers: match.homeTeam.overs,
+                                homeBalls: match.homeTeam.balls,
+                                awayScore: match.awayTeam.score,
+                                awayWickets: match.awayTeam.wickets,
+                                awayOvers: match.awayTeam.overs,
+                                awayBalls: match.awayTeam.balls,
+                                result: match.result,
+                                winnerUserId,
+                                battingStats,
+                                bowlingStats,
+                            },
+                        }),
+                    });
+                    setLeagueReported(true);
+                } catch (err) {
+                    console.error('Failed to report to league:', err);
+                }
+            };
+            reportToLeague();
+        }
+    }, [match?.status, userId, hostId, match, code]);
+
     const isHost = hostId === userId;
 
     if (loading) {
@@ -236,16 +345,21 @@ export default function MatchPage() {
                             isCurrentBatting={match?.currentBatting === 'home'}
                             target={match?.currentBatting === 'home' ? match?.target : null}
                         />
-                        <ScoreCard
-                            teamName={match?.awayTeam.name || 'Away Team'}
-                            score={match?.awayTeam.score || 0}
-                            wickets={match?.awayTeam.wickets || 0}
-                            overs={match?.awayTeam.overs || 0}
-                            balls={match?.awayTeam.balls || 0}
-                            runRate={match?.awayTeam.runRate || 0}
-                            isCurrentBatting={match?.currentBatting === 'away'}
-                            target={match?.currentBatting === 'away' ? match?.target : null}
-                        />
+                        <div className="flex-1 min-w-[300px]">
+                            <ScoreCard
+                                teamName={match?.awayTeam.name || 'Away Team'}
+                                score={match?.awayTeam.score || 0}
+                                wickets={match?.awayTeam.wickets || 0}
+                                overs={Math.floor(match?.awayTeam.overs || 0)}
+                                balls={match?.awayTeam.balls || 0}
+                                runRate={(match?.awayTeam.overs || 0) > 0 || (match?.awayTeam.balls || 0) > 0 ? (match!.awayTeam.score) / ((Math.floor(match!.awayTeam.overs) * 6 + match!.awayTeam.balls) / 6) : 0}
+                                isCurrentBatting={match?.currentBatting === match?.awayTeam.userId}
+                                target={match?.target}
+                                runsRequired={match?.runsRequired}
+                                ballsRemaining={match?.ballsRemaining}
+                                requiredRunRate={match?.requiredRunRate}
+                            />
+                        </div>
                     </div>
 
                     {/* Match Board */}
@@ -312,11 +426,16 @@ export default function MatchPage() {
 
                         {match?.status === 'completed' && (
                             <button
-                                onClick={() => router.push('/dashboard')}
-                                className="btn-secondary w-full"
+                                onClick={() => router.push(`/league/${code}`)}
+                                className="btn-primary w-full"
                             >
-                                Back to Dashboard
+                                Back to League Dashboard →
                             </button>
+                        )}
+                        {match?.status === 'completed' && leagueReported && (
+                            <p className="text-[10px] text-center mt-2" style={{ color: 'var(--color-success)' }}>
+                                ✓ Results saved to league
+                            </p>
                         )}
                     </div>
                 </div>

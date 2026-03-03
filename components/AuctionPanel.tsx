@@ -22,6 +22,10 @@ interface AuctionPanelProps {
     isHost: boolean;
     onNext: () => void;
     onSell: () => void;
+    onSkipPlayer?: () => void;
+    onSkipSet?: () => void;
+    onEndAuction?: () => void;
+    onViewTeams?: () => void;
 }
 
 export default function AuctionPanel({
@@ -36,6 +40,10 @@ export default function AuctionPanel({
     isHost,
     onNext,
     onSell,
+    onSkipPlayer,
+    onSkipSet,
+    onEndAuction,
+    onViewTeams,
 }: AuctionPanelProps) {
     const [timeLeft, setTimeLeft] = useState(0);
     const BID_INCREMENT = 0.25;
@@ -124,9 +132,24 @@ export default function AuctionPanel({
 
     return (
         <div className="panel-elevated">
-            {/* Timer */}
+            {/* Top Bar: Timer & View Teams */}
             <div className="flex items-center justify-between mb-6">
-                <span className="badge badge-gold">LIVE BIDDING</span>
+                <div className="flex items-center gap-3">
+                    <span className="badge badge-gold">LIVE BIDDING</span>
+                    {onViewTeams && (
+                        <button
+                            onClick={onViewTeams}
+                            className="text-[11px] font-bold px-3 py-1.5 rounded-lg border flex items-center gap-1 transition-all"
+                            style={{
+                                borderColor: 'var(--color-border)',
+                                background: 'var(--color-bg-primary)',
+                                color: 'var(--color-text-secondary)',
+                            }}
+                        >
+                            📊 View Teams
+                        </button>
+                    )}
+                </div>
                 <div className="flex items-center gap-2">
                     <div className={`w-10 h-10 rounded-full flex items-center justify-center text-lg font-bold ${timeLeft <= 5 ? 'animate-pulse' : ''
                         }`} style={{
@@ -260,6 +283,36 @@ export default function AuctionPanel({
                     </p>
                     <button onClick={onNext} className="btn-primary px-6 py-2">
                         Next Player →
+                    </button>
+                </div>
+            )}
+
+            {/* Host Overrides (Danger Zone) */}
+            {isHost && (
+                <div className="mt-6 pt-4 border-t flex flex-wrap gap-2 justify-center" style={{ borderColor: 'var(--color-border)' }}>
+                    <button
+                        onClick={onSkipPlayer}
+                        className="text-[10px] px-3 py-1.5 rounded-lg border font-semibold transition-all hover:bg-red-500/10"
+                        style={{ color: 'var(--color-text-muted)', borderColor: 'var(--color-border)' }}
+                        title="Mark player as unsold immediately"
+                    >
+                        ⏭ Skip Player
+                    </button>
+                    <button
+                        onClick={onSkipSet}
+                        className="text-[10px] px-3 py-1.5 rounded-lg border font-semibold transition-all hover:bg-red-500/10"
+                        style={{ color: 'var(--color-text-muted)', borderColor: 'var(--color-border)' }}
+                        title="Mark rest of set as unsold and jump to next set"
+                    >
+                        ⏭ Skip Entire Set
+                    </button>
+                    <button
+                        onClick={onEndAuction}
+                        className="text-[10px] px-3 py-1.5 rounded-lg border font-semibold transition-all hover:bg-red-500/20"
+                        style={{ color: '#EF5350', borderColor: 'rgba(239, 83, 80, 0.3)' }}
+                        title="Finish the auction for everyone immediately"
+                    >
+                        ⏹ End Auction Early
                     </button>
                 </div>
             )}

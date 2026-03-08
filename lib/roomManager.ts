@@ -1,156 +1,149 @@
-import redis from './redis';
 import prisma from './prisma';
+import redis from './redis';
 import { v4 as uuidv4 } from 'uuid';
 
-function generateRoomCode(): string {
-    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-    let code = '';
-    for (let i = 0; i < 6; i++) {
-        code += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    return code;
+export interface PlayerState {
+    userId: string;
+    username: string;
+    teamId?: string;
+    teamName?: string;
 }
 
 export interface RoomState {
+    id: string;
     code: string;
     hostId: string;
-    status: 'waiting' | 'retention' | 'auction' | 'selection' | 'league' | 'match' | 'completed';
-    players: { userId: string; username: string; teamName?: string; teamId?: string }[];
+    status: string;
     maxPlayers: number;
+    players: PlayerState[];
     createdAt: string;
 }
 
-export async function createRoom(hostId: string, hostUsername: string): Promise<RoomState> {
-    const code = generateRoomCode();
+export async function createRoom(hostId: string, username: string, maxPlayers: number = 10): Promise<RoomState> {
+    const code = Math.random().toString(36).substring(2, 8).toUpperCase();
 
-    const room = await prisma.room.create({
+    // Create in Postgres
+    const dbRoom = await prisma.room.create({
         data: {
-            id: uuidv4(),
             code,
             hostId,
-            status: 'WAITING',
-            maxPlayers: 10,
-        },
-    });
-
-    await prisma.roomPlayer.create({
-        data: {
-            userId: hostId,
-            roomId: room.id,
-        },
+            maxPlayers,
+            players: {
+                create: { userId: hostId }
+            }
+        }
     });
 
     const state: RoomState = {
+        id: dbRoom.id,
         code,
         hostId,
-        status: 'waiting',
-        players: [{ userId: hostId, username: hostUsername }],
-        maxPlayers: 10,
-        createdAt: new Date().toISOString(),
+        status: 'WAITING',
+        maxPlayers,
+        players: [{ userId: hostId, username }],
+        createdAt: new Date().toISOString()
     };
 
-    await redis.set(`room:${code}`, JSON.stringify(state), 'EX', 86400);
+    // Save initial state to Redis
+    await redis.set(`room:${code}`, JSON.stringify(state), 'EX', 86400); // 24h
     return state;
 }
 
 export async function joinRoom(code: string, userId: string, username: string): Promise<RoomState | null> {
-    const raw = await redis.get(`room:${code}`);
-    if (!raw) {
-        const dbRoom = await prisma.room.findUnique({ where: { code }, include: { players: true } });
-        if (!dbRoom) return null;
-    }
-
-    const state: RoomState = raw ? JSON.parse(raw) : null;
+    const state = await getRoomState(code);
     if (!state) return null;
 
-    if (state.status !== 'waiting') {
-        throw new Error('Room is not accepting new players');
-    }
-
-    if (state.players.length >= state.maxPlayers) {
-        throw new Error('Room is full');
-    }
-
-    if (state.players.find(p => p.userId === userId)) {
-        return state;
-    }
-
-    const dbRoom = await prisma.room.findUnique({ where: { code } });
-    if (!dbRoom) return null;
-
-    await prisma.roomPlayer.create({
-        data: { userId, roomId: dbRoom.id },
-    });
+    if (state.players.length >= state.maxPlayers) return null;
+    if (state.players.find(p => p.userId === userId)) return state;
 
     state.players.push({ userId, username });
+
+    // Update Redis
     await redis.set(`room:${code}`, JSON.stringify(state), 'EX', 86400);
+
+    // Sync to DB
+    await prisma.roomPlayer.create({
+        data: {
+            userId,
+            roomId: state.id
+        }
+    });
+
     return state;
 }
 
 export async function getRoomState(code: string): Promise<RoomState | null> {
-    const raw = await redis.get(`room:${code}`);
-    if (raw) return JSON.parse(raw);
+    const cached = await redis.get(`room:${code}`);
+    if (cached) return JSON.parse(cached);
 
+    // Fallback to DB
     const dbRoom = await prisma.room.findUnique({
         where: { code },
-        include: { players: { include: { user: true } } },
+        include: {
+            players: {
+                include: { user: true }
+            }
+        }
     });
 
     if (!dbRoom) return null;
 
     const state: RoomState = {
+        id: dbRoom.id,
         code: dbRoom.code,
         hostId: dbRoom.hostId,
-        status: dbRoom.status.toLowerCase() as RoomState['status'],
+        status: dbRoom.status,
+        maxPlayers: dbRoom.maxPlayers,
         players: dbRoom.players.map(p => ({
             userId: p.userId,
-            username: p.user.username,
+            username: p.user.username
         })),
-        maxPlayers: dbRoom.maxPlayers,
-        createdAt: dbRoom.createdAt.toISOString(),
+        createdAt: dbRoom.createdAt.toISOString()
     };
 
     await redis.set(`room:${code}`, JSON.stringify(state), 'EX', 86400);
     return state;
 }
 
-export async function updateRoomStatus(code: string, status: RoomState['status']): Promise<RoomState | null> {
+export async function updateRoomStatus(code: string, status: string): Promise<RoomState | null> {
     const state = await getRoomState(code);
     if (!state) return null;
 
     state.status = status;
     await redis.set(`room:${code}`, JSON.stringify(state), 'EX', 86400);
 
-    const statusMap: Record<string, string> = {
-        waiting: 'WAITING',
-        retention: 'RETENTION',
-        auction: 'AUCTION',
-        selection: 'SELECTION',
-        league: 'LEAGUE',
-        match: 'MATCH',
-        completed: 'COMPLETED',
-    };
-
     await prisma.room.update({
         where: { code },
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        data: { status: statusMap[status] as any },
+        data: { status: status as any }
     });
 
     return state;
 }
 
-export async function removePlayerFromRoom(code: string, userId: string): Promise<RoomState | null> {
+export async function updatePlayerTeam(code: string, userId: string, teamId: string, teamName: string): Promise<RoomState | null> {
     const state = await getRoomState(code);
     if (!state) return null;
 
-    state.players = state.players.filter(p => p.userId !== userId);
+    const player = state.players.find(p => p.userId === userId);
+    if (!player) return null;
+
+    player.teamId = teamId;
+    player.teamName = teamName;
+
     await redis.set(`room:${code}`, JSON.stringify(state), 'EX', 86400);
 
     const dbRoom = await prisma.room.findUnique({ where: { code } });
     if (dbRoom) {
-        await prisma.roomPlayer.deleteMany({
-            where: { userId, roomId: dbRoom.id },
+        await prisma.team.upsert({
+            where: { userId_roomId: { userId, roomId: dbRoom.id } },
+            update: { name: teamName },
+            create: {
+                id: uuidv4(),
+                name: teamName,
+                userId,
+                roomId: dbRoom.id,
+                purse: 120,
+            }
         });
     }
 
@@ -183,70 +176,4 @@ export async function getUserRooms(userId: string) {
                 .map(p => p.user.username),
             createdAt: rp.room.createdAt.toISOString(),
         }));
-}
-
-const BOT_PROFILES = [
-    { username: 'Chennai Super Kings', teamId: 'csk' },
-    { username: 'Mumbai Indians', teamId: 'mi' },
-    { username: 'Royal Challengers Bengaluru', teamId: 'rcb' },
-    { username: 'Kolkata Knight Riders', teamId: 'kkr' },
-    { username: 'Delhi Capitals', teamId: 'dc' },
-    { username: 'Sunrisers Hyderabad', teamId: 'srh' },
-    { username: 'Punjab Kings', teamId: 'pbks' },
-    { username: 'Rajasthan Royals', teamId: 'rr' },
-    { username: 'Lucknow Super Giants', teamId: 'lsg' },
-    { username: 'Gujarat Titans', teamId: 'gt' },
-];
-
-import { IPL_TEAMS } from '@/data/teams';
-
-export async function fillRoomWithBots(code: string, count: number): Promise<{ username: string; teamName: string }[]> {
-    const room = await getRoomState(code);
-    if (!room) return [];
-
-    const actualCount = Math.min(count, room.maxPlayers - room.players.length);
-    if (actualCount <= 0) return [];
-
-    const addedBots: { username: string; teamName: string }[] = [];
-    const existingNames = room.players.map(p => p.username);
-    const takenTeamIds = room.players.filter(p => p.teamId).map(p => p.teamId);
-
-    for (let i = 0; i < actualCount; i++) {
-        const available = BOT_PROFILES.filter(
-            b => !existingNames.includes(b.username) && !takenTeamIds.includes(b.teamId)
-        );
-        if (available.length === 0) break;
-
-        const bot = available[i % available.length];
-        const team = IPL_TEAMS.find(t => t.id === bot.teamId)!;
-        const botId = uuidv4();
-
-        await prisma.user.upsert({
-            where: { username: bot.username },
-            update: {},
-            create: {
-                id: botId,
-                username: bot.username,
-            },
-        });
-
-        const botUser = await prisma.user.findUnique({ where: { username: bot.username } });
-        if (!botUser) continue;
-
-        const updatedRoom = await joinRoom(code, botUser.id, bot.username);
-        if (updatedRoom) {
-            const player = updatedRoom.players.find(p => p.userId === botUser.id);
-            if (player) {
-                player.teamName = team.name;
-                player.teamId = team.id;
-            }
-
-            await redis.set(`room:${code}`, JSON.stringify(updatedRoom), 'EX', 86400);
-            existingNames.push(bot.username);
-            takenTeamIds.push(bot.teamId);
-            addedBots.push({ username: bot.username, teamName: team.name });
-        }
-    }
-
-    return addedBots;
 }

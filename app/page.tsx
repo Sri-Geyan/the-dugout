@@ -23,41 +23,41 @@ export default function Home() {
       </div>
 
       {/* Top Banner Marquee */}
-      <div className="relative z-20 marquee-container mt-0">
-        <div className="marquee-content">
-          {[1, 2, 3, 4].map((i) => (
-            <span key={i} className="marquee-item">
-              <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-gold)]" />
-              IPL 2026 AUCTION POOL LIVE
-              <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-gold)]" />
+      <div className="relative z-30 marquee-container mt-0 bg-[#D4AF37]/5 border-y border-[#D4AF37]/20 backdrop-blur-sm">
+        <div className="marquee-content py-1">
+          {[1, 2].map((i) => (
+            <span key={i} className="marquee-item py-2">
+              <span className="w-1 h-1 rounded-full bg-[var(--color-gold)] opacity-50" />
+              AUCTION POOL 2026 LIVE
+              <span className="w-1 h-1 rounded-full bg-[var(--color-gold)] opacity-50" />
               120 CR PURSE LIMIT
-              <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-gold)]" />
-              NEW PLAYER RATINGS LIVE
-              <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-gold)]" />
-              REAL-TIME SIMULATION
+              <span className="w-1 h-1 rounded-full bg-[var(--color-gold)] opacity-50" />
+              ADVANCED RTM LOGIC
+              <span className="w-1 h-1 rounded-full bg-[var(--color-gold)] opacity-50" />
+              STADIUM PHYSICS ENGINE
             </span>
           ))}
         </div>
       </div>
 
-      <div className="relative z-10 min-h-screen flex flex-col items-center justify-center px-6 -mt-12">
+      <div className="relative z-10 min-h-screen flex flex-col items-center justify-center px-6 -mt-20">
         <div className={`text-center max-w-5xl mx-auto transition-all duration-1000 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-12'}`}>
           {/* Badge */}
-          <div className="inline-flex items-center gap-2 mb-10 px-5 py-2.5 rounded-full glass-panel border-gold animate-fadeInUp">
+          <div className="inline-flex items-center gap-3 mb-12 px-6 py-3 rounded-full glass-panel border border-[var(--color-gold)]/20 animate-fadeInUp shadow-lg shadow-[var(--color-gold)]/5">
             <div className="w-2 h-2 rounded-full animate-pulse bg-[var(--color-gold)]" />
-            <span className="text-[10px] font-black tracking-[0.3em] uppercase gold-text">
+            <span className="text-[10px] font-black tracking-[0.4em] uppercase gold-text">
               PREMIUM SEASON 2026 • DEFINITIVE EDITION
             </span>
           </div>
 
           {/* Title */}
-          <div className="relative mb-6">
-            <h1 className="text-8xl md:text-[10rem] font-black tracking-tighter mb-0 leading-none select-none">
-              <span className="gold-text opacity-90">THE</span>{' '}
-              <span className="text-white">DUGOUT</span>
+          <div className="relative mb-8 group">
+            <h1 className="text-8xl md:text-[11rem] font-black tracking-tighter mb-0 leading-[0.85] select-none transition-all duration-700">
+              <span className="gold-text opacity-90 drop-shadow-2xl">THE</span><br />
+              <span className="text-white drop-shadow-lg">DUGOUT</span>
             </h1>
-            <div className="absolute -bottom-2 right-0 md:right-10 text-xs font-mono tracking-widest text-[var(--color-text-muted)] animate-slideIn">
-              [V2.0.0_PRODUCTION]
+            <div className="absolute -bottom-6 right-0 md:right-12 text-[10px] font-mono tracking-[0.3em] font-bold text-[var(--color-text-muted)] opacity-60 animate-slideIn">
+              [V2.1.0_GOLD_BUILD]
             </div>
           </div>
 

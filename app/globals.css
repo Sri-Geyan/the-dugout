@@ -205,20 +205,32 @@
   }
 
   .marquee-content {
-    display: inline-block;
-    animation: marquee 30s linear infinite;
+    display: inline-flex;
+    animation: marquee 40s linear infinite;
+    gap: 0;
   }
 
   .marquee-item {
     display: inline-flex;
     align-items: center;
-    gap: 0.5rem;
-    padding: 0 2rem;
-    font-size: 0.75rem;
-    font-weight: 600;
+    gap: 1rem;
+    padding: 0 4rem;
+    font-size: 0.7rem;
+    font-weight: 800;
     color: var(--color-gold);
     text-transform: uppercase;
-    letter-spacing: 0.2em;
+    letter-spacing: 0.3em;
+  }
+
+  .shimmer {
+    background: linear-gradient(90deg,
+        rgba(255, 255, 255, 0) 0%,
+        rgba(255, 255, 255, 0.05) 50%,
+        rgba(255, 255, 255, 0) 100%);
+    background-size: 200% 100%;
+    animation: shimmer 2s infinite linear;
+    border-radius: 12px;
+    background-color: var(--color-bg-panel);
   }
 }
 
@@ -229,6 +241,16 @@
 
   100% {
     transform: translateX(-50%);
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+
+  100% {
+    background-position: -200% 0;
   }
 }
 

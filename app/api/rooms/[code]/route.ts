@@ -1,11 +1,61 @@
 import { NextRequest, NextResponse } from 'next/server';
 import redis from '@/lib/redis';
 import prisma from '@/lib/prisma';
+import { getRoomState, updateRoomStatus, updatePlayerTeam } from '@/lib/roomManager';
 
 function getSession(request: NextRequest) {
     const sessionCookie = request.cookies.get('session');
     if (!sessionCookie?.value) return null;
     try { return JSON.parse(sessionCookie.value); } catch { return null; }
+}
+
+export async function GET(
+    request: NextRequest,
+    { params }: { params: Promise<{ code: string }> }
+) {
+    const { code } = await params;
+    try {
+        const room = await getRoomState(code);
+        if (!room) return NextResponse.json({ error: 'Room not found' }, { status: 404 });
+        return NextResponse.json({ room });
+    } catch (error) {
+        console.error('Fetch room error:', error);
+        return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    }
+}
+
+export async function PATCH(
+    request: NextRequest,
+    { params }: { params: Promise<{ code: string }> }
+) {
+    const session = getSession(request);
+    if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+
+    const { code } = await params;
+    try {
+        const body = await request.json();
+        const { action, status, teamId, teamName } = body;
+
+        if (action === 'selectTeam') {
+            const updated = await updatePlayerTeam(code, session.userId, teamId, teamName);
+            return NextResponse.json({ room: updated });
+        }
+
+        if (status) {
+            // Verify host
+            const room = await getRoomState(code);
+            if (room?.hostId !== session.userId) {
+                return NextResponse.json({ error: 'Only host can change status' }, { status: 0x193 });
+            }
+            const updated = await updateRoomStatus(code, status);
+            return NextResponse.json({ room: updated });
+        }
+
+        return NextResponse.json({ error: 'Invalid update' }, { status: 400 });
+    } catch (error) {
+        console.error('Update room error:', error);
+        return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    }
 }
 
 export async function DELETE(

@@ -12,108 +12,139 @@ export default function Home() {
 
   return (
     <main className="min-h-screen relative overflow-hidden" style={{ background: 'var(--color-bg-primary)' }}>
-      {/* Background effects */}
-      <div className="absolute inset-0 overflow-hidden">
-        <div className="absolute top-0 left-1/4 w-96 h-96 rounded-full opacity-10"
-          style={{ background: 'radial-gradient(circle, var(--color-gold) 0%, transparent 70%)', filter: 'blur(80px)' }} />
-        <div className="absolute bottom-0 right-1/4 w-80 h-80 rounded-full opacity-5"
-          style={{ background: 'radial-gradient(circle, var(--color-gold) 0%, transparent 70%)', filter: 'blur(60px)' }} />
-        {/* Grid pattern */}
-        <div className="absolute inset-0 opacity-5"
-          style={{ backgroundImage: 'linear-gradient(rgba(212,175,55,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(212,175,55,0.1) 1px, transparent 1px)', backgroundSize: '60px 60px' }} />
+      {/* Dynamic Background Effects */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] rounded-full opacity-20 animate-pulse"
+          style={{ background: 'radial-gradient(circle, var(--color-gold) 0%, transparent 70%)', filter: 'blur(100px)' }} />
+        <div className="absolute bottom-[-5%] right-[-5%] w-[30%] h-[30%] rounded-full opacity-10"
+          style={{ background: 'radial-gradient(circle, var(--color-gold-dark) 0%, transparent 70%)', filter: 'blur(80px)' }} />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-full opacity-[0.03]"
+          style={{ backgroundImage: 'radial-gradient(circle, var(--color-gold) 1px, transparent 1px)', backgroundSize: '40px 40px' }} />
       </div>
 
-      <div className="relative z-10 min-h-screen flex flex-col items-center justify-center px-6">
-        <div className={`text-center max-w-4xl mx-auto transition-all duration-1000 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
+      {/* Top Banner Marquee */}
+      <div className="relative z-20 marquee-container mt-0">
+        <div className="marquee-content">
+          {[1, 2, 3, 4].map((i) => (
+            <span key={i} className="marquee-item">
+              <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-gold)]" />
+              IPL 2026 AUCTION POOL LIVE
+              <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-gold)]" />
+              120 CR PURSE LIMIT
+              <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-gold)]" />
+              NEW PLAYER RATINGS LIVE
+              <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-gold)]" />
+              REAL-TIME SIMULATION
+            </span>
+          ))}
+        </div>
+      </div>
+
+      <div className="relative z-10 min-h-screen flex flex-col items-center justify-center px-6 -mt-12">
+        <div className={`text-center max-w-5xl mx-auto transition-all duration-1000 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-12'}`}>
           {/* Badge */}
-          <div className="inline-flex items-center gap-2 mb-8 px-4 py-2 rounded-full" style={{
-            background: 'rgba(212, 175, 55, 0.08)',
-            border: '1px solid rgba(212, 175, 55, 0.2)',
-          }}>
-            <div className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: 'var(--color-gold)' }} />
-            <span className="text-xs font-semibold tracking-widest uppercase" style={{ color: 'var(--color-gold)' }}>
-              Season 2026 • Live Now
+          <div className="inline-flex items-center gap-2 mb-10 px-5 py-2.5 rounded-full glass-panel border-gold animate-fadeInUp">
+            <div className="w-2 h-2 rounded-full animate-pulse bg-[var(--color-gold)]" />
+            <span className="text-[10px] font-black tracking-[0.3em] uppercase gold-text">
+              PREMIUM SEASON 2026 • DEFINITIVE EDITION
             </span>
           </div>
 
           {/* Title */}
-          <h1 className="text-7xl md:text-8xl font-black tracking-tight mb-4">
-            <span className="gold-text">THE</span>{' '}
-            <span className="text-white">DUGOUT</span>
-          </h1>
+          <div className="relative mb-6">
+            <h1 className="text-8xl md:text-[10rem] font-black tracking-tighter mb-0 leading-none select-none">
+              <span className="gold-text opacity-90">THE</span>{' '}
+              <span className="text-white">DUGOUT</span>
+            </h1>
+            <div className="absolute -bottom-2 right-0 md:right-10 text-xs font-mono tracking-widest text-[var(--color-text-muted)] animate-slideIn">
+              [V2.0.0_PRODUCTION]
+            </div>
+          </div>
 
-          <p className="text-xl md:text-2xl font-light mb-2 tracking-wide" style={{ color: 'var(--color-text-secondary)' }}>
-            Where decisions win matches.
+          <p className="text-2xl md:text-3xl font-extralight mb-4 tracking-tight text-[var(--color-text-secondary)] italic">
+            Where strategy meets simulation.
           </p>
 
-          <p className="text-sm max-w-xl mx-auto mb-12 leading-relaxed" style={{ color: 'var(--color-text-muted)' }}>
-            Build your dream squad in live auctions. Outsmart rivals with strategic team composition.
-            Watch your decisions play out ball-by-ball in real-time simulated IPL matches.
+          <p className="text-sm md:text-base max-w-2xl mx-auto mb-14 leading-relaxed text-[var(--color-text-muted)] font-medium">
+            Take command in the most authentic IPL management experience. Direct 120 Cr auctions with RTM logic,
+            deploy stadium-specific strategies, and watch our proprietary engine simulate every ball in stunning detail.
           </p>
 
           {/* CTA Buttons */}
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-16">
-            <Link href="/login" className="btn-primary text-base px-8 py-4 rounded-xl">
-              Enter The Dugout
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-6 mb-20 animate-fadeInUp stagger-2">
+            <Link href="/login" className="btn-primary px-12 py-5 text-base hover:scale-105 transition-transform duration-300">
+              Enter Arena
             </Link>
-            <Link href="#features" className="btn-secondary px-8 py-4 rounded-xl text-sm">
-              How It Works
+            <Link href="#features" className="btn-secondary px-10 py-5 text-sm hover:border-[var(--color-gold)] transition-colors duration-300">
+              Technical Overview
             </Link>
           </div>
 
-          {/* Stats */}
-          <div className="grid grid-cols-3 gap-8 max-w-md mx-auto">
+          {/* Stats Bar */}
+          <div className="grid grid-cols-3 gap-12 max-w-2xl mx-auto py-8 border-t border-b border-white/[0.05] glass-panel px-12">
             {[
-              { value: '10', label: 'Players Per Room' },
-              { value: '60+', label: 'Cricket Stars' },
-              { value: '20', label: 'Over Matches' },
+              { value: '120Cr', label: 'Max Purse' },
+              { value: '300+', label: 'Rated Stars' },
+              { value: '10', label: 'Pro Teams' },
             ].map((stat, i) => (
-              <div key={i} className="text-center">
-                <div className="stat-value gold-text">{stat.value}</div>
-                <div className="stat-label">{stat.label}</div>
+              <div key={i} className={`text-center animate-float stagger-${i + 1}`}>
+                <div className="text-3xl font-black gold-text mb-1">{stat.value}</div>
+                <div className="text-[10px] tracking-[0.2em] font-bold text-[var(--color-text-muted)] uppercase">{stat.label}</div>
               </div>
             ))}
           </div>
         </div>
 
         {/* Features Section */}
-        <div id="features" className={`mt-32 max-w-6xl mx-auto w-full transition-all duration-1000 delay-300 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
-          <h2 className="text-center text-sm font-semibold tracking-[0.3em] uppercase mb-12" style={{ color: 'var(--color-gold)' }}>
-            THE EXPERIENCE
-          </h2>
-          <div className="grid md:grid-cols-3 gap-6">
+        <div id="features" className={`mt-40 max-w-7xl mx-auto w-full transition-all duration-1000 delay-500 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-12'}`}>
+          <div className="text-center mb-16">
+            <h2 className="text-sm font-black tracking-[0.5em] uppercase mb-4 gold-text">
+              PRO CORE ENGINE
+            </h2>
+            <div className="h-px w-20 bg-gradient-to-r from-transparent via-[var(--color-gold)] to-transparent mx-auto" />
+          </div>
+
+          <div className="grid md:grid-cols-3 gap-8">
             {[
               {
-                icon: '🏏',
-                title: 'Live Auction',
-                desc: 'Bid against real players in real-time. Strategic purse management. Timer-based bidding.',
+                icon: '⚖️',
+                title: 'Market Economy',
+                desc: 'Deep auction logic featuring 120 Cr purse management, RTM cards, and realistic bot bidding profiles.',
               },
               {
-                icon: '⚡',
-                title: 'Ball-by-Ball Simulation',
-                desc: 'Every delivery matters. Skills, pitch conditions, and match phase affect outcomes.',
+                icon: '🏟️',
+                title: 'Stadium Dynamics',
+                desc: 'Unique pitch behaviors across all 10 IPL venues. Chepauk twins while Wankhede rewards the brave.',
               },
               {
-                icon: '🏆',
-                title: 'League System',
-                desc: 'Points table, NRR, Orange & Purple Caps. Full tournament experience.',
+                icon: '📉',
+                title: 'Data Integration',
+                desc: 'Official 2026 dataset integration with precision performance metrics and skill ratings.',
               },
             ].map((feature, i) => (
-              <div key={i} className="panel-gold group hover:border-[var(--color-gold)] transition-all duration-300"
-                style={{ animationDelay: `${i * 100}ms` }}>
-                <span className="text-3xl mb-4 block">{feature.icon}</span>
-                <h3 className="text-lg font-bold mb-2">{feature.title}</h3>
-                <p className="text-sm leading-relaxed" style={{ color: 'var(--color-text-secondary)' }}>{feature.desc}</p>
+              <div key={i} className="panel-gold group hover:bg-[rgba(212,175,55,0.15)] transition-all duration-500 cursor-default">
+                <div className="w-12 h-12 rounded-xl bg-black/40 flex items-center justify-center text-2xl mb-6 shadow-xl border border-white/5">
+                  {feature.icon}
+                </div>
+                <h3 className="text-xl font-black mb-3 tracking-tight text-white">{feature.title}</h3>
+                <p className="text-sm leading-relaxed text-[var(--color-text-secondary)] font-medium">{feature.desc}</p>
               </div>
             ))}
           </div>
         </div>
 
         {/* Footer */}
-        <footer className="mt-32 pb-8 text-center">
-          <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
-            © 2026 The Dugout — A Cricket Management Simulator
-          </p>
+        <footer className="mt-40 pb-12 w-full text-center border-t border-white/[0.05]">
+          <div className="max-w-7xl mx-auto px-6 pt-12 flex flex-col items-center">
+            <div className="flex gap-8 mb-6 text-[10px] font-bold tracking-[0.2em] uppercase text-[var(--color-text-muted)]">
+              <span className="hover:text-[var(--color-gold)] cursor-pointer transition-colors">Documentation</span>
+              <span className="hover:text-[var(--color-gold)] cursor-pointer transition-colors">Privacy Policy</span>
+              <span className="hover:text-[var(--color-gold)] cursor-pointer transition-colors">Server Status</span>
+            </div>
+            <p className="text-[10px] font-medium tracking-widest uppercase opacity-40">
+              © 2026 THE DUGOUT • ADVANCED CRICKET MANAGEMENT SYSTEM
+            </p>
+          </div>
         </footer>
       </div>
     </main>

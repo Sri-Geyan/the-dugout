@@ -1,7 +1,9 @@
-import { AuctionState, AuctionTeam, placeBid, getAuctionState, sellCurrentPlayer, nextPlayer, BID_INCREMENT } from './auctionEngine';
-import { CricketPlayer } from '@/data/players';
+import { AuctionState, AuctionTeam, placeBid, getAuctionState, sellCurrentPlayer, nextPlayer, BID_INCREMENT, saveAuctionState } from './auctionEngine';
+import { CricketPlayer, IPL_PLAYERS } from '@/data/players';
 import { getRoomState } from './roomManager';
 import type { MatchState, BatterState, BowlerState } from './matchEngine';
+import { getRetentionState, retainPlayer, confirmRetentions, getRetentionEligiblePool } from './retentionEngine';
+import { analyzeSquadNeeds } from './squadUtils';
 
 // ======================================================
 // Bot Detection
@@ -49,29 +51,6 @@ function generatePersonality(teamName: string): BotPersonality {
     };
 }
 
-function analyzeSquadNeeds(squad: { player: CricketPlayer }[]): Record<string, number> {
-    const counts: Record<string, number> = {
-        BATSMAN: 0, BOWLER: 0, ALL_ROUNDER: 0, WICKET_KEEPER: 0,
-    };
-    squad.forEach(s => { counts[s.player.role] = (counts[s.player.role] || 0) + 1; });
-
-    // How much we need each role (higher = more needed)
-    const needs: Record<string, number> = {
-        BATSMAN: counts.BATSMAN < 4 ? 1.5 : counts.BATSMAN < 6 ? 1.1 : 0.6,
-        BOWLER: counts.BOWLER < 4 ? 1.5 : counts.BOWLER < 6 ? 1.1 : 0.6,
-        ALL_ROUNDER: counts.ALL_ROUNDER < 3 ? 1.4 : counts.ALL_ROUNDER < 5 ? 1.1 : 0.7,
-        WICKET_KEEPER: counts.WICKET_KEEPER < 1 ? 2.5 : counts.WICKET_KEEPER < 2 ? 1.2 : 0.4,
-    };
-
-    // Global density target: 85% of 25 = 21 players
-    // If squad is small, increase desire for ANY player
-    const densityRatio = squad.length / 21;
-    if (densityRatio < 1) {
-        Object.keys(needs).forEach(k => { needs[k] *= (1.5 - (densityRatio * 0.5)); });
-    }
-
-    return needs;
-}
 
 function evaluatePlayerValue(player: CricketPlayer, team: AuctionTeam, personality: BotPersonality): number {
     const needs = analyzeSquadNeeds(team.squad);
@@ -368,3 +347,53 @@ export function botTossDecision(pitchType: string): 'bat' | 'bowl' {
         default: return Math.random() < 0.55 ? 'bat' : 'bowl';
     }
 }
+
+// ======================================================
+// Bot Retention Phase Logic
+// ======================================================
+
+export async function runBotRetentions(roomCode: string): Promise<void> {
+    const state = await getRetentionState(roomCode);
+    if (!state) return;
+
+    for (const team of state.teams) {
+        if (!isBotUser(team.username) || team.confirmed) continue;
+
+        const pool = getRetentionEligiblePool(team.teamName);
+        if (!pool) continue;
+
+        // Sort by skill descending
+        const sorted = [...pool].sort((a, b) => {
+            const skillA = Math.max(a?.battingSkill || 0, a?.bowlingSkill || 0);
+            const skillB = Math.max(b?.battingSkill || 0, b?.bowlingSkill || 0);
+            return skillB - skillA;
+        });
+
+        // Retention strategy:
+        // 1. Always retain superstar players (skill > 90)
+        // 2. Retain very good players (skill > 85) if they are uncapped (cheaper)
+        // 3. Limit to max 4 total retentions to save money for auction
+
+        for (const player of sorted) {
+            if (!player) continue;
+            const skill = Math.max(player.battingSkill || 0, player.bowlingSkill || 0);
+
+            const isUncapped = player.capStatus === 'Uncapped';
+
+            let shouldRetain = false;
+            // Bot strategy: retain if skill is high enough
+            if (skill >= 90) shouldRetain = true;
+            else if (skill >= 86 && team.retained.length < 3) shouldRetain = true;
+            else if (isUncapped && skill >= 80 && team.retained.length < 5) shouldRetain = true;
+
+            if (shouldRetain) {
+                // await result of retainPlayer
+                await retainPlayer(roomCode, team.userId, player.name);
+            }
+        }
+
+        // Always confirm
+        await confirmRetentions(roomCode, team.userId);
+    }
+}
+

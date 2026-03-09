@@ -3,10 +3,12 @@ import { IPL_PLAYERS } from '@/data/players';
 import { RETENTION_POOL } from '@/data/retentionPool';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-export const MAX_RETENTIONS = 4;
-export const MAX_OVERSEAS_RETENTIONS = 2;
-export const RETENTION_TIMER_SECONDS = 180; // 3 minutes
-export const RETENTION_COSTS = [16, 12, 8, 6]; // Cr per slot (1st→4th)
+export const MAX_RETENTIONS = 6;
+export const MAX_CAPPED_RETENTIONS = 5;
+export const MAX_UNCAPPED_RETENTIONS = 2;
+export const RETENTION_TIMER_SECONDS = 300; // 5 minutes
+export const CAPPED_RETENTION_COSTS = [18, 14, 11, 18, 14]; // Cr for capped slots
+export const UNCAPPED_RETENTION_COST = 4; // Cr flat for uncapped
 export const INITIAL_PURSE = 120; // Cr
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -112,11 +114,6 @@ export async function retainPlayer(
         return { success: false, error: 'Retention timer has expired', state };
     }
 
-    // Slot limit
-    if (team.retained.length >= MAX_RETENTIONS) {
-        return { success: false, error: `Maximum ${MAX_RETENTIONS} retentions allowed`, state };
-    }
-
     // Resolve player from pool and IPL_PLAYERS
     const pool = RETENTION_POOL[team.teamName] ?? [];
     const eligible = pool.find(p => p.name.toLowerCase() === playerName.trim().toLowerCase());
@@ -124,23 +121,35 @@ export async function retainPlayer(
         return { success: false, error: `${playerName} is not in ${team.teamName}'s retention pool`, state };
     }
 
-    // Overseas limit
-    if (eligible.nationality === 'Overseas') {
-        const overseasCount = team.retained.filter(r => r.nationality === 'Overseas').length;
-        if (overseasCount >= MAX_OVERSEAS_RETENTIONS) {
-            return { success: false, error: `Maximum ${MAX_OVERSEAS_RETENTIONS} overseas retentions allowed`, state };
-        }
+    // Resolve to IPL_PLAYERS id
+    const playerId = resolvePlayerId(playerName);
+    if (!playerId) {
+        return { success: false, error: `${playerName} could not be matched in the player database`, state };
+    }
+
+    // Total limit
+    if (team.retained.length >= MAX_RETENTIONS) {
+        return { success: false, error: `Maximum ${MAX_RETENTIONS} total retentions allowed`, state };
+    }
+
+    // Category limits
+    const isUncapped = eligible.capStatus === 'Uncapped';
+    const uncappedCount = team.retained.filter(r => {
+        const p = pool.find(pl => pl.name === r.playerName);
+        return p?.capStatus === 'Uncapped';
+    }).length;
+    const cappedCount = team.retained.length - uncappedCount;
+
+    if (isUncapped && uncappedCount >= MAX_UNCAPPED_RETENTIONS) {
+        return { success: false, error: `Maximum ${MAX_UNCAPPED_RETENTIONS} uncapped retentions allowed`, state };
+    }
+    if (!isUncapped && cappedCount >= MAX_CAPPED_RETENTIONS) {
+        return { success: false, error: `Maximum ${MAX_CAPPED_RETENTIONS} capped retentions allowed`, state };
     }
 
     // Already retained?
     if (team.retained.some(r => r.playerName.toLowerCase() === playerName.trim().toLowerCase())) {
         return { success: false, error: `${playerName} is already retained`, state };
-    }
-
-    // Resolve to IPL_PLAYERS id
-    const playerId = resolvePlayerId(playerName);
-    if (!playerId) {
-        return { success: false, error: `${playerName} could not be matched in the player database`, state };
     }
 
     // Check not retained by another team
@@ -151,8 +160,15 @@ export async function retainPlayer(
         return { success: false, error: `${playerName} has already been retained by another team`, state };
     }
 
-    const slot = team.retained.length + 1;
-    const cost = RETENTION_COSTS[slot - 1];
+    let cost = 0;
+    let slot = team.retained.length + 1;
+
+    if (isUncapped) {
+        cost = UNCAPPED_RETENTION_COST;
+    } else {
+        // Capped costs based on how many capped players already retained
+        cost = CAPPED_RETENTION_COSTS[cappedCount] || 12; // fallback if somehow exceeds
+    }
 
     if (team.purse < cost) {
         return { success: false, error: `Insufficient purse. Need ₹${cost} Cr, have ₹${team.purse} Cr`, state };
@@ -166,7 +182,10 @@ export async function retainPlayer(
         slot,
         cost,
     });
-    team.purse = Math.round((team.purse - cost) * 100) / 100;
+
+    // Final purse recalculation to avoid floating point drift
+    const totalCost = team.retained.reduce((sum, r) => sum + r.cost, 0);
+    team.purse = Math.round((INITIAL_PURSE - totalCost) * 100) / 100;
 
     await saveRetentionState(roomCode, state);
     return { success: true, state };
@@ -188,18 +207,27 @@ export async function releasePlayer(
     const idx = team.retained.findIndex(r => r.playerId === playerId);
     if (idx === -1) return { success: false, error: 'Player not found in retained list', state };
 
-    const removed = team.retained[idx];
     team.retained.splice(idx, 1);
-    team.purse = Math.round((team.purse + removed.cost) * 100) / 100;
 
-    // Re-number slots after removal
+    // Re-calculate costs and slots from scratch based on remaining players
+    const pool = RETENTION_POOL[team.teamName] ?? [];
+    let cappedFound = 0;
+
     team.retained.forEach((r, i) => {
+        const pInfo = pool.find(p => p.name === r.playerName);
+        const isUncapped = pInfo?.capStatus === 'Uncapped';
+
         r.slot = i + 1;
-        r.cost = RETENTION_COSTS[i];
+        if (isUncapped) {
+            r.cost = UNCAPPED_RETENTION_COST;
+        } else {
+            r.cost = CAPPED_RETENTION_COSTS[cappedFound] || 12;
+            cappedFound++;
+        }
     });
-    // Recalculate purse from scratch
-    const totalDeducted = team.retained.reduce((s, r) => s + r.cost, 0);
-    team.purse = Math.round((INITIAL_PURSE - totalDeducted) * 100) / 100;
+
+    const totalCost = team.retained.reduce((sum, r) => sum + r.cost, 0);
+    team.purse = Math.round((INITIAL_PURSE - totalCost) * 100) / 100;
 
     await saveRetentionState(roomCode, state);
     return { success: true, state };

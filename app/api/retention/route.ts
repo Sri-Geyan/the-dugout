@@ -10,6 +10,7 @@ import {
     getRetentionEligiblePool,
 } from '@/lib/retentionEngine';
 import { initAuction } from '@/lib/auctionEngine';
+import { runBotRetentions } from '@/lib/botEngine';
 import { getRoomState, updateRoomStatus, fillRoomWithBots } from '@/lib/roomManager';
 import prisma from '@/lib/prisma';
 
@@ -75,9 +76,13 @@ export async function POST(request: NextRequest) {
                 if (updatedRoom) room = updatedRoom;
             }
 
-            console.log(`[Retention] Creating retention state for ${room.players.length} players`);
             const state = await initRetention(roomCode, room.players);
-            await updateRoomStatus(roomCode, 'retention');
+            await updateRoomStatus(roomCode, 'RETENTION');
+
+            // Run bot retentions immediately
+            console.log(`[Retention] Running bot retentions for room ${roomCode}`);
+            await runBotRetentions(roomCode);
+
             console.log(`[Retention] Room ${roomCode} moved to retention phase`);
             return NextResponse.json({ state });
         }
@@ -141,16 +146,21 @@ export async function POST(request: NextRequest) {
 
             // Init auction excluding retained players
             const excludedIds = await getRetainedPlayerIds(roomCode);
-            const auctionPlayers = room.players.map((p, i) => ({
-                userId: p.userId,
-                username: p.username,
-                teamName: p.teamName || `Team ${i + 1}`,
-                // carry over post-retention purse
-                startingPurse: retentionState.teams.find(t => t.userId === p.userId)?.purse ?? 100,
+            const enrichedTeams = retentionState.teams.map(t => ({
+                userId: t.userId,
+                username: t.username,
+                teamName: t.teamName,
+                purse: t.purse,
+                retained: t.retained.map(r => ({
+                    playerId: r.playerId,
+                    playerName: r.playerName,
+                    role: r.role,
+                    cost: r.cost
+                }))
             }));
 
-            const auctionState = await initAuction(roomCode, auctionPlayers, excludedIds);
-            await updateRoomStatus(roomCode, 'auction');
+            const auctionState = await initAuction(roomCode, enrichedTeams, excludedIds);
+            await updateRoomStatus(roomCode, 'AUCTION');
 
             return NextResponse.json({ auctionState });
         }

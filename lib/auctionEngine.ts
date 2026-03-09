@@ -1,5 +1,6 @@
 import redis from './redis';
 import { CricketPlayer, IPL_PLAYERS } from '@/data/players';
+import { analyzeSquadNeeds } from './squadUtils';
 
 // ======================================================
 // IPL-Style Auction Slot Definitions
@@ -146,9 +147,17 @@ const BID_INCREMENT = 0.25;
 const BID_TIMER_SECONDS = 15;
 const MAX_RTM_CARDS = 3;
 
+export interface AuctionEnrichedTeam {
+    userId: string;
+    username: string;
+    teamName: string;
+    purse: number;
+    retained: { playerId: string; playerName: string; role: string; cost: number }[];
+}
+
 export async function initAuction(
     roomCode: string,
-    players: { userId: string; username: string; teamName: string; startingPurse?: number }[],
+    teamsData: AuctionEnrichedTeam[],
     excludePlayerIds: string[] = []
 ): Promise<AuctionState> {
     const excludeIds = new Set(excludePlayerIds);
@@ -158,23 +167,36 @@ export async function initAuction(
     const allPlayersFlat: CricketPlayer[] = [];
     auctionSets.forEach(s => allPlayersFlat.push(...s.players));
 
-    const teams: AuctionTeam[] = players.map(p => {
-        // Calculate RTM cards: 6 - (already retained)
-        // If startingPurse is non-standard, it might indicate retentions happened
-        // But better is to check the excludePlayerIds vs the team's original squad
-        // However, we don't have the exact retention count here easily unless we pass it.
-        // Let's assume maxRtmCards is handled during the merge in route.ts if needed,
-        // but here we can set a default and let the route adjust it.
+    const teams: AuctionTeam[] = teamsData.map(p => {
+        const { RETENTION_POOL } = require('@/data/retentionPool');
+        // Map retained players to SoldPlayer format
+        const retainedSold: SoldPlayer[] = p.retained.map(r => {
+            const player = IPL_PLAYERS.find(ip => ip.id === r.playerId)!;
+            return {
+                player,
+                soldTo: { userId: p.userId, username: p.username, teamName: p.teamName },
+                soldPrice: r.cost
+            };
+        });
+
+        const pool = RETENTION_POOL[p.teamName] ?? [];
+        const cappedRetainedCount = p.retained.filter(r => {
+            const player = IPL_PLAYERS.find(ip => ip.id === r.playerId);
+            const eligible = pool.find((pl: any) => pl.name === player?.name);
+            return eligible?.capStatus === 'Capped';
+        }).length;
+
         return {
             userId: p.userId,
             username: p.username,
             teamName: p.teamName,
-            purse: p.startingPurse ?? INITIAL_PURSE,
-            maxPurse: p.startingPurse ?? INITIAL_PURSE,
-            squad: [],
+            purse: p.purse,
+            maxPurse: INITIAL_PURSE,
+            squad: retainedSold,
             maxSquadSize: MAX_SQUAD_SIZE,
             rtmCardsUsed: 0,
-            maxRtmCards: MAX_RTM_CARDS, // Default, will be refined in route.ts
+            // 6 - total retentions = remaining RTM opportunities
+            maxRtmCards: Math.max(0, 6 - p.retained.length),
         };
     });
 
@@ -392,43 +414,43 @@ export async function handleRtm(roomCode: string, execute: boolean): Promise<Auc
     return state;
 }
 
-// Helper for bot identification
-const BOT_USERNAMES_LOCAL = [
-    'Chennai Super Kings', 'Mumbai Indians', 'Royal Challengers Bengaluru', 'Kolkata Knight Riders',
-    'Delhi Capitals', 'Sunrisers Hyderabad', 'Punjab Kings', 'Rajasthan Royals',
-    'Lucknow Super Giants', 'Gujarat Titans',
-];
+// ======================================================
+// Smart Skip & Bot Assignment
+// ======================================================
+
+async function assignToBestBot(p: CricketPlayer, teams: AuctionTeam[]) {
+    const botTeams = teams.filter(t => BOT_USERNAMES_LOCAL.includes(t.username));
+
+    // Filter bots that need this role most and have purse
+    const matchedBots = botTeams
+        .filter(t => t.squad.length < MAX_SQUAD_SIZE && t.purse >= p.basePrice)
+        .map(t => {
+            const needs = analyzeSquadNeeds(t.squad);
+            const needScore = (needs[p.role] as number) || 1.0;
+            // Weigh by need and available purse
+            return { team: t, score: needScore * Math.sqrt(t.purse) };
+        })
+        .sort((a, b) => b.score - a.score);
+
+    return matchedBots[0]?.team ?? null;
+}
 
 export async function skipPlayer(roomCode: string): Promise<AuctionState | null> {
     const state = await getAuctionState(roomCode);
     if (!state || !state.currentPlayer) return null;
 
-    const botTeams = state.teams.filter(t => BOT_USERNAMES_LOCAL.includes(t.username));
-
-    // Algorithm: Find bot teams with < 21 players (85%)
-    // Sort by squad size asc, then purse desc
-    const needyBots = botTeams
-        .filter(t => t.squad.length < 21 && t.purse >= state.currentPlayer!.basePrice)
-        .sort((a, b) => a.squad.length - b.squad.length || b.purse - a.purse);
-
-    const targetBot = needyBots[0];
+    const targetBot = await assignToBestBot(state.currentPlayer, state.teams);
 
     if (targetBot) {
-        // Assign to bot at base price
-        targetBot.squad.push({
+        const soldPlayer: SoldPlayer = {
             player: state.currentPlayer,
             soldTo: { userId: targetBot.userId, username: targetBot.username, teamName: targetBot.teamName },
             soldPrice: state.currentPlayer.basePrice,
-        });
+        };
+        targetBot.squad.push(soldPlayer);
         targetBot.purse -= state.currentPlayer.basePrice;
         targetBot.purse = Math.round(targetBot.purse * 100) / 100;
-
-        state.soldPlayers.push({
-            player: state.currentPlayer,
-            soldTo: { userId: targetBot.userId, username: targetBot.username, teamName: targetBot.teamName },
-            soldPrice: state.currentPlayer.basePrice,
-        });
-
+        state.soldPlayers.push(soldPlayer);
         state.status = 'sold';
     } else {
         state.unsoldPlayers.push(state.currentPlayer);
@@ -453,25 +475,17 @@ export async function skipSet(roomCode: string): Promise<AuctionState | null> {
     playersToSkip.push(...state.remainingPlayers);
 
     for (const p of playersToSkip) {
-        const botTeams = state.teams.filter(t => BOT_USERNAMES_LOCAL.includes(t.username));
-        const needyBots = botTeams
-            .filter(t => t.squad.length < 21 && t.purse >= p.basePrice)
-            .sort((a, b) => a.squad.length - b.squad.length || b.purse - a.purse);
-
-        const targetBot = needyBots[0];
+        const targetBot = await assignToBestBot(p, state.teams);
         if (targetBot) {
-            targetBot.squad.push({
+            const soldPlayer: SoldPlayer = {
                 player: p,
                 soldTo: { userId: targetBot.userId, username: targetBot.username, teamName: targetBot.teamName },
                 soldPrice: p.basePrice,
-            });
+            };
+            targetBot.squad.push(soldPlayer);
             targetBot.purse -= p.basePrice;
             targetBot.purse = Math.round(targetBot.purse * 100) / 100;
-            state.soldPlayers.push({
-                player: p,
-                soldTo: { userId: targetBot.userId, username: targetBot.username, teamName: targetBot.teamName },
-                soldPrice: p.basePrice,
-            });
+            state.soldPlayers.push(soldPlayer);
         } else {
             state.unsoldPlayers.push(p);
         }
@@ -497,6 +511,10 @@ export async function endAuction(roomCode: string): Promise<AuctionState | null>
     return state;
 }
 
+// ======================================================
+// State Persistence
+// ======================================================
+
 export async function getAuctionState(roomCode: string): Promise<AuctionState | null> {
     const raw = await redis.get(`auction:${roomCode}`);
     if (!raw) return null;
@@ -506,5 +524,11 @@ export async function getAuctionState(roomCode: string): Promise<AuctionState | 
 export async function saveAuctionState(roomCode: string, state: AuctionState): Promise<void> {
     await redis.set(`auction:${roomCode}`, JSON.stringify(state), 'EX', 86400);
 }
+
+const BOT_USERNAMES_LOCAL = [
+    'Chennai Super Kings', 'Mumbai Indians', 'Royal Challengers Bengaluru', 'Kolkata Knight Riders',
+    'Delhi Capitals', 'Sunrisers Hyderabad', 'Punjab Kings', 'Rajasthan Royals',
+    'Lucknow Super Giants', 'Gujarat Titans',
+];
 
 export { BID_INCREMENT, BID_TIMER_SECONDS, INITIAL_PURSE, MAX_SQUAD_SIZE };

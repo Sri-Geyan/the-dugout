@@ -22,8 +22,8 @@ export async function POST(request: NextRequest) {
 
         // Validate PIN if provided
         if (pin !== undefined && pin !== null && pin !== '') {
-            if (!/^\d{4}$/.test(String(pin))) {
-                return NextResponse.json({ error: 'PIN must be exactly 4 digits' }, { status: 400 });
+            if (!/^\d{6}$/.test(String(pin))) {
+                return NextResponse.json({ error: 'PIN must be exactly 6 digits' }, { status: 400 });
             }
         }
 

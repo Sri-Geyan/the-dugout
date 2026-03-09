@@ -52,9 +52,9 @@ export default function LoginPage() {
                 // Returning user with PIN
                 setPhase('pin-verify');
             } else if (res.ok && data.userId) {
-                // Returning user, no PIN — logged in
-                setUser(data.userId, data.username);
-                router.push('/dashboard');
+                // Returning user, no PIN — prompt to set one
+                setIsNewUser(false);
+                setPhase('pin-set');
             } else if (res.status === 404 || (!res.ok && !data.requiresPin)) {
                 // New user — flow: set PIN
                 setIsNewUser(true);
@@ -71,22 +71,22 @@ export default function LoginPage() {
 
     // PIN pad digit press
     const appendDigit = (d: string, target: 'pin' | 'confirm') => {
-        if (target === 'pin' && pin.length < 4) setPin(p => p + d);
-        if (target === 'confirm' && pinConfirm.length < 4) setPinConfirm(p => p + d);
+        if (target === 'pin' && pin.length < 6) setPin(p => p + d);
+        if (target === 'confirm' && pinConfirm.length < 6) setPinConfirm(p => p + d);
     };
     const deleteDigit = (target: 'pin' | 'confirm') => {
         if (target === 'pin') setPin(p => p.slice(0, -1));
         if (target === 'confirm') setPinConfirm(p => p.slice(0, -1));
     };
 
-    // Auto-advance when 4 digits filled
+    // Auto-advance when 6 digits filled
     useEffect(() => {
-        if (phase === 'pin-verify' && pin.length === 4) handlePinVerify();
+        if (phase === 'pin-verify' && pin.length === 6) handlePinVerify();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [pin, phase]);
 
     useEffect(() => {
-        if (phase === 'pin-set' && pin.length === 4) {
+        if (phase === 'pin-set' && pin.length === 6) {
             setPhase('pin-confirm');
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -178,14 +178,14 @@ export default function LoginPage() {
     const currentPinValue = phase === 'pin-confirm' ? pinConfirm : pin;
 
     const PinDots = ({ value }: { value: string }) => (
-        <div className={`flex gap-4 justify-center my-8 ${shake ? 'animate-shake' : ''}`}>
-            {[0, 1, 2, 3].map(i => (
-                <div key={i} className="w-4 h-4 rounded-full transition-all duration-200"
+        <div className={`flex gap-3 justify-center my-8 ${shake ? 'animate-shake' : ''}`}>
+            {[0, 1, 2, 3, 4, 5].map(i => (
+                <div key={i} className="w-3.5 h-3.5 rounded-full transition-all duration-200"
                     style={{
                         background: i < value.length ? 'var(--color-gold)' : 'transparent',
                         border: `2px solid ${i < value.length ? 'var(--color-gold)' : 'rgba(255,255,255,0.2)'}`,
                         transform: i < value.length ? 'scale(1.2)' : 'scale(1)',
-                        boxShadow: i < value.length ? '0 0 12px rgba(212,175,55,0.5)' : 'none',
+                        boxShadow: i < value.length ? '0 0 10px rgba(212,175,55,0.5)' : 'none',
                     }} />
             ))}
         </div>

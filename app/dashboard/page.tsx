@@ -16,6 +16,16 @@ interface UserRoom {
     createdAt: string;
 }
 
+const STATUS_LABELS: Record<string, { label: string; emoji: string; color: string }> = {
+    waiting: { label: 'Waiting for players', emoji: '⏳', color: '#FFA726' },
+    retention: { label: 'Retention phase', emoji: '🛡️', color: '#CE93D8' },
+    auction: { label: 'Auction live', emoji: '🔨', color: '#EF5350' },
+    selection: { label: 'Squad selection', emoji: '📋', color: '#4FC3F7' },
+    league: { label: 'League running', emoji: '🏆', color: '#66BB6A' },
+    match: { label: 'Match in progress', emoji: '🏏', color: '#FFD700' },
+    completed: { label: 'Season complete', emoji: '🎉', color: '#66BB6A' },
+};
+
 export default function DashboardPage() {
     const { userId, username, isLoggedIn, setUser } = useUserStore();
     const [rooms, setRooms] = useState<UserRoom[]>([]);
@@ -56,9 +66,7 @@ export default function DashboardPage() {
                 const data = await res.json();
                 setRooms(data.rooms || []);
             }
-        } catch (err) {
-            console.error('Failed to fetch rooms:', err);
-        } finally {
+        } catch { } finally {
             setLoading(false);
         }
     };
@@ -73,33 +81,23 @@ export default function DashboardPage() {
                 body: JSON.stringify({ action: 'create' }),
             });
             const data = await res.json();
-            if (res.ok) {
-                router.push(`/room/${data.room.code}`);
-            } else {
-                setError(data.error);
-            }
+            if (res.ok) router.push(`/room/${data.room.code}`);
+            else setError(data.error);
         } catch {
-            setError('Failed to create room');
+            setError('Could not create room. Try again.');
         } finally {
             setCreating(false);
         }
     };
 
     const deleteRoom = async (code: string) => {
-        if (!confirm(`Are you sure you want to destroy room ${code}? This will purge all session data.`)) return;
-
+        if (!confirm(`Remove room ${code}? All progress will be lost.`)) return;
         try {
-            const res = await fetch(`/api/rooms/${code}`, {
-                method: 'DELETE',
-            });
-            if (res.ok) {
-                setRooms(rooms.filter(r => r.code !== code));
-            } else {
-                const data = await res.json();
-                setError(data.error || 'Failed to delete room');
-            }
+            const res = await fetch(`/api/rooms/${code}`, { method: 'DELETE' });
+            if (res.ok) setRooms(rooms.filter(r => r.code !== code));
+            else { const d = await res.json(); setError(d.error || 'Could not remove room'); }
         } catch {
-            setError('Failed to delete room');
+            setError('Could not remove room');
         }
     };
 
@@ -115,13 +113,10 @@ export default function DashboardPage() {
                 body: JSON.stringify({ action: 'join', code: joinCode.toUpperCase() }),
             });
             const data = await res.json();
-            if (res.ok) {
-                router.push(`/room/${data.room.code}`);
-            } else {
-                setError(data.error);
-            }
+            if (res.ok) router.push(`/room/${data.room.code}`);
+            else setError(data.error);
         } catch {
-            setError('Failed to join room');
+            setError('Could not join room. Check the code and try again.');
         } finally {
             setJoining(false);
         }
@@ -145,169 +140,135 @@ export default function DashboardPage() {
         );
     }
 
+    const activeRoom = rooms.find(r => r.status !== 'completed' && r.status !== 'waiting');
+
     return (
         <div className="min-h-screen" style={{ background: 'var(--color-bg-primary)' }}>
             <Navbar />
 
-            {/* Ambient Background */}
-            <div className="fixed inset-0 pointer-events-none overflow-hidden opacity-30">
-                <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-[var(--color-gold)] blur-[150px] opacity-10 -translate-y-1/2 translate-x-1/2" />
+            {/* Subtle ambient glow */}
+            <div className="fixed inset-0 pointer-events-none overflow-hidden">
+                <div className="absolute top-0 right-0 w-[400px] h-[400px] rounded-full opacity-[0.06] -translate-y-1/2 translate-x-1/2"
+                    style={{ background: 'radial-gradient(circle, var(--color-gold) 0%, transparent 70%)', filter: 'blur(80px)' }} />
             </div>
 
-            <main className="relative z-10 max-w-7xl mx-auto px-6 pt-24 pb-20">
-                {/* Header Section */}
-                <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-12 animate-fadeInUp">
+            <main className="relative z-10 max-w-5xl mx-auto px-6 pt-24 pb-20">
+
+                {/* Header */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-5 mb-10 animate-fadeInUp">
                     <div>
-                        <div className="inline-flex items-center gap-2 mb-3 px-3 py-1 rounded-full bg-[var(--color-gold)]/5 border border-[var(--color-gold)]/20">
-                            <span className="text-[10px] font-black tracking-widest gold-text uppercase">Commander Dashboard</span>
-                        </div>
-                        <h1 className="text-4xl font-black tracking-tight mb-2">
-                            Welcome, <span className="gold-text uppercase">{username}</span>
+                        <p className="text-xs font-bold tracking-widest uppercase mb-2" style={{ color: 'var(--color-text-muted)' }}>
+                            IPL 2026
+                        </p>
+                        <h1 className="text-3xl font-black tracking-tight">
+                            Hey, <span className="gold-text">{username}</span> 👋
                         </h1>
-                        <p className="text-sm font-medium text-[var(--color-text-muted)] max-w-md">
-                            Your tactical control center for Season 2026. Manage your rooms and monitor active campaigns.
+                        <p className="text-sm mt-1" style={{ color: 'var(--color-text-muted)' }}>
+                            {rooms.length === 0
+                                ? 'Create a room to start your season.'
+                                : `You're in ${rooms.length} room${rooms.length > 1 ? 's' : ''}.`}
                         </p>
                     </div>
+                    <button id="create-room-btn" onClick={createRoom} disabled={creating} className="btn-primary px-8 py-3 font-bold self-start sm:self-auto">
+                        {creating ? 'Creating...' : '+ New Room'}
+                    </button>
+                </div>
 
-                    <div className="flex items-center gap-4">
-                        <div className="text-right hidden sm:block px-6 py-2 border-r border-white/5">
-                            <div className="text-[10px] font-bold text-[var(--color-text-muted)] uppercase tracking-widest mb-1">Active Rooms</div>
-                            <div className="text-xl font-black text-white">{rooms.length}</div>
+                {/* Active session banner */}
+                {activeRoom && (
+                    <div className="mb-8 p-4 rounded-2xl flex items-center justify-between gap-4 cursor-pointer hover:opacity-90 transition-opacity"
+                        style={{ background: 'rgba(212,175,55,0.06)', border: '1px solid rgba(212,175,55,0.2)' }}
+                        onClick={() => navigateToRoom(activeRoom.code)}>
+                        <div className="flex items-center gap-3">
+                            <span className="text-2xl">{STATUS_LABELS[activeRoom.status]?.emoji ?? '🏏'}</span>
+                            <div>
+                                <p className="text-xs font-bold tracking-widest uppercase gold-text mb-0.5">Active Season</p>
+                                <p className="text-sm font-semibold text-white">
+                                    {STATUS_LABELS[activeRoom.status]?.label ?? 'In progress'} · Room {activeRoom.code}
+                                </p>
+                            </div>
                         </div>
-                        <button
-                            id="create-room-btn"
-                            onClick={createRoom}
-                            disabled={creating}
-                            className="btn-primary"
-                        >
-                            {creating ? 'Initializing...' : 'Deploy New Room'}
-                        </button>
+                        <span className="text-sm font-bold gold-text">Rejoin →</span>
+                    </div>
+                )}
+
+                {/* Join a room */}
+                <div className="panel mb-8" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
+                    <div className="flex flex-col sm:flex-row items-center gap-4">
+                        <div className="flex-1">
+                            <h2 className="text-base font-bold text-white mb-0.5">Join a Room</h2>
+                            <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>Got an invite code? Enter it here.</p>
+                        </div>
+                        <form onSubmit={handleJoinRoom} className="flex gap-3 w-full sm:w-auto">
+                            <input id="join-code-input" type="text" value={joinCode}
+                                onChange={e => setJoinCode(e.target.value.toUpperCase())}
+                                placeholder="ROOM CODE"
+                                className="input-field font-mono font-black tracking-[0.25em] text-center w-36 uppercase"
+                                maxLength={6} />
+                            <button id="join-room-btn" type="submit"
+                                disabled={joining || joinCode.length < 6} className="btn-secondary">
+                                {joining ? '...' : 'Join'}
+                            </button>
+                        </form>
                     </div>
                 </div>
 
-                <div className="grid lg:grid-cols-3 gap-8">
-                    {/* Left Column: Rooms & Join */}
-                    <div className="lg:col-span-2 space-y-8">
-                        {/* Quick Join */}
-                        <div className="panel-gold group border-white/10 overflow-hidden">
-                            <div className="flex flex-col sm:flex-row items-center justify-between gap-6 p-2">
-                                <div className="flex-1">
-                                    <h2 className="text-lg font-black mb-1 tracking-tight">Rapid Deployment</h2>
-                                    <p className="text-xs font-medium text-[var(--color-text-secondary)]">Enter a 6-digit access code to join an active simulation.</p>
-                                </div>
-                                <form onSubmit={handleJoinRoom} className="flex w-full sm:w-auto gap-3">
-                                    <input
-                                        id="join-code-input"
-                                        type="text"
-                                        value={joinCode}
-                                        onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
-                                        placeholder="ROOM CODE"
-                                        className="input-field font-mono font-black tracking-[0.3em] text-center w-40"
-                                        maxLength={6}
+                {error && (
+                    <div className="mb-6 px-4 py-3 rounded-xl text-sm font-semibold flex items-center gap-3"
+                        style={{ background: 'rgba(239,68,68,0.08)', color: 'var(--color-danger)', border: '1px solid rgba(239,68,68,0.2)' }}>
+                        ⚠️ {error}
+                    </div>
+                )}
+
+                {/* Rooms list */}
+                <div>
+                    <div className="flex items-center gap-4 mb-5">
+                        <h2 className="text-xs font-black tracking-[0.3em] uppercase" style={{ color: 'var(--color-text-muted)' }}>
+                            Your Rooms
+                        </h2>
+                        <div className="h-px flex-1" style={{ background: 'linear-gradient(to right, rgba(255,255,255,0.06), transparent)' }} />
+                    </div>
+
+                    {rooms.length === 0 ? (
+                        <div className="panel text-center py-20 bg-white/[0.01]">
+                            <div className="text-4xl mb-4">🏏</div>
+                            <p className="text-sm font-medium" style={{ color: 'var(--color-text-muted)' }}>
+                                No rooms yet — create one and invite your friends.
+                            </p>
+                        </div>
+                    ) : (
+                        <div className="grid md:grid-cols-2 gap-4">
+                            {rooms.map(room => (
+                                <div key={room.code} onClick={() => navigateToRoom(room.code)} className="cursor-pointer">
+                                    <RoomCard
+                                        code={room.code}
+                                        status={room.status}
+                                        playerCount={room.playerCount}
+                                        maxPlayers={room.maxPlayers}
+                                        players={room.players}
+                                        hostId={room.hostId}
+                                        currentUserId={userId || ''}
+                                        onJoin={navigateToRoom}
+                                        onDelete={deleteRoom}
                                     />
-                                    <button
-                                        id="join-room-btn"
-                                        type="submit"
-                                        disabled={joining || joinCode.length < 6}
-                                        className="btn-secondary min-w-[100px]"
-                                    >
-                                        {joining ? '...' : 'JOIN'}
-                                    </button>
-                                </form>
-                            </div>
+                                </div>
+                            ))}
                         </div>
+                    )}
+                </div>
 
-                        {error && (
-                            <div className="px-5 py-4 rounded-xl text-sm font-bold flex items-center gap-3 animate-slideIn" style={{
-                                background: 'rgba(239, 68, 68, 0.08)', color: 'var(--color-danger)',
-                                border: '1px solid rgba(239, 68, 68, 0.2)',
-                            }}>
-                                <span className="text-lg">⚠️</span> {error}
-                            </div>
-                        )}
-
-                        {/* Room List */}
-                        <div>
-                            <div className="flex items-center justify-between mb-6">
-                                <h2 className="text-xs font-black tracking-[0.3em] uppercase gold-text">
-                                    Operation Status
-                                </h2>
-                                <div className="h-px flex-1 mx-6 bg-gradient-to-r from-[var(--color-gold)]/20 to-transparent" />
-                            </div>
-
-                            {rooms.length === 0 ? (
-                                <div className="panel text-center py-20 bg-white/[0.02]">
-                                    <div className="text-4xl mb-4 opacity-20">📡</div>
-                                    <p className="text-sm font-medium text-[var(--color-text-muted)]">
-                                        No active operations detected in your sector.
-                                    </p>
-                                </div>
-                            ) : (
-                                <div className="grid md:grid-cols-2 gap-4">
-                                    {rooms.map((room) => (
-                                        <div key={room.code} onClick={() => navigateToRoom(room.code)} className="cursor-pointer group">
-                                            <RoomCard
-                                                code={room.code}
-                                                status={room.status}
-                                                playerCount={room.playerCount}
-                                                maxPlayers={room.maxPlayers}
-                                                players={room.players}
-                                                hostId={room.hostId}
-                                                currentUserId={userId || ''}
-                                                onJoin={navigateToRoom}
-                                                onDelete={deleteRoom}
-                                            />
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
+                {/* Season info strip */}
+                <div className="mt-10 flex items-center justify-center gap-8 pt-6 border-t border-white/[0.04]">
+                    {[
+                        { label: 'Auction Purse', value: '120 Cr' },
+                        { label: 'Players', value: '299' },
+                        { label: 'Teams', value: '10' },
+                    ].map((s, i) => (
+                        <div key={i} className="text-center">
+                            <div className="text-lg font-black gold-text">{s.value}</div>
+                            <div className="text-[9px] tracking-widest uppercase font-bold" style={{ color: 'var(--color-text-muted)' }}>{s.label}</div>
                         </div>
-                    </div>
-
-                    {/* Right Column: Sidebar */}
-                    <div className="space-y-8">
-                        {/* Summary Widget */}
-                        <div className="panel bg-[#0F0F12] border-white/5">
-                            <h3 className="text-[10px] font-black tracking-[0.3em] uppercase text-[var(--color-text-muted)] mb-6">Simulation Intel</h3>
-                            <div className="space-y-4">
-                                <div className="flex justify-between items-center py-3 border-b border-white/[0.03]">
-                                    <span className="text-xs font-bold text-[var(--color-text-secondary)]">Engine Version</span>
-                                    <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-white/5 text-white">v2.1.0-gold</span>
-                                </div>
-                                <div className="flex justify-between items-center py-3 border-b border-white/[0.03]">
-                                    <span className="text-xs font-bold text-[var(--color-text-secondary)]">Tournament Purge</span>
-                                    <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-white/5 text-white">120.00 Cr</span>
-                                </div>
-                                <div className="flex justify-between items-center py-3 border-b border-white/[0.03]">
-                                    <span className="text-xs font-bold text-[var(--color-text-secondary)]">Market Status</span>
-                                    <div className="flex items-center gap-1.5">
-                                        <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                                        <span className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest">Active</span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Activity Log */}
-                        <div className="panel bg-[#0F0F12] border-white/5">
-                            <h3 className="text-[10px] font-black tracking-[0.3em] uppercase text-[var(--color-text-muted)] mb-6">Activity Logs</h3>
-                            <div className="space-y-6">
-                                {[
-                                    { t: 'Retention pool generated', d: 'Success', s: 'emerald' },
-                                    { t: 'Database sync', d: 'Stable', s: 'emerald' },
-                                    { t: 'Render cloud link', d: 'Pending', s: 'amber' },
-                                ].map((log, i) => (
-                                    <div key={i} className="flex gap-4">
-                                        <div className={`w-1 h-8 rounded-full bg-${log.s}-500/20`} />
-                                        <div>
-                                            <div className="text-[11px] font-black text-white leading-tight uppercase tracking-wide">{log.t}</div>
-                                            <div className="text-[9px] font-bold text-[var(--color-text-muted)] uppercase mt-1 tracking-widest">{log.d}</div>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    </div>
+                    ))}
                 </div>
             </main>
         </div>

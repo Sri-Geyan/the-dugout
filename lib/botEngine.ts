@@ -1,4 +1,4 @@
-import { AuctionState, AuctionTeam, placeBid, getAuctionState, sellCurrentPlayer, nextPlayer, BID_INCREMENT, saveAuctionState } from './auctionEngine';
+import { AuctionState, AuctionTeam, placeBid, getAuctionState, sellCurrentPlayer, nextPlayer, BID_INCREMENT, saveAuctionState, handleRtm } from './auctionEngine';
 import { CricketPlayer, IPL_PLAYERS } from '@/data/players';
 import { getRoomState } from './roomManager';
 import type { MatchState, BatterState, BowlerState } from './matchEngine';
@@ -397,3 +397,28 @@ export async function runBotRetentions(roomCode: string): Promise<void> {
     }
 }
 
+
+// ======================================================
+// Bot RTM Decision Logic
+// ======================================================
+
+export async function runBotRtmDecisions(roomCode: string): Promise<AuctionState | null> {
+    const state = await getAuctionState(roomCode);
+    if (!state || !state.rtmPending || !state.rtmOriginalTeamId || !state.currentPlayer) return state;
+
+    const botTeam = state.teams.find(t => t.userId === state.rtmOriginalTeamId);
+    if (!botTeam || !isBotUser(botTeam.username)) return state;
+
+    // Evaluate if bot should use RTM
+    const personality = generatePersonality(botTeam.teamName);
+    const value = evaluatePlayerValue(state.currentPlayer, botTeam, personality);
+
+    // RTM is "guaranteed" purchase, so we might be a bit more willing if it's a marquee player
+    const maxRtmPrice = state.currentPlayer.basePrice * personality.maxOverpay * value * 1.1; // 10% premium for RTM
+
+    const shouldRtm = state.currentBid <= maxRtmPrice && botTeam.purse >= state.currentBid;
+
+    console.log(`[Bot RTM] ${botTeam.teamName} deciding on ${state.currentPlayer.name}. Bid: ${state.currentBid}, Max: ${maxRtmPrice.toFixed(2)}. Decision: ${shouldRtm}`);
+
+    return await handleRtm(roomCode, shouldRtm);
+}

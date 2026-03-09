@@ -392,8 +392,10 @@ export default function RetentionPage() {
                                                         <span className="text-[10px]" style={{ color: player.nationality === 'Indian' ? '#66BB6A' : '#4FC3F7' }}>
                                                             {player.nationality === 'Indian' ? '🇮🇳' : '🌍'} {player.nationality}
                                                         </span>
-                                                        {player.capStatus === 'Capped' && (
+                                                        {player.capStatus === 'Capped' ? (
                                                             <span className="text-[10px]" style={{ color: 'var(--color-gold)' }}>⭐ Capped</span>
+                                                        ) : (
+                                                            <span className="text-[10px] px-1.5 py-0.5 rounded font-bold" style={{ background: 'rgba(102,187,106,0.15)', color: '#66BB6A', border: '1px solid rgba(102,187,106,0.3)' }}>🌱 Uncapped</span>
                                                         )}
                                                     </div>
                                                 </div>
@@ -449,7 +451,7 @@ export default function RetentionPage() {
                                                             cursor: canDo ? 'pointer' : 'not-allowed',
                                                         }}
                                                     >
-                                                        {isLoading ? '...' : `+ Retain (₹${nextCost} Cr)`}
+                                                        {isLoading ? '...' : player.capStatus === 'Uncapped' ? '+ Retain (₹4 Cr)' : `+ Retain (₹${nextCost} Cr)`}
                                                     </button>
                                                 )}
                                             </div>

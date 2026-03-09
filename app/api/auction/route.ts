@@ -15,7 +15,7 @@ import { getRoomState, fillRoomWithBots } from '@/lib/roomManager';
 import { TEAM_NAMES } from '@/data/players';
 import { IPL_PLAYERS } from '@/data/players';
 import { getRetentionState } from '@/lib/retentionEngine';
-import { runBotBidding, isBotUser } from '@/lib/botEngine';
+import { runBotBidding, isBotUser, runBotRtmDecisions } from '@/lib/botEngine';
 
 function getSession(request: NextRequest) {
     const sessionCookie = request.cookies.get('session');
@@ -112,7 +112,10 @@ export async function POST(request: NextRequest) {
         }
 
         if (action === 'sell') {
-            const state = await sellCurrentPlayer(roomCode);
+            let state = await sellCurrentPlayer(roomCode);
+            if (state?.rtmPending) {
+                state = await runBotRtmDecisions(roomCode) || state;
+            }
             return NextResponse.json({ state });
         }
 

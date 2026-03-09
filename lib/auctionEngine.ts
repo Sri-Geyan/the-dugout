@@ -1,6 +1,6 @@
 import redis from './redis';
 import { CricketPlayer, IPL_PLAYERS } from '@/data/players';
-import { analyzeSquadNeeds } from './squadUtils';
+import { analyzeSquadNeeds, canAddOverseas, getSquadComposition } from './squadUtils';
 
 // ======================================================
 // IPL-Style Auction Slot Definitions
@@ -283,7 +283,12 @@ export async function placeBid(
     }
 
     if (team.squad.length >= team.maxSquadSize) {
-        return { success: false, error: 'Squad is full', state };
+        return { success: false, error: 'Squad is full (25 max)', state };
+    }
+
+    // IPL: max 8 overseas players per squad
+    if (state.currentPlayer?.nationality === 'Overseas' && !canAddOverseas(team.squad)) {
+        return { success: false, error: 'Overseas quota full (8 max)', state };
     }
 
     if (amount > team.purse) {
@@ -421,13 +426,17 @@ export async function handleRtm(roomCode: string, execute: boolean): Promise<Auc
 async function assignToBestBot(p: CricketPlayer, teams: AuctionTeam[]) {
     const botTeams = teams.filter(t => BOT_USERNAMES_LOCAL.includes(t.username));
 
-    // Filter bots that need this role most and have purse
+    // Filter bots that need this role most and have purse & squad space
     const matchedBots = botTeams
-        .filter(t => t.squad.length < MAX_SQUAD_SIZE && t.purse >= p.basePrice)
+        .filter(t => {
+            const comp = getSquadComposition(t.squad);
+            if (comp.total >= 25) return false; // squad full
+            if (p.nationality === 'Overseas' && !canAddOverseas(t.squad)) return false; // overseas quota
+            return t.purse >= p.basePrice;
+        })
         .map(t => {
             const needs = analyzeSquadNeeds(t.squad);
             const needScore = (needs[p.role] as number) || 1.0;
-            // Weigh by need and available purse
             return { team: t, score: needScore * Math.sqrt(t.purse) };
         })
         .sort((a, b) => b.score - a.score);

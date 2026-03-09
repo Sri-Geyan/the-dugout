@@ -3,7 +3,7 @@ import { CricketPlayer, IPL_PLAYERS } from '@/data/players';
 import { getRoomState } from './roomManager';
 import type { MatchState, BatterState, BowlerState } from './matchEngine';
 import { getRetentionState, retainPlayer, confirmRetentions, getRetentionEligiblePool } from './retentionEngine';
-import { analyzeSquadNeeds } from './squadUtils';
+import { analyzeSquadNeeds, canAddOverseas, playerFillScore, getSquadComposition, IPL_MAX_SQUAD, IPL_MIN_SQUAD, IPL_MAX_OVERSEAS } from './squadUtils';
 
 // ======================================================
 // Bot Detection
@@ -69,39 +69,42 @@ function shouldBotBid(
     team: AuctionTeam,
     personality: BotPersonality
 ): { shouldBid: boolean; bidAmount: number } {
-    if (team.squad.length >= team.maxSquadSize) {
-        return { shouldBid: false, bidAmount: 0 };
-    }
+    const comp = getSquadComposition(team.squad);
 
-    // Ensure bot has enough purse for min remaining slots
-    const slotsRemaining = team.maxSquadSize - team.squad.length;
-    const minReserve = Math.max(0, (slotsRemaining - 1) * 0.25); // Reserve 0.25Cr per remaining slot
+    // Hard blocks
+    if (comp.total >= IPL_MAX_SQUAD) return { shouldBid: false, bidAmount: 0 };
+    if (player.nationality === 'Overseas' && !canAddOverseas(team.squad)) return { shouldBid: false, bidAmount: 0 };
+
+    // Keep enough purse for filling remaining mandatory slots
+    const slotsNeeded = Math.max(0, IPL_MIN_SQUAD - comp.total);
+    const avgSlotCost = 0.5; // Conservative average cost per remaining slot
+    const minReserve = Math.max(0, (slotsNeeded - 1) * avgSlotCost);
     const availablePurse = team.purse - minReserve;
 
-    if (availablePurse <= currentBid) {
-        return { shouldBid: false, bidAmount: 0 };
-    }
+    if (availablePurse <= currentBid) return { shouldBid: false, bidAmount: 0 };
 
-    const value = evaluatePlayerValue(player, team, personality);
+    // Calculate fill score — 0 means squad is full or no need
+    const fillScore = playerFillScore(player, team.squad);
+    if (fillScore === 0) return { shouldBid: false, bidAmount: 0 };
+
+    const skill = Math.max(player.battingSkill, player.bowlingSkill);
     const maxBid = Math.min(
-        player.basePrice * personality.maxOverpay * value,
-        availablePurse
+        player.basePrice * personality.maxOverpay * fillScore,
+        availablePurse * 0.75 // Don't spend more than 75% of available purse on one player
     );
 
+    // For low-skill players, cap the bid tightly to avoid overspending
+    const skillCap = skill >= 85 ? maxBid : Math.min(maxBid, player.basePrice * 4);
+
     const bidAmount = Math.round((currentBid + BID_INCREMENT) * 100) / 100;
+    if (bidAmount > skillCap) return { shouldBid: false, bidAmount: 0 };
 
-    if (bidAmount > maxBid) {
-        return { shouldBid: false, bidAmount: 0 };
-    }
+    // Probability of bidding decreases as bid ratio to max climbs
+    const bidRatio = bidAmount / Math.max(skillCap, bidAmount);
+    const squadsNeedFactor = comp.total < IPL_MIN_SQUAD ? 1.3 : 1.0; // More aggressive when squad is thin
+    const bidProbability = Math.max(0, (1 - bidRatio) * personality.aggression * squadsNeedFactor);
 
-    // Probability of bidding decreases as bid goes up relative to value
-    const bidRatio = bidAmount / maxBid;
-    const bidProbability = Math.max(0, (1 - bidRatio) * personality.aggression);
-
-    // Random chance to bid
-    const shouldBid = Math.random() < bidProbability;
-
-    return { shouldBid, bidAmount };
+    return { shouldBid: Math.random() < bidProbability, bidAmount };
 }
 
 // ======================================================
@@ -204,76 +207,78 @@ export function botSelectPlaying11(squad: EnrichedPlayer[]): {
     wkId: string;
     openingBowlerId: string;
 } {
-    if (squad.length <= 11) {
-        const ids = squad.map(p => p.id);
+    const eligible = squad.slice(0, IPL_MAX_SQUAD); // Never exceed 25
+
+    if (eligible.length <= 11) {
+        const ids = eligible.map(p => p.id);
         return {
             selectedIds: ids,
             battingOrder: ids,
-            captainId: squad[0]?.id || '',
-            wkId: squad.find(p => p.role === 'WICKET_KEEPER')?.id || squad[0]?.id || '',
-            openingBowlerId: squad.find(p => p.role === 'BOWLER')?.id || squad[0]?.id || '',
+            captainId: eligible[0]?.id || '',
+            wkId: eligible.find(p => p.role === 'WICKET_KEEPER')?.id || eligible[0]?.id || '',
+            openingBowlerId: eligible.find(p => p.role === 'BOWLER')?.id || eligible[0]?.id || '',
         };
     }
 
-    // Select best 11 with balanced composition
+    // Sort each role group by skill descending
     const byRole: Record<string, EnrichedPlayer[]> = {
         BATSMAN: [], BOWLER: [], ALL_ROUNDER: [], WICKET_KEEPER: [],
     };
-    squad.forEach(p => {
-        if (byRole[p.role]) byRole[p.role].push(p);
-    });
-
-    // Sort each role by skill
+    eligible.forEach(p => { if (byRole[p.role]) byRole[p.role].push(p); });
     Object.values(byRole).forEach(arr =>
         arr.sort((a, b) => Math.max(b.battingSkill, b.bowlingSkill) - Math.max(a.battingSkill, a.bowlingSkill))
     );
 
     const selected: EnrichedPlayer[] = [];
 
-    // Pick WK (1)
+    // Mandatory picks for a balanced XI:
+    // 1 WK, 4 BAT, 2 AR, 4 BOWL — adjust based on availability
     const wk = byRole.WICKET_KEEPER.shift();
     if (wk) selected.push(wk);
 
-    // Pick top batsmen (3-4)
-    const batCount = Math.min(4, byRole.BATSMAN.length);
-    selected.push(...byRole.BATSMAN.splice(0, batCount));
+    // Pick top 4 batsmen
+    selected.push(...byRole.BATSMAN.splice(0, 4));
+    // Pick top 2 all-rounders
+    selected.push(...byRole.ALL_ROUNDER.splice(0, 2));
+    // Pick top 4 bowlers
+    selected.push(...byRole.BOWLER.splice(0, 4));
 
-    // Pick all-rounders (2-3)
-    const arCount = Math.min(3, byRole.ALL_ROUNDER.length);
-    selected.push(...byRole.ALL_ROUNDER.splice(0, arCount));
-
-    // Pick bowlers (3-4)
-    const bowlCount = Math.min(4, byRole.BOWLER.length);
-    selected.push(...byRole.BOWLER.splice(0, bowlCount));
-
-    // Fill remaining spots from leftovers
-    const remaining = [...byRole.BATSMAN, ...byRole.ALL_ROUNDER, ...byRole.BOWLER, ...byRole.WICKET_KEEPER];
-    remaining.sort((a, b) => Math.max(b.battingSkill, b.bowlingSkill) - Math.max(a.battingSkill, a.bowlingSkill));
+    // Fill remainder from best available
+    const remaining = [
+        ...byRole.BATSMAN, ...byRole.ALL_ROUNDER,
+        ...byRole.BOWLER, ...byRole.WICKET_KEEPER
+    ].sort((a, b) => Math.max(b.battingSkill, b.bowlingSkill) - Math.max(a.battingSkill, a.bowlingSkill));
 
     while (selected.length < 11 && remaining.length > 0) {
         selected.push(remaining.shift()!);
     }
 
-    // Batting order: WK first (if opener type), then batsmen, then all-rounders, then bowlers
+    // Batting order: impact players first then WK, pure batsmen, all-rounders, then bowlers
     const battingOrder = [...selected].sort((a, b) => {
-        const order: Record<string, number> = { WICKET_KEEPER: 1, BATSMAN: 2, ALL_ROUNDER: 3, BOWLER: 4 };
-        const diff = (order[a.role] || 5) - (order[b.role] || 5);
-        if (diff !== 0) return diff;
-        return b.battingSkill - a.battingSkill;
+        const orderWeight = (p: EnrichedPlayer) => {
+            // Prioritise high batting skill players at top
+            const batScore = p.battingSkill * 1.5;
+            const roleBonus = p.role === 'WICKET_KEEPER' ? 10 : p.role === 'BATSMAN' ? 0 :
+                p.role === 'ALL_ROUNDER' ? -10 : -30;
+            return batScore + roleBonus;
+        };
+        return orderWeight(b) - orderWeight(a);
     });
 
-    // Captain = highest overall skill
+    // Captain = highest overall skill (batting + bowling combined)
     const captain = [...selected].sort((a, b) =>
         (b.battingSkill + b.bowlingSkill) - (a.battingSkill + a.bowlingSkill)
     )[0];
 
-    // WK = best wicket keeper, or best batting if no WK
-    const wicketKeeper = selected.find(p => p.role === 'WICKET_KEEPER') || selected[0];
+    // WK = best wicket keeper, fallback to best batter
+    const wicketKeeper = selected.find(p => p.role === 'WICKET_KEEPER')
+        || [...selected].sort((a, b) => b.battingSkill - a.battingSkill)[0];
 
     // Opening bowler = best bowler by bowling skill
     const openingBowler = [...selected]
         .filter(p => p.role === 'BOWLER' || p.role === 'ALL_ROUNDER')
-        .sort((a, b) => b.bowlingSkill - a.bowlingSkill)[0] || selected[selected.length - 1];
+        .sort((a, b) => b.bowlingSkill - a.bowlingSkill)[0]
+        || selected[selected.length - 1];
 
     return {
         selectedIds: selected.map(p => p.id),

@@ -56,42 +56,23 @@ export async function POST(request: NextRequest) {
                 retentionState.teams.forEach(t => t.retained.forEach(r => excludePlayerIds.push(r.playerId)));
             }
 
-            const players = room.players.map((p, i) => ({
-                userId: p.userId,
-                username: p.username,
-                teamName: p.teamName || TEAM_NAMES[i % TEAM_NAMES.length],
-                // Carry over post-retention purse
-                startingPurse: retentionState?.teams.find(t => t.userId === p.userId)?.purse,
-            }));
+            const enrichedTeams = room.players.map((p, i) => {
+                const teamRetention = retentionState?.teams.find(t => t.userId === p.userId);
+                return {
+                    userId: p.userId,
+                    username: p.username,
+                    teamName: p.teamName || TEAM_NAMES[i % TEAM_NAMES.length],
+                    purse: teamRetention?.purse ?? 120,
+                    retained: teamRetention?.retained.map(r => ({
+                        playerId: r.playerId,
+                        playerName: r.playerName,
+                        role: r.role,
+                        cost: r.cost
+                    })) ?? []
+                };
+            });
 
-            const state = await initAuction(roomCode, players, excludePlayerIds);
-
-            // Merge retained players into each team's squad
-            if (retentionState) {
-                for (const retTeam of retentionState.teams) {
-                    const auctionTeam = state.teams.find(t => t.userId === retTeam.userId);
-                    if (!auctionTeam) continue;
-
-                    // IPL Rule: Total 6 (Retentions + RTM)
-                    auctionTeam.maxRtmCards = Math.max(0, 6 - (retTeam.retained.length || 0));
-
-                    for (const retained of retTeam.retained) {
-                        const playerData = IPL_PLAYERS.find(p => p.id === retained.playerId);
-                        if (!playerData) continue;
-
-                        auctionTeam.squad.push({
-                            player: playerData,
-                            soldTo: {
-                                userId: auctionTeam.userId,
-                                username: auctionTeam.username,
-                                teamName: auctionTeam.teamName,
-                            },
-                            soldPrice: retained.cost,
-                        });
-                    }
-                }
-                await saveAuctionState(roomCode, state);
-            }
+            const state = await initAuction(roomCode, enrichedTeams, excludePlayerIds);
 
             console.log(`[Auction] Room ${roomCode} initialized with ${state.totalPlayers} players in sets`);
             return NextResponse.json({ state });

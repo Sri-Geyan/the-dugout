@@ -51,7 +51,7 @@ export async function createRoom(hostId: string, username: string, maxPlayers: n
         id: dbRoom.id,
         code,
         hostId,
-        status: 'WAITING',
+        status: 'waiting',
         maxPlayers,
         players: [{ userId: hostId, username }],
         createdAt: new Date().toISOString()
@@ -117,7 +117,7 @@ export async function getRoomState(code: string): Promise<RoomState | null> {
         id: dbRoom.id,
         code: dbRoom.code,
         hostId: dbRoom.hostId,
-        status: dbRoom.status,
+        status: dbRoom.status.toLowerCase(),
         maxPlayers: dbRoom.maxPlayers,
         players: dbRoom.players.map(p => ({
             userId: p.userId,

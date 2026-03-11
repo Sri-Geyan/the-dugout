@@ -86,9 +86,9 @@ export async function POST(request: NextRequest) {
             let state = await nextPlayer(roomCode);
             if (!state) return NextResponse.json({ error: 'Auction not found' }, { status: 404 });
 
-            // Run bot bidding after presenting new player
+            // Run bot bidding after presenting new player (Background)
             if (state.status === 'bidding') {
-                state = await runBotBidding(roomCode) || state;
+                runBotBidding(roomCode).catch(e => console.error('[Bot Bidding Error]:', e));
             }
 
             emitToRoom(roomCode, 'auction_update', { state });
@@ -107,10 +107,10 @@ export async function POST(request: NextRequest) {
                 return NextResponse.json({ error: result.error, state: result.state }, { status: 400 });
             }
 
-            // Run bot bidding after human bid
+            // Run bot bidding after human bid (Background)
             let state = result.state;
             if (state.status === 'bidding') {
-                state = await runBotBidding(roomCode) || state;
+                runBotBidding(roomCode).catch(e => console.error('[Bot Bidding Error]:', e));
             }
 
             emitToRoom(roomCode, 'auction_update', { state });
@@ -120,19 +120,19 @@ export async function POST(request: NextRequest) {
         if (action === 'sell') {
             let state = await sellCurrentPlayer(roomCode);
             if (state?.rtmPending) {
-                state = await runBotRtmDecisions(roomCode) || state;
+                runBotRtmDecisions(roomCode).catch(e => console.error('[Bot RTM Error]:', e));
             }
             if (state) emitToRoom(roomCode, 'auction_update', { state });
             return NextResponse.json({ state });
         }
 
         if (action === 'rtm') {
-            let updatedState = await handleRtm(roomCode, execute);
+            const updatedState = await handleRtm(roomCode, execute);
             if (updatedState?.rtmState === 'bargain') {
-                updatedState = await runBotBargainDecisions(roomCode) || updatedState;
+                runBotBargainDecisions(roomCode).catch(e => console.error('[Bot Bargain Error]:', e));
             }
             if (updatedState?.rtmState === 'final_match') {
-                updatedState = await runBotFinalMatchDecisions(roomCode) || updatedState;
+                runBotFinalMatchDecisions(roomCode).catch(e => console.error('[Bot Final Match Error]:', e));
             }
             if (updatedState) emitToRoom(roomCode, 'auction_update', { state: updatedState });
             return NextResponse.json({ state: updatedState });
@@ -149,7 +149,7 @@ export async function POST(request: NextRequest) {
 
             let updatedState = await handleBargain(roomCode, amount);
             if (updatedState?.rtmState === 'final_match') {
-                updatedState = await runBotFinalMatchDecisions(roomCode) || updatedState;
+                runBotFinalMatchDecisions(roomCode).catch(e => console.error('[Bot Final Match Error]:', e));
             }
             if (updatedState) emitToRoom(roomCode, 'auction_update', { state: updatedState });
             return NextResponse.json({ state: updatedState });

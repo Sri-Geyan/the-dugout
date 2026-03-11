@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import Navbar from "@/components/Navbar";
 
 export const metadata: Metadata = {
   title: "The Dugout — Where Decisions Win Matches",
@@ -21,7 +22,10 @@ export default function RootLayout({
         />
       </head>
       <body className="antialiased min-h-screen">
-        {children}
+        <Navbar />
+        <main className="pt-18">
+          {children}
+        </main>
       </body>
     </html>
   );

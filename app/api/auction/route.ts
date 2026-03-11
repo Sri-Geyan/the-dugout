@@ -9,13 +9,15 @@ import {
     skipSet,
     endAuction,
     handleRtm,
+    handleBargain,
+    handleFinalMatch,
     saveAuctionState,
 } from '@/lib/auctionEngine';
 import { getRoomState, fillRoomWithBots } from '@/lib/roomManager';
 import { TEAM_NAMES } from '@/data/players';
 import { IPL_PLAYERS } from '@/data/players';
 import { getRetentionState } from '@/lib/retentionEngine';
-import { runBotBidding, isBotUser, runBotRtmDecisions } from '@/lib/botEngine';
+import { runBotBidding, isBotUser, runBotRtmDecisions, runBotBargainDecisions, runBotFinalMatchDecisions } from '@/lib/botEngine';
 import { emitToRoom } from '@/lib/socket-server';
 
 function getSession(request: NextRequest) {
@@ -89,6 +91,7 @@ export async function POST(request: NextRequest) {
                 state = await runBotBidding(roomCode) || state;
             }
 
+            emitToRoom(roomCode, 'auction_update', { state });
             return NextResponse.json({ state });
         }
 
@@ -124,15 +127,44 @@ export async function POST(request: NextRequest) {
         }
 
         if (action === 'rtm') {
-            const state = await getAuctionState(roomCode);
-            if (!state || !state.rtmPending) {
-                return NextResponse.json({ error: 'RTM not pending' }, { status: 400 });
+            let updatedState = await handleRtm(roomCode, execute);
+            if (updatedState?.rtmState === 'bargain') {
+                updatedState = await runBotBargainDecisions(roomCode) || updatedState;
             }
-            if (state.rtmOriginalTeamId !== session.userId) {
-                return NextResponse.json({ error: 'Only the original team owner can use RTM' }, { status: 403 });
+            if (updatedState?.rtmState === 'final_match') {
+                updatedState = await runBotFinalMatchDecisions(roomCode) || updatedState;
+            }
+            if (updatedState) emitToRoom(roomCode, 'auction_update', { state: updatedState });
+            return NextResponse.json({ state: updatedState });
+        }
+
+        if (action === 'bargain') {
+            const state = await getAuctionState(roomCode);
+            if (!state || state.rtmState !== 'bargain') {
+                return NextResponse.json({ error: 'Bargain not pending' }, { status: 400 });
+            }
+            if (state.currentBidder?.userId !== session.userId) {
+                return NextResponse.json({ error: 'Only the highest bidder can bargain' }, { status: 403 });
             }
 
-            const updatedState = await handleRtm(roomCode, execute);
+            let updatedState = await handleBargain(roomCode, amount);
+            if (updatedState?.rtmState === 'final_match') {
+                updatedState = await runBotFinalMatchDecisions(roomCode) || updatedState;
+            }
+            if (updatedState) emitToRoom(roomCode, 'auction_update', { state: updatedState });
+            return NextResponse.json({ state: updatedState });
+        }
+
+        if (action === 'finalMatch') {
+            const state = await getAuctionState(roomCode);
+            if (!state || state.rtmState !== 'final_match') {
+                return NextResponse.json({ error: 'Final match not pending' }, { status: 400 });
+            }
+            if (state.rtmOriginalTeamId !== session.userId) {
+                return NextResponse.json({ error: 'Only the original team owner can match finally' }, { status: 403 });
+            }
+
+            const updatedState = await handleFinalMatch(roomCode, execute);
             if (updatedState) emitToRoom(roomCode, 'auction_update', { state: updatedState });
             return NextResponse.json({ state: updatedState });
         }

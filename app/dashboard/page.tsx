@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useUserStore } from '@/lib/store';
-import Navbar from '@/components/Navbar';
 import RoomCard from '@/components/RoomCard';
 
 interface UserRoom {
@@ -144,7 +143,6 @@ export default function DashboardPage() {
 
     return (
         <div className="min-h-screen" style={{ background: 'var(--color-bg-primary)' }}>
-            <Navbar />
 
             {/* Subtle ambient glow */}
             <div className="fixed inset-0 pointer-events-none overflow-hidden">
@@ -152,7 +150,7 @@ export default function DashboardPage() {
                     style={{ background: 'radial-gradient(circle, var(--color-gold) 0%, transparent 70%)', filter: 'blur(80px)' }} />
             </div>
 
-            <main className="relative z-10 max-w-5xl mx-auto px-6 pt-24 pb-20">
+            <main className="relative z-10 max-w-5xl mx-auto px-6 pt-12 pb-20">
 
                 {/* Header */}
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-5 mb-10 animate-fadeInUp">

@@ -1,4 +1,4 @@
-import { AuctionState, AuctionTeam, placeBid, getAuctionState, sellCurrentPlayer, BID_INCREMENT, handleRtm } from './auctionEngine';
+import { AuctionState, AuctionTeam, placeBid, getAuctionState, sellCurrentPlayer, BID_INCREMENT, handleRtm, handleBargain, handleFinalMatch } from './auctionEngine';
 import { CricketPlayer } from '@/data/players';
 import { getRoomState } from './roomManager';
 import type { MatchState, BatterState, BowlerState } from './matchEngine';
@@ -63,45 +63,60 @@ function evaluatePlayerValue(player: CricketPlayer, team: AuctionTeam, personali
     return skillFactor * roleNeed * rolePreference * personality.aggression;
 }
 
+export function getBotMaxHighBid(
+    player: CricketPlayer,
+    team: AuctionTeam
+): number {
+    const personality = generatePersonality(team.teamName);
+    const comp = getSquadComposition(team.squad);
+
+    // Hard blocks
+    if (comp.total >= IPL_MAX_SQUAD) return 0;
+    if (player.nationality === 'Overseas' && !canAddOverseas(team.squad)) return 0;
+
+    // Keep enough purse for filling remaining mandatory slots
+    const slotsNeeded = Math.max(0, IPL_MIN_SQUAD - comp.total);
+    const avgSlotCost = 0.5;
+    const minReserve = Math.max(0, (slotsNeeded - 1) * avgSlotCost);
+    const availablePurse = team.purse - minReserve;
+
+    if (availablePurse <= player.basePrice) return 0;
+
+    // Calculate fill score — 0 means squad is full or no need
+    const fillScore = playerFillScore(player, team.squad);
+    if (fillScore === 0) return 0;
+
+    const skill = Math.max(player.battingSkill, player.bowlingSkill);
+    const maxBidRaw = Math.min(
+        player.basePrice * personality.maxOverpay * fillScore,
+        availablePurse * 0.75 
+    );
+
+    // For low-skill players, cap the bid tightly
+    const skillCap = skill >= 85 ? maxBidRaw : Math.min(maxBidRaw, player.basePrice * 4);
+    
+    // Add a bit of randomness to max bid so bots don't always bid the exact same amount
+    const jitter = 0.9 + Math.random() * 0.2; // +/- 10%
+    const finalMax = Math.max(player.basePrice, skillCap * jitter);
+
+    return Math.floor(finalMax / BID_INCREMENT) * BID_INCREMENT;
+}
+
 function shouldBotBid(
     player: CricketPlayer,
     currentBid: number,
     team: AuctionTeam,
     personality: BotPersonality
 ): { shouldBid: boolean; bidAmount: number } {
-    const comp = getSquadComposition(team.squad);
-
-    // Hard blocks
-    if (comp.total >= IPL_MAX_SQUAD) return { shouldBid: false, bidAmount: 0 };
-    if (player.nationality === 'Overseas' && !canAddOverseas(team.squad)) return { shouldBid: false, bidAmount: 0 };
-
-    // Keep enough purse for filling remaining mandatory slots
-    const slotsNeeded = Math.max(0, IPL_MIN_SQUAD - comp.total);
-    const avgSlotCost = 0.5; // Conservative average cost per remaining slot
-    const minReserve = Math.max(0, (slotsNeeded - 1) * avgSlotCost);
-    const availablePurse = team.purse - minReserve;
-
-    if (availablePurse <= currentBid) return { shouldBid: false, bidAmount: 0 };
-
-    // Calculate fill score — 0 means squad is full or no need
-    const fillScore = playerFillScore(player, team.squad);
-    if (fillScore === 0) return { shouldBid: false, bidAmount: 0 };
-
-    const skill = Math.max(player.battingSkill, player.bowlingSkill);
-    const maxBid = Math.min(
-        player.basePrice * personality.maxOverpay * fillScore,
-        availablePurse * 0.75 // Don't spend more than 75% of available purse on one player
-    );
-
-    // For low-skill players, cap the bid tightly to avoid overspending
-    const skillCap = skill >= 85 ? maxBid : Math.min(maxBid, player.basePrice * 4);
+    const skillCap = getBotMaxHighBid(player, team);
 
     const bidAmount = Math.round((currentBid + BID_INCREMENT) * 100) / 100;
     if (bidAmount > skillCap) return { shouldBid: false, bidAmount: 0 };
 
     // Probability of bidding decreases as bid ratio to max climbs
     const bidRatio = bidAmount / Math.max(skillCap, bidAmount);
-    const squadsNeedFactor = comp.total < IPL_MIN_SQUAD ? 1.3 : 1.0; // More aggressive when squad is thin
+    const comp = getSquadComposition(team.squad);
+    const squadsNeedFactor = comp.total < IPL_MIN_SQUAD ? 1.3 : 1.0;
     const bidProbability = Math.max(0, (1 - bidRatio) * personality.aggression * squadsNeedFactor);
 
     return { shouldBid: Math.random() < bidProbability, bidAmount };
@@ -431,4 +446,54 @@ export async function runBotRtmDecisions(roomCode: string): Promise<AuctionState
     console.log(`[Bot RTM] ${botTeam.teamName} deciding on ${state.currentPlayer.name}. Bid: ${state.currentBid}, Max: ${maxRtmPrice.toFixed(2)}. Decision: ${shouldRtm}`);
 
     return await handleRtm(roomCode, shouldRtm);
+}
+
+export async function runBotBargainDecisions(roomCode: string): Promise<AuctionState | null> {
+    const state = await getAuctionState(roomCode);
+    if (!state || state.rtmState !== 'bargain' || !state.currentBidder || !state.currentPlayer) return state;
+
+    const botTeam = state.teams.find(t => t.userId === state.currentBidder!.userId);
+    if (!botTeam || !isBotUser(botTeam.username)) return state;
+
+    // Evaluate if bot should increase price
+    const personality = generatePersonality(botTeam.teamName);
+    const value = evaluatePlayerValue(state.currentPlayer, botTeam, personality);
+
+    // Max bargaining price — potentially even higher since they are so close to losing the player
+    const maxBargainPrice = state.currentPlayer.basePrice * personality.maxOverpay * value * 1.25;
+
+    // Decide how much to increase. IPL 2025 rule: any amount >= current bid.
+    // Bot will try to increase by a significant amount if they really want the player,
+    // otherwise they stay at current bid.
+    let bargainAmount = state.currentBid;
+    if (maxBargainPrice > state.currentBid) {
+        // Increase by a random amount between 0.5 and 2.0 Cr
+        const increase = Math.max(0.25, Math.round((Math.random() * 1.5 + 0.5) / 0.25) * 0.25);
+        bargainAmount = Math.min(state.currentBid + increase, maxBargainPrice, botTeam.purse);
+        bargainAmount = Math.round(bargainAmount / 0.25) * 0.25;
+    }
+
+    console.log(`[Bot Bargain] ${botTeam.teamName} deciding on ${state.currentPlayer.name}. Bid: ${state.currentBid}, Bargain: ${bargainAmount}, Max: ${maxBargainPrice.toFixed(2)}`);
+
+    return await handleBargain(roomCode, bargainAmount);
+}
+
+export async function runBotFinalMatchDecisions(roomCode: string): Promise<AuctionState | null> {
+    const state = await getAuctionState(roomCode);
+    if (!state || state.rtmState !== 'final_match' || !state.rtmOriginalTeamId || !state.currentPlayer || !state.rtmBargainBid) return state;
+
+    const botTeam = state.teams.find(t => t.userId === state.rtmOriginalTeamId);
+    if (!botTeam || !isBotUser(botTeam.username)) return state;
+
+    // Evaluate if bot should match final bargain price
+    const personality = generatePersonality(botTeam.teamName);
+    const value = evaluatePlayerValue(state.currentPlayer, botTeam, personality);
+
+    const maxFinalPrice = state.currentPlayer.basePrice * personality.maxOverpay * value * 1.15;
+
+    const shouldMatch = state.rtmBargainBid <= maxFinalPrice && botTeam.purse >= state.rtmBargainBid;
+
+    console.log(`[Bot Final Match] ${botTeam.teamName} deciding on ${state.currentPlayer.name}. Bargain Price: ${state.rtmBargainBid}, Max: ${maxFinalPrice.toFixed(2)}. Decision: ${shouldMatch}`);
+
+    return await handleFinalMatch(roomCode, shouldMatch);
 }

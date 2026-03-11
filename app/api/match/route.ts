@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { initMatchState, processNextBall, saveMatchState, getMatchState, performToss, selectNextBatter, selectNextBowler } from '@/lib/matchEngine';
 import { v4 as uuidv4 } from 'uuid';
 import { getLeagueState } from '@/lib/leagueEngine';
+import { emitToRoom } from '@/lib/socket-server';
 import { getAuctionState } from '@/lib/auctionEngine';
 import { getRoomState } from '@/lib/roomManager';
 import { isBotUser, botChooseNextBatter, botChooseNextBowler, botTossDecision } from '@/lib/botEngine';
@@ -117,6 +118,7 @@ export async function POST(request: NextRequest) {
                 awayOpeningBowlerId: awaySelData?.openingBowlerId,
             });
             await saveMatchState(state);
+            emitToRoom(rCode, 'match_update', { state });
             return NextResponse.json({ state });
         }
 
@@ -135,6 +137,7 @@ export async function POST(request: NextRequest) {
                 await redis.set(tossKey, JSON.stringify(toss), 'EX', 86400);
             }
 
+            emitToRoom(tossRoomCode, 'match_update', { toss, matchId: id });
             return NextResponse.json({ toss, matchId: id });
         }
 
@@ -155,6 +158,7 @@ export async function POST(request: NextRequest) {
 
             toss.decision = decision;
             await redis.set(tossKey, JSON.stringify(toss), 'EX', 86400);
+            emitToRoom(decRoomCode, 'match_update', { toss });
             return NextResponse.json({ toss });
         }
 
@@ -165,6 +169,7 @@ export async function POST(request: NextRequest) {
             if (state.status === 'innings_break') {
                 state.status = 'awaiting_bowler';
                 await saveMatchState(state);
+                emitToRoom(state.roomCode, 'match_update', { state });
                 return NextResponse.json({ state, ballResult: null });
             }
 
@@ -198,6 +203,7 @@ export async function POST(request: NextRequest) {
                         if (bId) selectNextBowler(state, bId);
                     }
                     await saveMatchState(state);
+                    emitToRoom(state.roomCode, 'match_update', { state });
                     return NextResponse.json({ state, ballResult: null });
                 }
 
@@ -230,72 +236,7 @@ export async function POST(request: NextRequest) {
             }
 
             await saveMatchState(state);
-
-            // Hook: If the match just completed, update the League State
-            if (!wasCompleted && state.status === 'completed' && state.result && state.roomCode && state.roomCode !== state.matchId) {
-                try {
-                    const firstInnBatTeam = state.currentBatting === 'home' ? state.awayTeam : state.homeTeam;
-                    const secondInnBatTeam = state.currentBatting === 'home' ? state.homeTeam : state.awayTeam;
-
-                    const batStats1 = (state.firstInningsBattingOrder || []).map(b => ({
-                        playerId: b.player.id, playerName: b.player.name,
-                        teamName: firstInnBatTeam.name, teamId: firstInnBatTeam.userId,
-                        runs: b.runs, balls: b.balls, fours: b.fours, sixes: b.sixes, isOut: b.isOut
-                    }));
-                    const batStats2 = state.battingOrder.map(b => ({
-                        playerId: b.player.id, playerName: b.player.name,
-                        teamName: secondInnBatTeam.name, teamId: secondInnBatTeam.userId,
-                        runs: b.runs, balls: b.balls, fours: b.fours, sixes: b.sixes, isOut: b.isOut
-                    }));
-
-                    const bowlStats1 = (state.firstInningsBowlingOrder || []).map(b => ({
-                        playerId: b.player.id, playerName: b.player.name,
-                        teamName: secondInnBatTeam.name, teamId: secondInnBatTeam.userId,
-                        overs: b.overs, balls: b.overBalls, runs: b.runs, wickets: b.wickets
-                    }));
-                    const bowlStats2 = state.bowlingOrder.map(b => ({
-                        playerId: b.player.id, playerName: b.player.name,
-                        teamName: firstInnBatTeam.name, teamId: firstInnBatTeam.userId,
-                        overs: b.overs, balls: b.overBalls, runs: b.runs, wickets: b.wickets
-                    }));
-
-                    let winnerUserId = null;
-                    if (state.homeTeam.score > state.awayTeam.score) winnerUserId = state.homeTeam.userId;
-                    else if (state.awayTeam.score > state.homeTeam.score) winnerUserId = state.awayTeam.userId;
-
-                    const matchResult = {
-                        homeUserId: state.homeTeam.userId,
-                        awayUserId: state.awayTeam.userId,
-                        homeScore: state.homeTeam.score,
-                        homeWickets: state.homeTeam.wickets,
-                        homeOvers: state.homeTeam.overs,
-                        homeBalls: state.homeTeam.balls,
-                        awayScore: state.awayTeam.score,
-                        awayWickets: state.awayTeam.wickets,
-                        awayOvers: state.awayTeam.overs,
-                        awayBalls: state.awayTeam.balls,
-                        result: state.result,
-                        winnerUserId,
-                        battingStats: [...batStats1, ...batStats2],
-                        bowlingStats: [...bowlStats1, ...bowlStats2],
-                    };
-
-                    const url = new URL('/api/league', request.url);
-                    await fetch(url.toString(), {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json', 'Cookie': request.headers.get('cookie') || '' },
-                        body: JSON.stringify({
-                            action: 'completeMatch',
-                            roomCode: state.roomCode,
-                            matchId: state.matchId,
-                            matchResult,
-                        })
-                    });
-                } catch (err) {
-                    console.error('Failed to trigger league completeMatch:', err);
-                }
-            }
-
+            emitToRoom(state.roomCode, 'match_update', { state, ballResult: result.ballResult });
             return NextResponse.json({ state, ballResult: result.ballResult });
         }
 
@@ -315,6 +256,7 @@ export async function POST(request: NextRequest) {
 
             state = selectNextBatter(state, batterId);
             await saveMatchState(state);
+            emitToRoom(state.roomCode, 'match_update', { state });
             return NextResponse.json({ state });
         }
 
@@ -334,6 +276,7 @@ export async function POST(request: NextRequest) {
 
             state = selectNextBowler(state, bowlerId);
             await saveMatchState(state);
+            emitToRoom(state.roomCode, 'match_update', { state });
             return NextResponse.json({ state });
         }
 

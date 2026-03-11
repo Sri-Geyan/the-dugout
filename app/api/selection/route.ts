@@ -142,6 +142,8 @@ export async function POST(request: NextRequest) {
             ? `selection:${roomCode}:${fixtureId}:${teamId}`
             : `selection:${roomCode}:${teamId}`;
 
+        const { emitToRoom } = await import('@/lib/socket-server');
+
         // Save enriched selection data
         const selectionData: SelectionData = {
             selectedIds,
@@ -164,15 +166,33 @@ export async function POST(request: NextRequest) {
 
                 if (globalKeys.length >= totalTeams) {
                     try {
-                        const url = new URL(`/api/league`, request.url);
-                        await fetch(url.toString(), {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                                'Cookie': request.headers.get('cookie') || ''
-                            },
-                            body: JSON.stringify({ action: 'init', roomCode })
-                        });
+                        const { initLeagueState, saveLeagueState } = await import('@/lib/leagueEngine');
+                        const { updateRoomStatus } = await import('@/lib/roomManager');
+                        
+                        // Convert auction teams to league teams
+                        const teams = auctionState.teams.map(t => ({
+                            userId: t.userId,
+                            username: t.username,
+                            teamName: t.teamName,
+                            teamId: (t as any).teamId,
+                            squad: t.squad.map(s => ({
+                                player: {
+                                    id: s.player.id,
+                                    name: s.player.name,
+                                    role: s.player.role || 'BATSMAN',
+                                    battingSkill: s.player.battingSkill || 50,
+                                    bowlingSkill: s.player.bowlingSkill || 30,
+                                    nationality: s.player.nationality,
+                                },
+                                soldPrice: s.soldPrice,
+                            })),
+                        }));
+
+                        const leagueState = initLeagueState(roomCode, teams);
+                        await saveLeagueState(leagueState);
+                        await updateRoomStatus(roomCode, 'LEAGUE');
+                        
+                        emitToRoom(roomCode, 'league_update', { state: leagueState });
                     } catch (err) {
                         console.error('Failed to auto-init league:', err);
                     }
@@ -180,6 +200,7 @@ export async function POST(request: NextRequest) {
             }
         }
 
+        emitToRoom(roomCode, 'selection_update', {});
         return NextResponse.json({ success: true, ...selectionData });
     } catch (error) {
         console.error('Failed to save selection:', error);

@@ -1,6 +1,7 @@
 import redis from './redis';
 import { CricketPlayer, IPL_PLAYERS } from '@/data/players';
 import { analyzeSquadNeeds, canAddOverseas, getSquadComposition } from './squadUtils';
+import { getBotMaxHighBid } from './botEngine';
 
 // ======================================================
 // IPL-Style Auction Slot Definitions
@@ -121,6 +122,8 @@ export interface AuctionState {
     // RTM state
     rtmPending: boolean;
     rtmOriginalTeamId: string | null;
+    rtmState: 'none' | 'pending' | 'bargain' | 'final_match';
+    rtmBargainBid?: number;
 }
 
 export interface SoldPlayer {
@@ -219,6 +222,8 @@ export async function initAuction(
         totalPlayers: allPlayersFlat.length,
         rtmPending: false,
         rtmOriginalTeamId: null,
+        rtmState: 'none',
+        rtmBargainBid: 0,
     };
 
     await saveAuctionState(roomCode, state);
@@ -342,6 +347,8 @@ export async function sellCurrentPlayer(roomCode: string): Promise<AuctionState 
 
             state.rtmPending = true;
             state.rtmOriginalTeamId = originalTeam.userId;
+            state.rtmState = 'pending';
+            state.rtmBargainBid = state.currentBid;
             await saveAuctionState(roomCode, state);
             return state;
         }
@@ -374,29 +381,18 @@ export async function sellCurrentPlayer(roomCode: string): Promise<AuctionState 
 
 export async function handleRtm(roomCode: string, execute: boolean): Promise<AuctionState | null> {
     const state = await getAuctionState(roomCode);
-    if (!state || !state.rtmPending || !state.currentPlayer || !state.currentBidder) return null;
+    if (!state || !state.rtmPending || state.rtmState !== 'pending' || !state.currentPlayer || !state.currentBidder) return null;
 
     const originalTeam = state.teams.find(t => t.userId === state.rtmOriginalTeamId);
     if (!originalTeam) return null;
 
     if (execute) {
-        // Original team uses RTM
-        const soldPlayer: SoldPlayer = {
-            player: state.currentPlayer,
-            soldTo: {
-                userId: originalTeam.userId,
-                username: originalTeam.username,
-                teamName: originalTeam.teamName
-            },
-            soldPrice: state.currentBid,
-        };
-        state.soldPlayers.push(soldPlayer);
-        originalTeam.purse -= state.currentBid;
-        originalTeam.purse = Math.round(originalTeam.purse * 100) / 100;
-        originalTeam.squad.push(soldPlayer);
-        originalTeam.rtmCardsUsed++;
+        // Original team wants to match — move to BARGAIN state
+        // Higher bidder gets one last chance to increase
+        state.rtmState = 'bargain';
+        state.timerEnd = Date.now() + 15 * 1000; // 15 seconds for highest bidder to decide
     } else {
-        // RTM declined, goes to current highest bidder
+        // RTM declined, goes to current highest bidder at current price
         const soldPlayer: SoldPlayer = {
             player: state.currentPlayer,
             soldTo: state.currentBidder,
@@ -409,12 +405,76 @@ export async function handleRtm(roomCode: string, execute: boolean): Promise<Auc
             team.purse = Math.round(team.purse * 100) / 100;
             team.squad.push(soldPlayer);
         }
+        state.rtmPending = false;
+        state.rtmOriginalTeamId = null;
+        state.rtmState = 'none';
+        state.status = 'sold';
+    }
+
+    await saveAuctionState(roomCode, state);
+    return state;
+}
+
+export async function handleBargain(roomCode: string, amount: number): Promise<AuctionState | null> {
+    const state = await getAuctionState(roomCode);
+    if (!state || state.rtmState !== 'bargain' || !state.currentBidder) return null;
+
+    // amount 0 or same means "Stay at current bid"
+    const finalAmount = Math.max(state.currentBid, amount);
+    state.rtmBargainBid = finalAmount;
+    state.rtmState = 'final_match';
+    state.timerEnd = Date.now() + 15 * 1000; // 15 seconds for original team to match final
+
+    await saveAuctionState(roomCode, state);
+    return state;
+}
+
+export async function handleFinalMatch(roomCode: string, execute: boolean): Promise<AuctionState | null> {
+    const state = await getAuctionState(roomCode);
+    if (!state || state.rtmState !== 'final_match' || !state.currentPlayer || !state.currentBidder || !state.rtmBargainBid) return null;
+
+    const originalTeam = state.teams.find(t => t.userId === state.rtmOriginalTeamId);
+    if (!originalTeam) return null;
+
+    if (execute) {
+        // Matched final bargain price
+        const soldPlayer: SoldPlayer = {
+            player: state.currentPlayer,
+            soldTo: { userId: originalTeam.userId, username: originalTeam.username, teamName: originalTeam.teamName },
+            soldPrice: state.rtmBargainBid,
+        };
+        state.soldPlayers.push(soldPlayer);
+        // Update currentBidder/Bid to reflect final RTM winner for UI
+        state.currentBidder = { userId: originalTeam.userId, username: originalTeam.username, teamName: originalTeam.teamName };
+        state.currentBid = state.rtmBargainBid;
+        originalTeam.purse -= state.rtmBargainBid;
+        originalTeam.purse = Math.round(originalTeam.purse * 100) / 100;
+        originalTeam.squad.push(soldPlayer);
+        originalTeam.rtmCardsUsed++;
+    } else {
+        // Declined final bargain price — goes to highest bidder at BARGAIN price
+        const soldPlayer: SoldPlayer = {
+            player: state.currentPlayer,
+            soldTo: state.currentBidder!,
+            soldPrice: state.rtmBargainBid,
+        };
+        state.soldPlayers.push(soldPlayer);
+        // Update price for UI
+        state.currentBid = state.rtmBargainBid;
+        const team = state.teams.find(t => t.userId === state.currentBidder!.userId);
+        if (team) {
+            team.purse -= state.rtmBargainBid;
+            team.purse = Math.round(team.purse * 100) / 100;
+            team.squad.push(soldPlayer);
+        }
     }
 
     state.rtmPending = false;
     state.rtmOriginalTeamId = null;
+    state.rtmState = 'none';
     state.status = 'sold';
     state.timerEnd = null;
+
     await saveAuctionState(roomCode, state);
     return state;
 }
@@ -423,74 +483,66 @@ export async function handleRtm(roomCode: string, execute: boolean): Promise<Auc
 // Smart Skip & Bot Assignment
 // ======================================================
 
-async function assignToBestBot(p: CricketPlayer, teams: AuctionTeam[]) {
-    const botTeams = teams.filter(t => BOT_USERNAMES_LOCAL.includes(t.username));
-
-    // Filter bots that need this role most and have purse & squad space
-    const matchedBots = botTeams
-        .filter(t => {
-            const comp = getSquadComposition(t.squad);
-            if (comp.total >= 25) return false; // squad full
-            if (p.nationality === 'Overseas' && !canAddOverseas(t.squad)) return false; // overseas quota
-            return t.purse >= p.basePrice;
-        })
-        .map(t => {
-            const needs = analyzeSquadNeeds(t.squad);
-            const needScore = (needs[p.role] as number) || 1.0;
-            return { team: t, score: needScore * Math.sqrt(t.purse) };
-        })
-        .sort((a, b) => b.score - a.score);
-
-    return matchedBots[0]?.team ?? null;
-}
-
 /**
- * Calculate a realistic simulation price for a player being assigned via Smart Skip.
- * Price varies based on:
- *  - Player skill (higher skill → closer to market rate)
- *  - Team role need (higher urgency → pay a premium)
- *  - Available purse (capped so teams don't overspend)
+ * Simulates a competitive bidding war among bots (and potentially the current human high bidder).
+ * Uses a "Second-Price" logic to determine a realistic final price and winner.
  */
-function simulateSkipPrice(player: CricketPlayer, team: AuctionTeam): number {
-    const skill = Math.max(player.battingSkill, player.bowlingSkill);
-    const needs = analyzeSquadNeeds(team.squad);
-    const needMultiplier = Math.min(2.0, needs[player.role] ?? 1.0);
+function simulateBiddingWar(player: CricketPlayer, state: AuctionState): { winner: AuctionTeam | null; price: number } {
+    const participants = state.teams.map(team => {
+        // If team is the current high bidder, their "max" is at least the current bid
+        const isCurrentHigh = state.currentBidder?.userId === team.userId;
+        const botMax = getBotMaxHighBid(player, team);
+        return {
+            team,
+            max: isCurrentHigh ? Math.max(state.currentBid, botMax) : botMax
+        };
+    }).filter(p => p.max >= (state.currentBid || player.basePrice));
 
-    // Skill multiplier: 0.5× at skill 50, up to 2.5× at skill 95+
-    const skillMultiplier = 0.5 + ((skill - 50) / 45) * 2.0;
+    if (participants.length === 0) return { winner: null, price: 0 };
+    if (participants.length === 1) {
+        return { 
+            winner: participants[0].team, 
+            price: Math.max(state.currentBid, player.basePrice) 
+        };
+    }
 
-    // Estimated market price based on base + skill + need
-    const estimatedPrice = player.basePrice * Math.max(1.0, skillMultiplier) * needMultiplier;
+    // Sort by max bid descending
+    participants.sort((a, b) => b.max - a.max);
 
-    // Add slight randomness (+/- 15%) to simulate competitive bidding
-    const jitter = 0.85 + Math.random() * 0.30;
-    const rawPrice = estimatedPrice * jitter;
+    const winner = participants[0].team;
+    const runnerUpMax = participants[1].max;
+    
+    // Price is second-highest max + 1 increment, but not exceeding winner's max
+    // Also must be at least the current bid
+    let finalPrice = Math.min(participants[0].max, runnerUpMax + BID_INCREMENT);
+    finalPrice = Math.max(finalPrice, state.currentBid, player.basePrice);
+    
+    // Round to 0.25 Cr
+    finalPrice = Math.round(finalPrice / BID_INCREMENT) * BID_INCREMENT;
 
-    // Cap at 30% of bot's available purse so they don't bust
-    const maxAffordable = team.purse * 0.30;
-    const finalPrice = Math.max(player.basePrice, Math.min(rawPrice, maxAffordable));
-
-    // Round to nearest 0.25 Cr increment (IPL style)
-    return Math.round(finalPrice / BID_INCREMENT) * BID_INCREMENT;
+    return { winner, price: finalPrice };
 }
 
 export async function skipPlayer(roomCode: string): Promise<AuctionState | null> {
     const state = await getAuctionState(roomCode);
     if (!state || !state.currentPlayer) return null;
 
-    const targetBot = await assignToBestBot(state.currentPlayer, state.teams);
+    const { winner, price } = simulateBiddingWar(state.currentPlayer, state);
 
-    if (targetBot) {
-        const price = simulateSkipPrice(state.currentPlayer, targetBot);
+    if (winner) {
         const soldPlayer: SoldPlayer = {
             player: state.currentPlayer,
-            soldTo: { userId: targetBot.userId, username: targetBot.username, teamName: targetBot.teamName },
+            soldTo: { userId: winner.userId, username: winner.username, teamName: winner.teamName },
             soldPrice: price,
         };
-        targetBot.squad.push(soldPlayer);
-        targetBot.purse -= price;
-        targetBot.purse = Math.round(targetBot.purse * 100) / 100;
+        winner.squad.push(soldPlayer);
+        winner.purse -= price;
+        winner.purse = Math.round(winner.purse * 100) / 100;
         state.soldPlayers.push(soldPlayer);
+        
+        // Update state for UI consistency
+        state.currentBidder = soldPlayer.soldTo;
+        state.currentBid = price;
         state.status = 'sold';
     } else {
         state.unsoldPlayers.push(state.currentPlayer);
@@ -498,8 +550,6 @@ export async function skipPlayer(roomCode: string): Promise<AuctionState | null>
     }
 
     state.currentPlayer = null;
-    state.currentBid = 0;
-    state.currentBidder = null;
     state.timerEnd = null;
 
     await saveAuctionState(roomCode, state);
@@ -515,17 +565,16 @@ export async function skipSet(roomCode: string): Promise<AuctionState | null> {
     playersToSkip.push(...state.remainingPlayers);
 
     for (const p of playersToSkip) {
-        const targetBot = await assignToBestBot(p, state.teams);
-        if (targetBot) {
-            const price = simulateSkipPrice(p, targetBot);
+        const { winner, price } = simulateBiddingWar(p, state);
+        if (winner) {
             const soldPlayer: SoldPlayer = {
                 player: p,
-                soldTo: { userId: targetBot.userId, username: targetBot.username, teamName: targetBot.teamName },
+                soldTo: { userId: winner.userId, username: winner.username, teamName: winner.teamName },
                 soldPrice: price,
             };
-            targetBot.squad.push(soldPlayer);
-            targetBot.purse -= price;
-            targetBot.purse = Math.round(targetBot.purse * 100) / 100;
+            winner.squad.push(soldPlayer);
+            winner.purse -= price;
+            winner.purse = Math.round(winner.purse * 100) / 100;
             state.soldPlayers.push(soldPlayer);
         } else {
             state.unsoldPlayers.push(p);
@@ -534,6 +583,8 @@ export async function skipSet(roomCode: string): Promise<AuctionState | null> {
 
     state.remainingPlayers = [];
     state.currentPlayer = null;
+    state.currentBid = 0;
+    state.currentBidder = null;
     state.status = 'idle';
     state.timerEnd = null;
 

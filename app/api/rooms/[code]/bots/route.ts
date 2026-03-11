@@ -51,6 +51,10 @@ export async function POST(
 
         const addedBots = await fillRoomWithBots(code, count);
         const finalState = await getRoomState(code);
+        
+        const { emitToRoom } = await import('@/lib/socket-server');
+        emitToRoom(code, 'room_update', { room: finalState });
+        
         return NextResponse.json({ room: finalState, addedBots });
     } catch (error) {
         console.error('Add bots error:', error);

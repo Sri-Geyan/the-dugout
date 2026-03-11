@@ -13,7 +13,7 @@ interface AuctionPanelProps {
         nationality?: string;
     } | null;
     currentBid: number;
-    currentBidder: { username: string; teamName: string } | null;
+    currentBidder: { userId: string; username: string; teamName: string } | null;
     timerEnd: number | null;
     userPurse: number;
     onBid: (amount: number) => void;
@@ -29,8 +29,12 @@ interface AuctionPanelProps {
     // RTM props
     rtmPending?: boolean;
     rtmOriginalTeamId?: string | null;
+    rtmState?: 'none' | 'pending' | 'bargain' | 'final_match';
+    rtmBargainBid?: number;
     currentUserId?: string;
     onRtm?: (execute: boolean) => void;
+    onBargain?: (amount: number) => void;
+    onFinalMatch?: (execute: boolean) => void;
 }
 
 export default function AuctionPanel({
@@ -51,11 +55,23 @@ export default function AuctionPanel({
     onViewTeams,
     rtmPending,
     rtmOriginalTeamId,
+    rtmState = 'none',
+    rtmBargainBid,
     currentUserId,
     onRtm,
+    onBargain,
+    onFinalMatch,
 }: AuctionPanelProps) {
     const [timeLeft, setTimeLeft] = useState(0);
+    const [bargainAmount, setBargainAmount] = useState(currentBid);
     const BID_INCREMENT = 0.25;
+
+    useEffect(() => {
+        setBargainAmount(currentBid);
+    }, [currentBid, rtmState]);
+
+    const isHighestBidder = currentUserId === currentBidder?.userId;
+    const isOriginalTeam = currentUserId === rtmOriginalTeamId;
 
     // Suppress unused variable
     void onSell;
@@ -277,36 +293,119 @@ export default function AuctionPanel({
                     </p>
                 </div>
             )}
-            {/* RTM Decision Section */}
+            {/* ── RTM Bargain System (IPL 2025) ── */}
             {rtmPending && (
-                <div className="mt-6 p-6 rounded-2xl border-2 border-dashed animate-pulse-gold" style={{
+                <div className="mt-6 p-6 rounded-2xl border-2 border-dashed animate-pulse-gold min-h-[160px] flex flex-col justify-center" style={{
                     background: 'rgba(212, 175, 55, 0.05)',
                     borderColor: 'var(--color-gold)',
                 }}>
                     <div className="text-center">
                         <span className="text-3xl mb-3 block">🛡️</span>
-                        <h3 className="text-lg font-black gold-text mb-1 uppercase tracking-tight">RTM Opportunity</h3>
-                        <p className="text-xs font-medium mb-6 text-[var(--color-text-secondary)]">
-                            {currentUserId === rtmOriginalTeamId
-                                ? "This was your player! Do you want to match the highest bid and bring them back?"
-                                : "The original team is deciding whether to use their Right-to-Match card..."}
-                        </p>
 
-                        {currentUserId === rtmOriginalTeamId && onRtm && (
-                            <div className="flex gap-4">
-                                <button
-                                    onClick={() => onRtm(true)}
-                                    className="flex-1 btn-primary py-4 text-xs font-black tracking-widest"
-                                >
-                                    USE RTM CARD (₹{currentBid} Cr)
-                                </button>
-                                <button
-                                    onClick={() => onRtm(false)}
-                                    className="flex-1 btn-secondary py-4 text-xs font-black tracking-widest opacity-60"
-                                >
-                                    DECLINE
-                                </button>
-                            </div>
+                        {/* PHASE 1: Initial RTM Decision */}
+                        {rtmState === 'pending' && (
+                            <>
+                                <h3 className="text-lg font-black gold-text mb-1 uppercase tracking-tight">RTM Opportunity</h3>
+                                <p className="text-xs font-medium mb-6 text-[var(--color-text-secondary)]">
+                                    {isOriginalTeam
+                                        ? "This was your player! Do you want to match the highest bid and move to the bargain phase?"
+                                        : `The original team is deciding whether to exercise RTM at ₹${currentBid} Cr...`}
+                                </p>
+
+                                {isOriginalTeam && onRtm && (
+                                    <div className="flex gap-4">
+                                        <button
+                                            onClick={() => onRtm(true)}
+                                            className="flex-1 btn-primary py-4 text-[10px] font-black tracking-widest"
+                                        >
+                                            EXERCISE RTM (MATCH ₹{currentBid} Cr)
+                                        </button>
+                                        <button
+                                            onClick={() => onRtm(false)}
+                                            className="flex-1 btn-secondary py-4 text-[10px] font-black tracking-widest opacity-60"
+                                        >
+                                            DECLINE
+                                        </button>
+                                    </div>
+                                )}
+                            </>
+                        )}
+
+                        {/* PHASE 2: Highest Bidder's Bargain */}
+                        {rtmState === 'bargain' && (
+                            <>
+                                <h3 className="text-lg font-black gold-text mb-1 uppercase tracking-tight">RTM BARGAIN PHASE</h3>
+                                <p className="text-xs font-medium mb-4 text-[var(--color-text-secondary)]">
+                                    {isHighestBidder
+                                        ? "The original team matched your bid! You have one final chance to increase your bid."
+                                        : "The original team used RTM! The highest bidder is now considering a final price increase..."}
+                                </p>
+
+                                {isHighestBidder && onBargain && (
+                                    <div className="space-y-4">
+                                        <div className="flex items-center justify-center gap-4">
+                                            <div className="flex-1 max-w-[200px]">
+                                                <label className="text-[10px] uppercase font-bold text-white/40 block mb-1">Final Bid (₹ Cr)</label>
+                                                <input
+                                                    type="number"
+                                                    step={0.25}
+                                                    min={currentBid}
+                                                    max={userPurse}
+                                                    value={bargainAmount}
+                                                    onChange={(e) => setBargainAmount(parseFloat(e.target.value))}
+                                                    className="w-full bg-black/40 border border-white/10 rounded-lg py-2 px-3 text-center gold-text font-bold"
+                                                />
+                                            </div>
+                                            <button
+                                                onClick={() => onBargain(bargainAmount)}
+                                                className="btn-primary px-8 py-3 text-[10px] font-black tracking-widest uppercase mt-5"
+                                            >
+                                                {bargainAmount > currentBid ? `INCREASE TO ₹${bargainAmount} Cr` : 'STAY AT CURRENT BID'}
+                                            </button>
+                                        </div>
+                                        <div className="flex justify-center gap-2">
+                                            {[0.25, 0.5, 1, 2, 5].map(inc => (
+                                                <button
+                                                    key={inc}
+                                                    onClick={() => setBargainAmount(prev => Math.round((prev + inc) * 100) / 100)}
+                                                    className="text-[10px] px-2 py-1 rounded border border-white/10 hover:bg-white/5"
+                                                >
+                                                    +{inc}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                            </>
+                        )}
+
+                        {/* PHASE 3: Original Team's Final Match */}
+                        {rtmState === 'final_match' && (
+                            <>
+                                <h3 className="text-lg font-black gold-text mb-1 uppercase tracking-tight">FINAL RTM DECISION</h3>
+                                <p className="text-xs font-medium mb-6 text-[var(--color-text-secondary)]">
+                                    {isOriginalTeam
+                                        ? `Highest bidder increased to ₹${rtmBargainBid} Cr. Do you want to match this final price?`
+                                        : `Final bid is ₹${rtmBargainBid} Cr. Original team is making their final decision...`}
+                                </p>
+
+                                {isOriginalTeam && onFinalMatch && (
+                                    <div className="flex gap-4">
+                                        <button
+                                            onClick={() => onFinalMatch(true)}
+                                            className="flex-1 btn-primary py-4 text-[10px] font-black tracking-widest"
+                                        >
+                                            MATCH FINAL PRICE (₹{rtmBargainBid} Cr)
+                                        </button>
+                                        <button
+                                            onClick={() => onFinalMatch(false)}
+                                            className="flex-1 btn-secondary py-4 text-[10px] font-black tracking-widest opacity-60"
+                                        >
+                                            DECLINE
+                                        </button>
+                                    </div>
+                                )}
+                            </>
                         )}
                     </div>
                 </div>
@@ -321,7 +420,7 @@ export default function AuctionPanel({
                         color: status === 'sold' ? 'var(--color-success)' : 'var(--color-danger)',
                     }}>
                         {status === 'sold'
-                            ? `SOLD to ${currentBidder?.teamName} for ₹${currentBid} Cr!`
+                            ? `SOLD to ${currentBidder?.teamName} for ₹${rtmBargainBid || currentBid} Cr!`
                             : 'UNSOLD — No bids received'}
                     </p>
                     <button onClick={onNext} className="btn-primary px-6 py-2">

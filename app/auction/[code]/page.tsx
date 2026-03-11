@@ -3,7 +3,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { useUserStore } from '@/lib/store';
-import Navbar from '@/components/Navbar';
 import AuctionPanel from '@/components/AuctionPanel';
 import PlayerAvatar from '@/components/PlayerAvatar';
 import { IPL_TEAMS } from '@/data/teams';
@@ -39,6 +38,8 @@ interface AuctionState {
     // RTM
     rtmPending?: boolean;
     rtmOriginalTeamId?: string | null;
+    rtmState?: 'none' | 'pending' | 'bargain' | 'final_match';
+    rtmBargainBid?: number;
 }
 
 export default function AuctionPage() {
@@ -240,6 +241,30 @@ export default function AuctionPage() {
         } catch (err) { console.error(err); }
     };
 
+    const handleBargain = async (amount: number) => {
+        try {
+            const res = await fetch('/api/auction', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'bargain', roomCode: code, amount }),
+            });
+            const data = await res.json();
+            if (data.state) setAuction(data.state);
+        } catch (err) { console.error(err); }
+    };
+
+    const handleFinalMatch = async (execute: boolean) => {
+        try {
+            const res = await fetch('/api/auction', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'finalMatch', roomCode: code, execute }),
+            });
+            const data = await res.json();
+            if (data.state) setAuction(data.state);
+        } catch (err) { console.error(err); }
+    };
+
     const isHost = hostId === userId;
     const userTeam = auction?.teams.find(t => t.userId === userId);
     const canBid = auction?.status === 'bidding' && auction?.currentBidder?.userId !== userId;
@@ -271,8 +296,7 @@ export default function AuctionPage() {
 
     return (
         <div className="min-h-screen" style={{ background: 'var(--color-bg-primary)' }}>
-            <Navbar />
-            <main className="max-w-7xl mx-auto px-6 pt-24 pb-12">
+            <main className="max-w-7xl mx-auto px-6 pt-12 pb-12">
                 {/* Header */}
                 <div className="flex items-center justify-between mb-6">
                     <div>
@@ -399,8 +423,12 @@ export default function AuctionPage() {
                             onViewTeams={() => setIsSquadsModalOpen(true)}
                             rtmPending={auction?.rtmPending}
                             rtmOriginalTeamId={auction?.rtmOriginalTeamId}
+                            rtmState={auction?.rtmState}
+                            rtmBargainBid={auction?.rtmBargainBid}
                             currentUserId={userId || ''}
                             onRtm={handleRtm}
+                            onBargain={handleBargain}
+                            onFinalMatch={handleFinalMatch}
                         />
 
                         {/* Recent Sales */}

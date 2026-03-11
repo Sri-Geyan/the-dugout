@@ -13,6 +13,7 @@ import { initAuction } from '@/lib/auctionEngine';
 import { runBotRetentions } from '@/lib/botEngine';
 import { getRoomState, updateRoomStatus, fillRoomWithBots } from '@/lib/roomManager';
 import prisma from '@/lib/prisma';
+import { emitToRoom } from '@/lib/socket-server';
 
 function getSession(request: NextRequest) {
     const sessionCookie = request.cookies.get('session');
@@ -84,6 +85,7 @@ export async function POST(request: NextRequest) {
             await runBotRetentions(roomCode);
 
             console.log(`[Retention] Room ${roomCode} moved to retention phase`);
+            emitToRoom(roomCode, 'retention_update', { state });
             return NextResponse.json({ state });
         }
 
@@ -92,6 +94,7 @@ export async function POST(request: NextRequest) {
             if (!playerName) return NextResponse.json({ error: 'playerName required' }, { status: 400 });
             const result = await retainPlayer(roomCode, session.userId, playerName);
             if (!result.success) return NextResponse.json({ error: result.error, state: result.state }, { status: 400 });
+            emitToRoom(roomCode, 'retention_update', { state: result.state });
             return NextResponse.json({ state: result.state });
         }
 
@@ -100,6 +103,7 @@ export async function POST(request: NextRequest) {
             if (!playerId) return NextResponse.json({ error: 'playerId required' }, { status: 400 });
             const result = await releasePlayer(roomCode, session.userId, playerId);
             if (!result.success) return NextResponse.json({ error: result.error, state: result.state }, { status: 400 });
+            emitToRoom(roomCode, 'retention_update', { state: result.state });
             return NextResponse.json({ state: result.state });
         }
 
@@ -107,6 +111,7 @@ export async function POST(request: NextRequest) {
         if (action === 'confirm') {
             const result = await confirmRetentions(roomCode, session.userId);
             if (!result.success) return NextResponse.json({ error: result.error, state: result.state }, { status: 400 });
+            emitToRoom(roomCode, 'retention_update', { state: result.state });
             return NextResponse.json({ state: result.state });
         }
 
@@ -162,6 +167,7 @@ export async function POST(request: NextRequest) {
             const auctionState = await initAuction(roomCode, enrichedTeams, excludedIds);
             await updateRoomStatus(roomCode, 'AUCTION');
 
+            emitToRoom(roomCode, 'auction_update', { state: auctionState });
             return NextResponse.json({ auctionState });
         }
 

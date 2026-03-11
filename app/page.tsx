@@ -70,7 +70,7 @@ export default function Home() {
 
       {/* Marquee ticker */}
       <div className="relative z-30 marquee-container bg-[#D4AF37]/5 border-b border-[#D4AF37]/10">
-        <div className="marquee-content py-1">
+        <div className="marquee-content py-2">
           {[1, 2].map(i => (
             <span key={i} className="marquee-item">
               {marqueeItems.map((item, j) => (
@@ -85,7 +85,7 @@ export default function Home() {
       </div>
 
       {/* Hero */}
-      <div className="relative z-10 flex flex-col items-center justify-center min-h-screen px-6 -mt-10">
+      <div className="relative z-10 flex flex-col items-center justify-center min-h-[calc(100vh-120px)] px-6">
         <div className={`text-center max-w-4xl mx-auto transition-all duration-1000 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'}`}>
 
           {/* Season badge */}

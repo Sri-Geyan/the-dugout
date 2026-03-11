@@ -1,6 +1,7 @@
 import { AuctionState, AuctionTeam, placeBid, getAuctionState, sellCurrentPlayer, BID_INCREMENT, handleRtm, handleBargain, handleFinalMatch } from './auctionEngine';
 import { CricketPlayer } from '@/data/players';
 import { getRoomState } from './roomManager';
+import { emitToRoom } from './socket-server';
 import type { MatchState, BatterState, BowlerState } from './matchEngine';
 import { getRetentionState, retainPlayer, confirmRetentions, getRetentionEligiblePool } from './retentionEngine';
 import { analyzeSquadNeeds, canAddOverseas, playerFillScore, getSquadComposition, IPL_MAX_SQUAD, IPL_MIN_SQUAD } from './squadUtils';
@@ -126,6 +127,8 @@ function shouldBotBid(
 // Run Bot Bidding Loop
 // ======================================================
 
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
 export async function runBotBidding(roomCode: string): Promise<AuctionState | null> {
     let state = await getAuctionState(roomCode);
     if (!state || state.status !== 'bidding' || !state.currentPlayer) return state;
@@ -180,6 +183,12 @@ export async function runBotBidding(roomCode: string): Promise<AuctionState | nu
                 if (result.success) {
                     biddingActive = true;
                     state = result.state;
+                    
+                    // Broadcast the new bid immediately for real-time interactivity
+                    emitToRoom(roomCode, 'auction_update', { state });
+                    
+                    // Add a realistic delay between bids so humans can track the progress
+                    await delay(1200);
                 }
             }
         }

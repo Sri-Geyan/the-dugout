@@ -66,8 +66,10 @@ export async function joinRoom(code: string, userId: string, username: string): 
     const state = await getRoomState(code);
     if (!state) return null;
 
-    if (state.players.length >= state.maxPlayers) return null;
+    // Check if player is already in the room FIRST (allows rejoining full rooms)
     if (state.players.find(p => p.userId === userId)) return state;
+
+    if (state.players.length >= state.maxPlayers) return null;
 
     state.players.push({ userId, username });
 

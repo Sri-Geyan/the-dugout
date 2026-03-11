@@ -168,7 +168,39 @@ export async function POST(request: NextRequest) {
                 return NextResponse.json({ state, ballResult: null });
             }
 
+            // Authentication/Authorization Check
+            const battingTeamUserId = state.currentBatting === 'home' ? state.homeTeam.userId : state.awayTeam.userId;
+            const bowlingTeamUserId = state.currentBatting === 'home' ? state.awayTeam.userId : state.homeTeam.userId;
+            
+            // Only bowling team can bowl
+            if (session.userId !== bowlingTeamUserId) {
+                // Host can also trigger (for convenience/testing)
+                const room = await getRoomState(state.roomCode);
+                if (room?.hostId !== session.userId) {
+                    return NextResponse.json({ error: 'Only the bowling team can bowl' }, { status: 403 });
+                }
+            }
+
             if (state.status === 'awaiting_batter' || state.status === 'awaiting_bowler') {
+                const teamUserId = state.status === 'awaiting_batter'
+                    ? (state.currentBatting === 'home' ? state.homeTeam.userId : state.awayTeam.userId)
+                    : (state.currentBatting === 'home' ? state.awayTeam.userId : state.homeTeam.userId);
+                
+                const room = await getRoomState(state.roomCode);
+                const user = room?.players.find(p => p.userId === teamUserId);
+                
+                if (user && isBotUser(user.username)) {
+                    if (state.status === 'awaiting_batter') {
+                        const bId = botChooseNextBatter(state);
+                        if (bId) selectNextBatter(state, bId);
+                    } else {
+                        const bId = botChooseNextBowler(state);
+                        if (bId) selectNextBowler(state, bId);
+                    }
+                    await saveMatchState(state);
+                    return NextResponse.json({ state, ballResult: null });
+                }
+
                 return NextResponse.json({ error: `Waiting for ${state.status} selection`, state }, { status: 400 });
             }
 
@@ -272,6 +304,15 @@ export async function POST(request: NextRequest) {
             let state = await getMatchState(matchId);
             if (!state) return NextResponse.json({ error: 'Match not found' }, { status: 404 });
 
+            const battingTeamUserId = state.currentBatting === 'home' ? state.homeTeam.userId : state.awayTeam.userId;
+            
+            if (session.userId !== battingTeamUserId) {
+                const room = await getRoomState(state.roomCode);
+                if (room?.hostId !== session.userId) {
+                    return NextResponse.json({ error: 'Only the batting team can select a batter' }, { status: 403 });
+                }
+            }
+
             state = selectNextBatter(state, batterId);
             await saveMatchState(state);
             return NextResponse.json({ state });
@@ -281,6 +322,15 @@ export async function POST(request: NextRequest) {
             const { bowlerId } = body;
             let state = await getMatchState(matchId);
             if (!state) return NextResponse.json({ error: 'Match not found' }, { status: 404 });
+
+            const bowlingTeamUserId = state.currentBatting === 'home' ? state.awayTeam.userId : state.homeTeam.userId;
+
+            if (session.userId !== bowlingTeamUserId) {
+                const room = await getRoomState(state.roomCode);
+                if (room?.hostId !== session.userId) {
+                    return NextResponse.json({ error: 'Only the bowling team can select a bowler' }, { status: 403 });
+                }
+            }
 
             state = selectNextBowler(state, bowlerId);
             await saveMatchState(state);

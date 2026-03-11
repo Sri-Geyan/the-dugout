@@ -11,6 +11,7 @@ import {
 } from '@/lib/leagueEngine';
 import { getAuctionState } from '@/lib/auctionEngine';
 import { updateRoomStatus } from '@/lib/roomManager';
+import { emitToRoom } from '@/lib/socket-server';
 
 function getSession(request: NextRequest) {
     const sessionCookie = request.cookies.get('session');
@@ -91,6 +92,7 @@ export async function POST(request: NextRequest) {
             // Update room status to 'LEAGUE'
             await updateRoomStatus(roomCode, 'LEAGUE');
 
+            emitToRoom(roomCode, 'league_update', { state });
             return NextResponse.json({ state });
         }
 
@@ -149,6 +151,13 @@ export async function POST(request: NextRequest) {
                 console.error("Failed auto-selecting bots:", err);
             }
 
+            emitToRoom(roomCode, 'league_update', { state });
+            emitToRoom(roomCode, 'match_started', { 
+                fixture, 
+                homeTeamUserId: fixture.homeTeamUserId, 
+                awayTeamUserId: fixture.awayTeamUserId 
+            });
+
             return NextResponse.json({
                 state,
                 fixture,
@@ -174,6 +183,7 @@ export async function POST(request: NextRequest) {
             fixture.matchId = matchId || fixtureId; // Assign the matchId used to init MatchState
             await saveLeagueState(state);
 
+            emitToRoom(roomCode, 'league_update', { state });
             return NextResponse.json({ state, fixture });
         }
 
@@ -216,6 +226,7 @@ export async function POST(request: NextRequest) {
 
             await saveLeagueState(state);
 
+            emitToRoom(roomCode, 'league_update', { state });
             return NextResponse.json({ state });
         }
 

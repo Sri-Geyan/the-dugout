@@ -87,12 +87,18 @@ export default function MatchPage() {
     const [match, setMatch] = useState<MatchState | null>(null);
     const [loading, setLoading] = useState(true);
     const [matchId, setMatchId] = useState('');
+    const [hostId, setHostId] = useState('');
+
+    const BOT_USERNAMES = [
+        'Chennai Super Kings', 'Mumbai Indians', 'Royal Challengers Bengaluru', 'Kolkata Knight Riders',
+        'Delhi Capitals', 'Sunrisers Hyderabad', 'Punjab Kings', 'Rajasthan Royals',
+        'Lucknow Super Giants', 'Gujarat Titans',
+    ];
 
     // Toss state
     const [tossPhase, setTossPhase] = useState<'idle' | 'flipping' | 'result' | 'decided'>('idle');
     const [tossResult, setTossResult] = useState<TossResult | null>(null);
     const [coinFlipAnim, setCoinFlipAnim] = useState(false);
-
     useEffect(() => {
         const init = async () => {
             if (!isLoggedIn) {
@@ -110,11 +116,55 @@ export default function MatchPage() {
                     return;
                 }
             }
+
+            const roomRes = await fetch(`/api/rooms/${code}`);
+            if (roomRes.ok) {
+                const roomData = await roomRes.json();
+                setHostId(roomData.room.hostId);
+            }
+
             setLoading(false);
         };
         init();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
+
+    // Bot Auto-play Effect
+    useEffect(() => {
+        if (!match || hostId !== userId) return;
+
+        const isBotTurnToBowl = match.status === 'live' && BOT_USERNAMES.includes(
+            (match.currentBatting === 'home' ? match.awayTeam : match.homeTeam).name
+        );
+
+        const isBotTurnToSelectBatter = match.status === 'awaiting_batter' && BOT_USERNAMES.includes(
+            (match.currentBatting === 'home' ? match.homeTeam : match.awayTeam).name
+        );
+
+        const isBotTurnToSelectBowler = match.status === 'awaiting_bowler' && BOT_USERNAMES.includes(
+            (match.currentBatting === 'home' ? match.awayTeam : match.homeTeam).name
+        );
+
+        if (isBotTurnToBowl || isBotTurnToSelectBatter || isBotTurnToSelectBowler) {
+            const timer = setTimeout(() => {
+                // For live matches, the API handles batter/bowler auto-selection transitions
+                // when action=ball is called, but we still trigger handleBall to start the next delivery.
+                // If it's specifically awaiting_batter or awaiting_bowler, handleBall won't work,
+                // but the API call for 'ball' actually has logic to auto-select if bot is detected.
+                // However, handleSelectBatter/Bowler are safer if status is awaiting.
+                
+                if (match.status === 'live') {
+                    handleBall();
+                } else if (match.status === 'awaiting_batter' || match.status === 'awaiting_bowler') {
+                    // We trigger handleBall anyway because the API 'ball' action 
+                    // has logic to handle bot transitions if it fails.
+                    // Actually, let's just use handleBall as the driver.
+                    handleBall();
+                }
+            }, 1500);
+            return () => clearTimeout(timer);
+        }
+    }, [match?.status, match?.currentBall, match?.currentOver, hostId, userId]);
 
     const handleToss = async () => {
         setTossPhase('flipping');
@@ -368,6 +418,23 @@ export default function MatchPage() {
                     </div>
                 )}
 
+                {!isUserBattingTeam && !isUserBowlingTeam && (
+                    <div className="mb-6 p-4 rounded-2xl flex items-center justify-between border-2 border-dashed"
+                        style={{ background: 'rgba(212, 175, 55, 0.03)', borderColor: 'rgba(212, 175, 55, 0.2)' }}>
+                        <div className="flex items-center gap-3">
+                            <span className="text-2xl animate-pulse">👁️</span>
+                            <div>
+                                <h4 className="text-sm font-black gold-text uppercase tracking-widest">Spectator Mode</h4>
+                                <p className="text-[10px]" style={{ color: 'var(--color-text-muted)' }}>You are watching live as {match.homeTeam.name} plays {match.awayTeam.name}</p>
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-1.5 bg-black/40 px-3 py-1.5 rounded-full border border-white/5">
+                            <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+                            <span className="text-[10px] font-bold text-white/50 tracking-tighter uppercase">Live Broadcast</span>
+                        </div>
+                    </div>
+                )}
+
                 {/* Scoreboard */}
                 <div className="grid grid-cols-2 gap-4 mb-6">
                     {[match.homeTeam, match.awayTeam].map((team, i) => {
@@ -490,10 +557,18 @@ export default function MatchPage() {
                         </div>
 
                         {/* Ball Button */}
-                        {match.status === 'live' && (
+                        {match.status === 'live' && isUserBowlingTeam && (
                             <button onClick={handleBall} className="btn-primary w-full text-lg py-4" style={{ animation: 'pulse 2s infinite' }}>
                                 🏏 Bowl Next Ball
                             </button>
+                        )}
+
+                        {match.status === 'live' && !isUserBowlingTeam && (
+                            <div className="panel text-center py-4 border-dashed opacity-50">
+                                <p className="text-xs font-medium" style={{ color: 'var(--color-text-muted)' }}>
+                                    {isUserBattingTeam ? 'Waiting for bowler to bowl...' : 'Match in progress...'}
+                                </p>
+                            </div>
                         )}
 
                         {match.status === 'innings_break' && (
@@ -586,36 +661,44 @@ export default function MatchPage() {
                         <div className="p-4 border-b" style={{ borderColor: 'var(--color-border)', background: 'var(--color-bg-elevated)' }}>
                             <h2 className="text-xl font-bold text-center">🏏 Choose Next Batter</h2>
                             <p className="text-xs text-center mt-1" style={{ color: 'var(--color-text-muted)' }}>
-                                Wicket fallen! Select who comes in next.
+                                {isUserBattingTeam ? 'Wicket fallen! Select who comes in next.' : 'Wicket fallen! Waiting for batting team to select next player...'}
                             </p>
                         </div>
-                        <div className="p-4 space-y-2 max-h-96 overflow-y-auto">
-                            {match.battingOrder
-                                .filter(b => !b.isOut && b !== match.striker && b !== match.nonStriker)
-                                .map(b => (
-                                    <button
-                                        key={b.player.id}
-                                        onClick={() => handleSelectBatter(b.player.id)}
-                                        className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-white/5 transition-all"
-                                        style={{
-                                            background: 'rgba(255,255,255,0.02)',
-                                            border: '1px solid rgba(255,255,255,0.05)',
-                                        }}
-                                    >
-                                        <PlayerAvatar name={b.player.name} size={36} />
-                                        <div className="flex-1 text-left">
-                                            <p className="font-semibold text-sm">
-                                                {b.player.name}
-                                                {b.player.isCaptain && <span className="text-yellow-400 text-[10px] ml-1">(C)</span>}
-                                            </p>
-                                            <p className="text-[10px]" style={{ color: 'var(--color-text-muted)' }}>
-                                                {b.player.role.replace('_', ' ')} • BAT: {b.player.battingSkill}
-                                            </p>
-                                        </div>
-                                        <span className="text-xs gold-text">→</span>
-                                    </button>
-                                ))}
-                        </div>
+                        {isUserBattingTeam && (
+                            <div className="p-4 space-y-2 max-h-96 overflow-y-auto">
+                                {match.battingOrder
+                                    .filter(b => !b.isOut && b !== match.striker && b !== match.nonStriker)
+                                    .map(b => (
+                                        <button
+                                            key={b.player.id}
+                                            onClick={() => handleSelectBatter(b.player.id)}
+                                            className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-white/5 transition-all"
+                                            style={{
+                                                background: 'rgba(255,255,255,0.02)',
+                                                border: '1px solid rgba(255,255,255,0.05)',
+                                            }}
+                                        >
+                                            <PlayerAvatar name={b.player.name} size={36} />
+                                            <div className="flex-1 text-left">
+                                                <p className="font-semibold text-sm">
+                                                    {b.player.name}
+                                                    {b.player.isCaptain && <span className="text-yellow-400 text-[10px] ml-1">(C)</span>}
+                                                </p>
+                                                <p className="text-[10px]" style={{ color: 'var(--color-text-muted)' }}>
+                                                    {b.player.role.replace('_', ' ')} • BAT: {b.player.battingSkill}
+                                                </p>
+                                            </div>
+                                            <span className="text-xs gold-text">→</span>
+                                        </button>
+                                    ))}
+                            </div>
+                        )}
+                        {!isUserBattingTeam && (
+                            <div className="p-12 text-center">
+                                <div className="text-4xl mb-4 animate-bounce">🏏</div>
+                                <p className="text-sm font-medium opacity-50">Waiting for {battingTeam.name} to choose...</p>
+                            </div>
+                        )}
                     </div>
                 </div>
             )}
@@ -633,41 +716,49 @@ export default function MatchPage() {
                         <div className="p-4 border-b" style={{ borderColor: 'var(--color-border)', background: 'var(--color-bg-elevated)' }}>
                             <h2 className="text-xl font-bold text-center">🎯 Choose Bowler</h2>
                             <p className="text-xs text-center mt-1" style={{ color: 'var(--color-text-muted)' }}>
-                                Over completed. Select who bowls next.
+                                {isUserBowlingTeam ? 'Over completed. Select who bowls next.' : 'Over completed. Waiting for bowling team to select next player...'}
                             </p>
                         </div>
-                        <div className="p-4 space-y-2 max-h-96 overflow-y-auto">
-                            {match.bowlingOrder
-                                .filter(b => b.overs < 4)
-                                .map(b => (
-                                    <button
-                                        key={b.player.id}
-                                        onClick={() => handleSelectBowler(b.player.id)}
-                                        className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-white/5 transition-all"
-                                        style={{
-                                            background: 'rgba(255,255,255,0.02)',
-                                            border: '1px solid rgba(255,255,255,0.05)',
-                                        }}
-                                    >
-                                        <PlayerAvatar name={b.player.name} size={36} />
-                                        <div className="flex-1 text-left">
-                                            <p className="font-semibold text-sm">
-                                                {b.player.name}
-                                                {b.player.isCaptain && <span className="text-yellow-400 text-[10px] ml-1">(C)</span>}
-                                            </p>
-                                            <p className="text-[10px]" style={{ color: 'var(--color-text-muted)' }}>
-                                                BWL: {b.player.bowlingSkill} • {b.overs}/{4} overs • {b.wickets}w/{b.runs}r
-                                            </p>
-                                        </div>
-                                        <div className="text-right">
-                                            <p className="text-xs font-bold">{b.overs}.{b.overBalls}</p>
-                                            <p className="text-[10px]" style={{ color: 'var(--color-text-muted)' }}>
-                                                Econ: {b.economy}
-                                            </p>
-                                        </div>
-                                    </button>
-                                ))}
-                        </div>
+                        {isUserBowlingTeam && (
+                            <div className="p-4 space-y-2 max-h-96 overflow-y-auto">
+                                {match.bowlingOrder
+                                    .filter(b => b.overs < 4)
+                                    .map(b => (
+                                        <button
+                                            key={b.player.id}
+                                            onClick={() => handleSelectBowler(b.player.id)}
+                                            className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-white/5 transition-all"
+                                            style={{
+                                                background: 'rgba(255,255,255,0.02)',
+                                                border: '1px solid rgba(255,255,255,0.05)',
+                                            }}
+                                        >
+                                            <PlayerAvatar name={b.player.name} size={36} />
+                                            <div className="flex-1 text-left">
+                                                <p className="font-semibold text-sm">
+                                                    {b.player.name}
+                                                    {b.player.isCaptain && <span className="text-yellow-400 text-[10px] ml-1">(C)</span>}
+                                                </p>
+                                                <p className="text-[10px]" style={{ color: 'var(--color-text-muted)' }}>
+                                                    BWL: {b.player.bowlingSkill} • {b.overs}/{4} overs • {b.wickets}w/{b.runs}r
+                                                </p>
+                                            </div>
+                                            <div className="text-right">
+                                                <p className="text-xs font-bold">{b.overs}.{b.overBalls}</p>
+                                                <p className="text-[10px]" style={{ color: 'var(--color-text-muted)' }}>
+                                                    Econ: {b.economy}
+                                                </p>
+                                            </div>
+                                        </button>
+                                    ))}
+                            </div>
+                        )}
+                        {!isUserBowlingTeam && (
+                            <div className="p-12 text-center">
+                                <div className="text-4xl mb-4 animate-bounce">🎯</div>
+                                <p className="text-sm font-medium opacity-50">Waiting for {bowlingTeam.name} to choose...</p>
+                            </div>
+                        )}
                     </div>
                 </div>
             )}

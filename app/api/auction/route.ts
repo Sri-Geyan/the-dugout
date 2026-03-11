@@ -123,6 +123,20 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ state });
         }
 
+        if (action === 'rtm') {
+            const state = await getAuctionState(roomCode);
+            if (!state || !state.rtmPending) {
+                return NextResponse.json({ error: 'RTM not pending' }, { status: 400 });
+            }
+            if (state.rtmOriginalTeamId !== session.userId) {
+                return NextResponse.json({ error: 'Only the original team owner can use RTM' }, { status: 403 });
+            }
+
+            const updatedState = await handleRtm(roomCode, execute);
+            if (updatedState) emitToRoom(roomCode, 'auction_update', { state: updatedState });
+            return NextResponse.json({ state: updatedState });
+        }
+
         if (action === 'status') {
             const state = await getAuctionState(roomCode);
             return NextResponse.json({ state });

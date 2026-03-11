@@ -665,6 +665,7 @@ function setupSecondInnings(state: MatchState): void {
     state.striker = state.battingOrder[0] || null;
     state.nonStriker = state.battingOrder[1] || null;
     state.currentBowler = null; // User will select opening bowler for 2nd innings
+    state.status = 'awaiting_bowler';
     state.currentOver = 0;
     state.currentBall = 0;
     state.freeHit = false;

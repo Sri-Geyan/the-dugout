@@ -5,6 +5,9 @@ import { useRouter, useParams } from 'next/navigation';
 import { useUserStore } from '@/lib/store';
 import Navbar from '@/components/Navbar';
 import { IPL_TEAMS } from '@/data/teams';
+import { getSocket } from '@/lib/socket';
+import PlayerAvatar from '@/components/PlayerAvatar';
+import Link from 'next/link';
 
 interface FixtureEntry {
     id: string;
@@ -61,6 +64,12 @@ export default function LeaguePage() {
     const [hostId, setHostId] = useState<string | null>(null);
     const [startingMatch, setStartingMatch] = useState(false);
     const [activeTab, setActiveTab] = useState<Tab>('standings');
+    const [liveMatchNotification, setLiveMatchNotification] = useState<{
+        fixtureId: string;
+        homeTeam: string;
+        awayTeam: string;
+        isUserPlaying: boolean;
+    } | null>(null);
 
     const fetchLeague = useCallback(async () => {
         try {
@@ -96,10 +105,41 @@ export default function LeaguePage() {
             setLoading(false);
         };
         init();
-
-        const interval = setInterval(fetchLeague, 3000);
-        return () => clearInterval(interval);
     }, [isLoggedIn, code, router, setUser, fetchLeague]);
+
+    useEffect(() => {
+        const socket = getSocket();
+        if (!socket) return;
+        socket.emit('join-room', code);
+
+        socket.on('league_update', (data: any) => {
+            if (data.state) setLeague(data.state);
+        });
+
+        socket.on('match_started', (data: any) => {
+            const { fixture, homeTeamUserId, awayTeamUserId } = data;
+            const isUserPlaying = userId === homeTeamUserId || userId === awayTeamUserId;
+            
+            setLiveMatchNotification({
+                fixtureId: fixture.id,
+                homeTeam: fixture.homeTeamName,
+                awayTeam: fixture.awayTeamName,
+                isUserPlaying
+            });
+
+            if (isUserPlaying) {
+                // Auto-redirect players after a short delay
+                setTimeout(() => {
+                    router.push(`/match/${code}?fixtureId=${fixture.id}`);
+                }, 3000);
+            }
+        });
+
+        return () => {
+            socket.off('league_update');
+            socket.off('match_started');
+        };
+    }, [code, userId, router]);
 
     const handleStartMatch = async () => {
         if (!league || startingMatch) return;
@@ -569,6 +609,72 @@ export default function LeaguePage() {
                     )
                 }
             </main >
+
+            {/* Live Match Notification Overlay */}
+            {liveMatchNotification && (
+                <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50 w-full max-w-md px-6 animate-in slide-in-from-bottom-8 duration-500">
+                    <div className="panel relative overflow-hidden p-6 shadow-2xl border-2" style={{ 
+                        background: 'var(--color-bg-elevated)',
+                        borderColor: 'var(--color-gold)',
+                    }}>
+                        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-gold to-transparent opacity-50" />
+                        
+                        <div className="flex items-center justify-between mb-4">
+                            <div className="flex items-center gap-2">
+                                <span className="flex h-2 w-2 rounded-full bg-red-500 animate-ping" />
+                                <span className="text-[10px] font-black gold-text uppercase tracking-widest">Live Now</span>
+                            </div>
+                            <button 
+                                onClick={() => setLiveMatchNotification(null)}
+                                className="text-white/30 hover:text-white transition-colors"
+                            >
+                                ✕
+                            </button>
+                        </div>
+
+                        <div className="flex items-center justify-center gap-6 mb-6">
+                            <div className="text-center flex-1">
+                                <div className="w-12 h-12 mx-auto rounded-full bg-white/5 flex items-center justify-center mb-2 border border-white/10">
+                                    <span className="text-xl">🏏</span>
+                                </div>
+                                <p className="text-xs font-bold truncate">{liveMatchNotification.homeTeam}</p>
+                            </div>
+                            <div className="text-center">
+                                <span className="text-xs font-black opacity-20 italic">VS</span>
+                            </div>
+                            <div className="text-center flex-1">
+                                <div className="w-12 h-12 mx-auto rounded-full bg-white/5 flex items-center justify-center mb-2 border border-white/10">
+                                    <span className="text-xl">🎯</span>
+                                </div>
+                                <p className="text-xs font-bold truncate">{liveMatchNotification.awayTeam}</p>
+                            </div>
+                        </div>
+
+                        <div className="space-y-3">
+                            {liveMatchNotification.isUserPlaying ? (
+                                <div className="text-center">
+                                    <p className="text-[10px] mb-3 animate-pulse" style={{ color: 'var(--color-text-muted)' }}>
+                                        Redirecting you to the match in 3 seconds...
+                                    </p>
+                                    <button 
+                                        onClick={() => router.push(`/match/${code}?fixtureId=${liveMatchNotification.fixtureId}`)}
+                                        className="btn-primary w-full py-3 text-sm"
+                                    >
+                                        🏟️ Enter Stadium Now
+                                    </button>
+                                </div>
+                            ) : (
+                                <button 
+                                    onClick={() => router.push(`/match/${code}?fixtureId=${liveMatchNotification.fixtureId}`)}
+                                    className="btn-secondary w-full py-3 text-sm border-gold/30 gold-text hover:bg-gold/10"
+                                >
+                                    👁️ Spectate Match
+                                </button>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
         </div >
     );
 }

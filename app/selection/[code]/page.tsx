@@ -39,6 +39,9 @@ export default function SelectionPage() {
     const [allTeams, setAllTeams] = useState<TeamData[]>([]);
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
     const [isLocked, setIsLocked] = useState(false);
+    const [captainId, setCaptainId] = useState<string | null>(null);
+    const [wkId, setWkId] = useState<string | null>(null);
+    const [openingBowlerId, setOpeningBowlerId] = useState<string | null>(null);
 
     // Status tracking for everyone
     const [selectionsStatus, setSelectionsStatus] = useState<Record<string, string[]>>({});
@@ -63,8 +66,12 @@ export default function SelectionPage() {
                 if (selData.selections) {
                     setSelectionsStatus(selData.selections);
                     if (userId && selData.selections[userId]) {
-                        setSelectedIds(new Set(selData.selections[userId]));
+                        const sel = selData.selections[userId];
+                        setSelectedIds(new Set(sel.selectedIds || sel));
                         setIsLocked(true);
+                        if (sel.captainId) setCaptainId(sel.captainId);
+                        if (sel.wkId) setWkId(sel.wkId);
+                        if (sel.openingBowlerId) setOpeningBowlerId(sel.openingBowlerId);
                     }
                 }
             }
@@ -115,6 +122,10 @@ export default function SelectionPage() {
             const next = new Set(prev);
             if (next.has(playerId)) {
                 next.delete(playerId);
+                // Clear roles if this player was assigned any
+                if (captainId === playerId) setCaptainId(null);
+                if (wkId === playerId) setWkId(null);
+                if (openingBowlerId === playerId) setOpeningBowlerId(null);
             } else {
                 if (next.size >= 11) return prev; // Max 11
                 next.add(playerId);
@@ -125,6 +136,10 @@ export default function SelectionPage() {
 
     const handleLockSelection = async () => {
         if (selectedIds.size !== 11) return;
+        if (!captainId || !wkId || !openingBowlerId) {
+            alert('Please select a Captain, Wicketkeeper, and Opening Bowler before locking.');
+            return;
+        }
 
         try {
             const res = await fetch('/api/selection', {
@@ -133,7 +148,10 @@ export default function SelectionPage() {
                 body: JSON.stringify({
                     roomCode: code,
                     teamId: userId,
-                    selectedIds: Array.from(selectedIds)
+                    selectedIds: Array.from(selectedIds),
+                    captainId,
+                    wkId,
+                    openingBowlerId
                 })
             });
             if (res.ok) {
@@ -143,6 +161,15 @@ export default function SelectionPage() {
         } catch (err) {
             console.error('Failed to lock selection:', err);
         }
+    };
+
+    const handleSetRole = (playerId: string, roleType: 'captain' | 'wk' | 'bowler') => {
+        if (isLocked) return;
+        if (!selectedIds.has(playerId)) return;
+
+        if (roleType === 'captain') setCaptainId(playerId);
+        else if (roleType === 'wk') setWkId(playerId);
+        else if (roleType === 'bowler') setOpeningBowlerId(playerId);
     };
 
     const handleStartMatch = async () => {
@@ -239,10 +266,14 @@ export default function SelectionPage() {
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                 {myTeam.squad.map(({ player }) => {
                                     const isSelected = selectedIds.has(player.id);
+                                    const isCap = captainId === player.id;
+                                    const isWk = wkId === player.id;
+                                    const isBowler = openingBowlerId === player.id;
+
                                     return (
                                         <div
                                             key={player.id}
-                                            onClick={() => handleTogglePlayer(player.id)}
+                                            onClick={() => !isLocked && handleTogglePlayer(player.id)}
                                             className="panel relative overflow-hidden cursor-pointer transition-all duration-300"
                                             style={{
                                                 borderColor: isSelected ? 'var(--color-gold)' : 'var(--color-border)',
@@ -251,12 +282,17 @@ export default function SelectionPage() {
                                                 opacity: isLocked && !isSelected ? 0.5 : 1
                                             }}
                                         >
-                                            {/* Selection Checkmark */}
-                                            {isSelected && (
-                                                <div className="absolute top-3 right-3 w-5 h-5 rounded-full flex items-center justify-center bg-gold text-black text-xs font-bold shadow-lg shadow-gold/20 z-10">
-                                                    ✓
-                                                </div>
-                                            )}
+                                            {/* Role Badges */}
+                                            <div className="absolute top-2 right-2 flex flex-col gap-1 z-10">
+                                                {isCap && <span className="px-1.5 py-0.5 rounded bg-gold text-black text-[8px] font-black tracking-tighter uppercase shadow-lg">C</span>}
+                                                {isWk && <span className="px-1.5 py-0.5 rounded bg-blue-500 text-white text-[8px] font-black tracking-tighter uppercase shadow-lg">WK</span>}
+                                                {isBowler && <span className="px-1.5 py-0.5 rounded bg-red-500 text-white text-[8px] font-black tracking-tighter uppercase shadow-lg">OB</span>}
+                                                {isSelected && !isCap && !isWk && !isBowler && (
+                                                    <div className="w-5 h-5 rounded-full flex items-center justify-center bg-gold/20 text-gold text-[10px] font-bold border border-gold/30">
+                                                        ✓
+                                                    </div>
+                                                )}
+                                            </div>
 
                                             <div className="flex items-center gap-4">
                                                 <PlayerAvatar
@@ -271,6 +307,30 @@ export default function SelectionPage() {
                                                     </div>
                                                 </div>
                                             </div>
+
+                                            {/* Role Selection Controls */}
+                                            {isSelected && !isLocked && (
+                                                <div className="flex gap-1 mt-3 pt-3 border-t border-white/5" onClick={e => e.stopPropagation()}>
+                                                    <button
+                                                        onClick={() => handleSetRole(player.id, 'captain')}
+                                                        className={`flex-1 py-1 rounded text-[8px] font-bold uppercase transition-colors ${isCap ? 'bg-gold text-black' : 'bg-white/5 text-white/50 hover:bg-white/10'}`}
+                                                    >
+                                                        Captain
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleSetRole(player.id, 'wk')}
+                                                        className={`flex-1 py-1 rounded text-[8px] font-bold uppercase transition-colors ${isWk ? 'bg-blue-500 text-white' : 'bg-white/5 text-white/50 hover:bg-white/10'}`}
+                                                    >
+                                                        WK
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleSetRole(player.id, 'bowler')}
+                                                        className={`flex-1 py-1 rounded text-[8px] font-bold uppercase transition-colors ${isBowler ? 'bg-red-500 text-white' : 'bg-white/5 text-white/50 hover:bg-white/10'}`}
+                                                    >
+                                                        Opener
+                                                    </button>
+                                                </div>
+                                            )}
 
                                             {/* Skills */}
                                             <div className="grid grid-cols-2 gap-3 mt-4 pt-3 border-t" style={{ borderColor: 'var(--color-border)' }}>

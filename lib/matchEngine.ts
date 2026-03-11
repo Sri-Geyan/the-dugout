@@ -487,7 +487,10 @@ export function processNextBall(state: MatchState): { state: MatchState; ballRes
         battingTeam.balls++;
         state.currentBall++;
         state.striker.balls++;
-        state.currentBowler.overBalls++;
+        if (state.currentBowler) {
+            state.currentBowler.balls++;
+            state.currentBowler.overBalls++;
+        }
 
         if (ballResult.isWicket) {
             state.striker.isOut = true;

@@ -35,6 +35,7 @@ interface AuctionPanelProps {
     onRtm?: (execute: boolean) => void;
     onBargain?: (amount: number) => void;
     onFinalMatch?: (execute: boolean) => void;
+    bidError?: string | null;
 }
 
 export default function AuctionPanel({
@@ -61,10 +62,20 @@ export default function AuctionPanel({
     onRtm,
     onBargain,
     onFinalMatch,
+    bidError,
 }: AuctionPanelProps) {
     const [timeLeft, setTimeLeft] = useState(0);
     const [bargainAmount, setBargainAmount] = useState(currentBid);
+    const [localError, setLocalError] = useState<string | null>(null);
     const BID_INCREMENT = 0.25;
+
+    useEffect(() => {
+        if (bidError) {
+            setLocalError(bidError);
+            const timer = setTimeout(() => setLocalError(null), 4000);
+            return () => clearTimeout(timer);
+        }
+    }, [bidError]);
 
     useEffect(() => {
         setBargainAmount(currentBid);
@@ -246,6 +257,13 @@ export default function AuctionPanel({
                             <div className="text-[10px] uppercase tracking-wider mt-1" style={{ color: 'var(--color-text-muted)' }}>Base Price</div>
                         </div>
                     </div>
+                </div>
+            )}
+
+            {/* ERROR ALERT */}
+            {localError && (
+                <div className="mb-4 p-3 rounded-lg border-2 border-red-500/50 bg-red-500/10 text-red-400 text-xs font-bold animate-shake text-center flex items-center justify-center gap-2">
+                    <span className="text-sm">⚠️</span> {localError}
                 </div>
             )}
 

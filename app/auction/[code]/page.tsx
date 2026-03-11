@@ -54,6 +54,7 @@ export default function AuctionPage() {
     const [isPlayerSetsModalOpen, setIsPlayerSetsModalOpen] = useState(false);
     const [showSoldPopup, setShowSoldPopup] = useState(false);
     const [lastSale, setLastSale] = useState<{ player: any; bid: number; team: string; status: string } | null>(null);
+    const [bidError, setBidError] = useState<string | null>(null);
 
     const fetchAuction = useCallback(async () => {
         try {
@@ -429,6 +430,7 @@ export default function AuctionPage() {
                             onRtm={handleRtm}
                             onBargain={handleBargain}
                             onFinalMatch={handleFinalMatch}
+                            bidError={bidError}
                         />
 
                         {/* Recent Sales */}

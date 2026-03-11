@@ -88,8 +88,8 @@ export async function POST(request: NextRequest) {
             const state = initLeagueState(roomCode, teams);
             await saveLeagueState(state);
 
-            // Update room status to 'league'
-            await updateRoomStatus(roomCode, 'league');
+            // Update room status to 'LEAGUE'
+            await updateRoomStatus(roomCode, 'LEAGUE');
 
             return NextResponse.json({ state });
         }

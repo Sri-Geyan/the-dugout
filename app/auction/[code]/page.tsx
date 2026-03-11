@@ -7,6 +7,7 @@ import Navbar from '@/components/Navbar';
 import AuctionPanel from '@/components/AuctionPanel';
 import PlayerAvatar from '@/components/PlayerAvatar';
 import { IPL_TEAMS } from '@/data/teams';
+import { getSocket } from '@/lib/socket';
 
 interface AuctionSetInfo {
     id: string;
@@ -124,10 +125,20 @@ export default function AuctionPage() {
             setLoading(false);
         };
         init();
-        const interval = setInterval(fetchAuction, 2000);
-        return () => clearInterval(interval);
+
+        const socket = getSocket();
+        socket.emit('join-room', code);
+
+        socket.on('auction_update', (data: { state: AuctionState }) => {
+            console.log('[Socket] Auction updated:', data.state);
+            setAuction(data.state);
+        });
+
+        return () => {
+            socket.off('auction_update');
+        };
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
+    }, [code, isLoggedIn]);
 
     const handleBid = async (amount: number) => {
         try {

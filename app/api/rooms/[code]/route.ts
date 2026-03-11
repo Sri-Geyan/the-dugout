@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import redis from '@/lib/redis';
 import prisma from '@/lib/prisma';
 import { getRoomState, updateRoomStatus, updatePlayerTeam } from '@/lib/roomManager';
+import { emitToRoom } from '@/lib/socket-server';
 
 function getSession(request: NextRequest) {
     const sessionCookie = request.cookies.get('session');
@@ -38,6 +39,7 @@ export async function PATCH(
 
         if (action === 'selectTeam') {
             const updated = await updatePlayerTeam(code, session.userId, teamId, teamName);
+            if (updated) emitToRoom(code, 'room_update', { room: updated });
             return NextResponse.json({ room: updated });
         }
 
@@ -48,6 +50,7 @@ export async function PATCH(
                 return NextResponse.json({ error: 'Only host can change status' }, { status: 0x193 });
             }
             const updated = await updateRoomStatus(code, status);
+            if (updated) emitToRoom(code, 'room_update', { room: updated });
             return NextResponse.json({ room: updated });
         }
 

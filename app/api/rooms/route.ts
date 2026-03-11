@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createRoom, joinRoom, getUserRooms } from '@/lib/roomManager';
+import { createRoom, joinRoom, getUserRooms, updatePlayerTeam, getRoomState } from '@/lib/roomManager';
+import { emitToRoom } from '@/lib/socket-server';
 
 function getSession(request: NextRequest) {
     const sessionCookie = request.cookies.get('session');
@@ -24,6 +25,16 @@ export async function POST(request: NextRequest) {
             if (!code) return NextResponse.json({ error: 'Room code is required' }, { status: 400 });
             const room = await joinRoom(code.toUpperCase(), session.userId, session.username);
             if (!room) return NextResponse.json({ error: 'Room not found' }, { status: 404 });
+            emitToRoom(code.toUpperCase(), 'room_update', { room });
+            return NextResponse.json({ room });
+        }
+
+        if (action === 'updateTeam') {
+            const { teamId, teamName } = body;
+            if (!code || !teamId || !teamName) return NextResponse.json({ error: 'Missing parameters' }, { status: 400 });
+            const room = await updatePlayerTeam(code.toUpperCase(), session.userId, teamId, teamName);
+            if (!room) return NextResponse.json({ error: 'Failed to update team' }, { status: 400 });
+            emitToRoom(code.toUpperCase(), 'room_update', { room });
             return NextResponse.json({ room });
         }
 

@@ -121,9 +121,10 @@ export async function POST(request: NextRequest) {
         }
 
         if (action === 'toss') {
-            const { roomCode: tossRoomCode, matchId: tossMatchId, homeTeam: tH, awayTeam: tA } = body;
+            const { roomCode: tossRoomCode, matchId: tossMatchId, fixtureId, homeTeam: tH, awayTeam: tA } = body;
+            const id = tossMatchId || fixtureId;
             const toss = performToss(tH, tA);
-            const tossKey = `toss:${tossRoomCode}:${tossMatchId}`;
+            const tossKey = `toss:${tossRoomCode}:${id}`;
             await redis.set(tossKey, JSON.stringify(toss), 'EX', 86400);
 
             // If toss winner is a bot, auto-decide
@@ -134,15 +135,16 @@ export async function POST(request: NextRequest) {
                 await redis.set(tossKey, JSON.stringify(toss), 'EX', 86400);
             }
 
-            return NextResponse.json({ toss });
+            return NextResponse.json({ toss, matchId: id });
         }
 
         if (action === 'tossDecision') {
-            const { roomCode: decRoomCode, matchId: decMatchId, decision } = body;
+            const { roomCode: decRoomCode, matchId: decMatchId, fixtureId, decision } = body;
             if (decision !== 'bat' && decision !== 'bowl') {
                 return NextResponse.json({ error: 'Decision must be bat or bowl' }, { status: 400 });
             }
-            const tossKey = `toss:${decRoomCode}:${decMatchId}`;
+            const id = decMatchId || fixtureId;
+            const tossKey = `toss:${decRoomCode}:${id}`;
             const tossData = await redis.get(tossKey);
             if (!tossData) return NextResponse.json({ error: 'Toss not found' }, { status: 404 });
 
@@ -302,9 +304,22 @@ export async function GET(request: NextRequest) {
     if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
 
     const { searchParams } = new URL(request.url);
+    const action = searchParams.get('action');
     const matchId = searchParams.get('matchId');
-    if (!matchId) return NextResponse.json({ error: 'Match ID required' }, { status: 400 });
+    const fixtureId = searchParams.get('fixtureId');
+    const roomCode = searchParams.get('roomCode');
 
-    const state = await getMatchState(matchId);
+    if (action === 'getToss') {
+        const id = matchId || fixtureId;
+        if (!id || !roomCode) return NextResponse.json({ error: 'matchId/fixtureId and roomCode required' }, { status: 400 });
+        const tossKey = `toss:${roomCode}:${id}`;
+        const tossData = await redis.get(tossKey);
+        return NextResponse.json({ toss: tossData ? JSON.parse(tossData) : null, matchId: id });
+    }
+
+    const id = matchId || fixtureId;
+    if (!id) return NextResponse.json({ error: 'Match ID required' }, { status: 400 });
+
+    const state = await getMatchState(id);
     return NextResponse.json({ state });
 }

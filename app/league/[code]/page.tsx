@@ -117,7 +117,7 @@ export default function LeaguePage() {
                 const data = await res.json();
                 if (data.fixture) {
                     // Navigate to match page with fixture context
-                    router.push(`/match/${code}?fixture=${data.fixture.scheduledOrder}`);
+                    router.push(`/match/${code}?fixtureId=${data.fixture.id}`);
                 }
             }
         } catch (err) {
@@ -439,7 +439,7 @@ export default function LeaguePage() {
                                         {fixture.status === 'pre_match' && (
                                             (userId === fixture.homeTeamUserId || userId === fixture.awayTeamUserId) ? (
                                                 <button
-                                                    onClick={() => router.push(`/pre-match/${code}?fixture=${fixture.id}`)}
+                                                    onClick={() => router.push(`/pre-match/${code}?fixtureId=${fixture.id}`)}
                                                     className="btn-primary w-full text-[10px] py-2"
                                                 >
                                                     🏟️ Join Selection
@@ -452,7 +452,7 @@ export default function LeaguePage() {
                                         )}
                                         {fixture.status === 'live' && (
                                             <button
-                                                onClick={() => router.push(`/match/${code}?fixture=${fixture.id}`)}
+                                                onClick={() => router.push(`/match/${code}?fixtureId=${fixture.id}`)}
                                                 className="btn-secondary w-full text-[10px] py-2 border-green-500/50 text-green-400"
                                             >
                                                 ▶️ Watch Live

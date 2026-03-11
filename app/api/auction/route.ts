@@ -16,6 +16,7 @@ import { TEAM_NAMES } from '@/data/players';
 import { IPL_PLAYERS } from '@/data/players';
 import { getRetentionState } from '@/lib/retentionEngine';
 import { runBotBidding, isBotUser, runBotRtmDecisions } from '@/lib/botEngine';
+import { emitToRoom } from '@/lib/socket-server';
 
 function getSession(request: NextRequest) {
     const sessionCookie = request.cookies.get('session');
@@ -75,6 +76,7 @@ export async function POST(request: NextRequest) {
             const state = await initAuction(roomCode, enrichedTeams, excludePlayerIds);
 
             console.log(`[Auction] Room ${roomCode} initialized with ${state.totalPlayers} players in sets`);
+            emitToRoom(roomCode, 'auction_update', { state });
             return NextResponse.json({ state });
         }
 
@@ -108,6 +110,7 @@ export async function POST(request: NextRequest) {
                 state = await runBotBidding(roomCode) || state;
             }
 
+            emitToRoom(roomCode, 'auction_update', { state });
             return NextResponse.json({ state });
         }
 
@@ -116,6 +119,7 @@ export async function POST(request: NextRequest) {
             if (state?.rtmPending) {
                 state = await runBotRtmDecisions(roomCode) || state;
             }
+            if (state) emitToRoom(roomCode, 'auction_update', { state });
             return NextResponse.json({ state });
         }
 
@@ -129,24 +133,30 @@ export async function POST(request: NextRequest) {
             const room = await getRoomState(roomCode);
             if (!room || room.hostId !== session.userId) return NextResponse.json({ error: 'Host only' }, { status: 403 });
             const state = await skipPlayer(roomCode);
+            if (state) emitToRoom(roomCode, 'auction_update', { state });
             return NextResponse.json({ state });
         }
         if (action === 'skipSet') {
             const room = await getRoomState(roomCode);
             if (!room || room.hostId !== session.userId) return NextResponse.json({ error: 'Host only' }, { status: 403 });
             const state = await skipSet(roomCode);
+            if (state) emitToRoom(roomCode, 'auction_update', { state });
             return NextResponse.json({ state });
         }
         if (action === 'endAuction') {
             const room = await getRoomState(roomCode);
             if (!room || room.hostId !== session.userId) return NextResponse.json({ error: 'Host only' }, { status: 403 });
             const state = await endAuction(roomCode);
+            if (state) emitToRoom(roomCode, 'auction_update', { state });
             return NextResponse.json({ state });
         }
 
-        if (action === 'rtm') {
-            const state = await handleRtm(roomCode, execute === true);
-            return NextResponse.json({ state });
+        if (action === 'save') {
+            const { state: newState } = body;
+            const room = await getRoomState(roomCode);
+            if (!room || room.hostId !== session.userId) return NextResponse.json({ error: 'Host only' }, { status: 403 });
+            await saveAuctionState(roomCode, newState);
+            return NextResponse.json({ success: true, state: newState });
         }
 
         return NextResponse.json({ error: 'Invalid action' }, { status: 400 });

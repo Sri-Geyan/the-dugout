@@ -1,6 +1,12 @@
 import prisma from './prisma';
 import redis from './redis';
 import { v4 as uuidv4 } from 'uuid';
+import { createHash } from 'crypto';
+
+const getDeterministicId = (name: string) => {
+    const hash = createHash('md5').update(name).digest('hex');
+    return `${hash.slice(0, 8)}-${hash.slice(8, 12)}-${hash.slice(12, 16)}-${hash.slice(16, 20)}-${hash.slice(20, 32)}`;
+};
 
 export interface PlayerState {
     userId: string;
@@ -23,16 +29,22 @@ export async function createRoom(hostId: string, username: string, maxPlayers: n
     const code = Math.random().toString(36).substring(2, 8).toUpperCase();
 
     // Create in Postgres
-    const dbRoom = await prisma.room.create({
-        data: {
-            code,
-            hostId,
-            maxPlayers,
-            players: {
-                create: { userId: hostId }
+    let dbRoom;
+    try {
+        dbRoom = await prisma.room.create({
+            data: {
+                code,
+                hostId,
+                maxPlayers,
+                players: {
+                    create: { userId: hostId }
+                }
             }
-        }
-    });
+        });
+    } catch (err) {
+        console.error('Prisma createRoom error, using fallback:', err);
+        dbRoom = { id: uuidv4() };
+    }
 
     const state: RoomState = {
         id: dbRoom.id,
@@ -62,12 +74,16 @@ export async function joinRoom(code: string, userId: string, username: string): 
     await redis.set(`room:${code}`, JSON.stringify(state), 'EX', 86400);
 
     // Sync to DB
-    await prisma.roomPlayer.create({
-        data: {
-            userId,
-            roomId: state.id
-        }
-    });
+    try {
+        await prisma.roomPlayer.create({
+            data: {
+                userId,
+                roomId: state.id
+            }
+        });
+    } catch (err) {
+        console.error('Prisma joinRoom error:', err);
+    }
 
     return state;
 }
@@ -77,14 +93,20 @@ export async function getRoomState(code: string): Promise<RoomState | null> {
     if (cached) return JSON.parse(cached);
 
     // Fallback to DB
-    const dbRoom = await prisma.room.findUnique({
-        where: { code },
-        include: {
-            players: {
-                include: { user: true }
+    let dbRoom;
+    try {
+        dbRoom = await prisma.room.findUnique({
+            where: { code },
+            include: {
+                players: {
+                    include: { user: true }
+                }
             }
-        }
-    });
+        });
+    } catch (err) {
+        console.error('Prisma getRoomState error:', err);
+        return null;
+    }
 
     if (!dbRoom) return null;
 
@@ -112,10 +134,14 @@ export async function updateRoomStatus(code: string, status: string): Promise<Ro
     state.status = status;
     await redis.set(`room:${code}`, JSON.stringify(state), 'EX', 86400);
 
-    await prisma.room.update({
-        where: { code },
-        data: { status: status as any }
-    });
+    try {
+        await prisma.room.update({
+            where: { code },
+            data: { status: status as any }
+        });
+    } catch (err) {
+        console.error('Prisma updateRoomStatus error:', err);
+    }
 
     return state;
 }
@@ -132,19 +158,23 @@ export async function updatePlayerTeam(code: string, userId: string, teamId: str
 
     await redis.set(`room:${code}`, JSON.stringify(state), 'EX', 86400);
 
-    const dbRoom = await prisma.room.findUnique({ where: { code } });
-    if (dbRoom) {
-        await prisma.team.upsert({
-            where: { userId_roomId: { userId, roomId: dbRoom.id } },
-            update: { name: teamName },
-            create: {
-                id: uuidv4(),
-                name: teamName,
-                userId,
-                roomId: dbRoom.id,
-                purse: 120,
-            }
-        });
+    try {
+        const dbRoom = await prisma.room.findUnique({ where: { code } });
+        if (dbRoom) {
+            await prisma.team.upsert({
+                where: { userId_roomId: { userId, roomId: dbRoom.id } },
+                update: { name: teamName },
+                create: {
+                    id: uuidv4(),
+                    name: teamName,
+                    userId,
+                    roomId: dbRoom.id,
+                    purse: 120,
+                }
+            });
+        }
+    } catch (err) {
+        console.error('Prisma updatePlayerTeam error:', err);
     }
 
     return state;
@@ -170,49 +200,57 @@ export async function fillRoomWithBots(code: string, count: number): Promise<str
     const added = [];
     const existingUsernames = state.players.map(p => p.username.toLowerCase());
     const existingTeamIds = state.players.map(p => p.teamId);
+    const existingTeamNames = state.players.map(p => p.teamName?.toLowerCase());
 
     const availableBots = BOT_PROFILES.filter(
-        b => !existingUsernames.includes(b.username.toLowerCase()) && !existingTeamIds.includes(b.teamId)
+        b => !existingUsernames.includes(b.username.toLowerCase()) &&
+            !existingTeamIds.includes(b.teamId) &&
+            !existingTeamNames.includes(b.username.toLowerCase())
     );
 
     for (let i = 0; i < count && i < availableBots.length; i++) {
         const bot = availableBots[i];
 
         // Find or create bot user
-        const dbUser = await prisma.user.upsert({
-            where: { username: bot.username },
-            update: {},
-            create: {
-                id: `bot_${uuidv4().substring(0, 8)}`,
-                username: bot.username
-            }
-        });
+        let botId;
+        try {
+            const dbUser = await prisma.user.upsert({
+                where: { username: bot.username },
+                update: {},
+                create: {
+                    id: `bot_${uuidv4().substring(0, 8)}`,
+                    username: bot.username
+                }
+            });
+            botId = dbUser.id;
 
-        const botId = dbUser.id;
+            // Add to room in DB
+            await prisma.roomPlayer.create({
+                data: { userId: botId, roomId: state.id }
+            });
+
+            // Create team in DB
+            await prisma.team.upsert({
+                where: { userId_roomId: { userId: botId, roomId: state.id } },
+                update: { name: bot.username },
+                create: {
+                    id: uuidv4(),
+                    name: bot.username,
+                    userId: botId,
+                    roomId: state.id,
+                    purse: 120
+                }
+            });
+        } catch (err) {
+            console.error('Prisma fillRoomWithBots error, using fallback:', err);
+            botId = getDeterministicId(bot.username);
+        }
 
         state.players.push({
             userId: botId,
             username: bot.username,
             teamId: bot.teamId,
             teamName: bot.username
-        });
-
-        // Add to room in DB
-        await prisma.roomPlayer.create({
-            data: { userId: botId, roomId: state.id }
-        });
-
-        // Create team in DB
-        await prisma.team.upsert({
-            where: { userId_roomId: { userId: botId, roomId: state.id } },
-            update: { name: bot.username },
-            create: {
-                id: uuidv4(),
-                name: bot.username,
-                userId: botId,
-                roomId: state.id,
-                purse: 120
-            }
         });
 
         added.push(bot.username);
@@ -223,29 +261,34 @@ export async function fillRoomWithBots(code: string, count: number): Promise<str
 }
 
 export async function getUserRooms(userId: string) {
-    const rooms = await prisma.roomPlayer.findMany({
-        where: { userId },
-        include: {
-            room: {
-                include: {
-                    players: { include: { user: true } },
+    try {
+        const rooms = await prisma.roomPlayer.findMany({
+            where: { userId },
+            include: {
+                room: {
+                    include: {
+                        players: { include: { user: true } },
+                    },
                 },
             },
-        },
-        orderBy: { joinedAt: 'desc' },
-    });
+            orderBy: { joinedAt: 'desc' },
+        });
 
-    return rooms
-        .filter(rp => rp.room !== null)
-        .map(rp => ({
-            code: rp.room.code,
-            status: rp.room.status.toLowerCase(),
-            playerCount: rp.room.players.length,
-            maxPlayers: rp.room.maxPlayers,
-            hostId: rp.room.hostId,
-            players: rp.room.players
-                .filter(p => p.user !== null)
-                .map(p => p.user.username),
-            createdAt: rp.room.createdAt.toISOString(),
-        }));
+        return rooms
+            .filter(rp => rp.room !== null)
+            .map(rp => ({
+                code: rp.room.code,
+                status: rp.room.status.toLowerCase(),
+                playerCount: rp.room.players.length,
+                maxPlayers: rp.room.maxPlayers,
+                hostId: rp.room.hostId,
+                players: rp.room.players
+                    .filter(p => p.user !== null)
+                    .map(p => p.user.username),
+                createdAt: rp.room.createdAt.toISOString(),
+            }));
+    } catch (err) {
+        console.error('Prisma getUserRooms error:', err);
+        return [];
+    }
 }

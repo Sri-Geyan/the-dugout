@@ -5,6 +5,7 @@ import { useRouter, useParams } from 'next/navigation';
 import { useUserStore } from '@/lib/store';
 import Navbar from '@/components/Navbar';
 import TeamSelector from '@/components/TeamSelector';
+import { getSocket } from '@/lib/socket';
 import { IPL_TEAMS } from '@/data/teams';
 import type { IPLTeam } from '@/data/teams';
 
@@ -46,10 +47,23 @@ export default function RoomPage() {
             fetchRoom();
         };
         init();
-        const interval = setInterval(fetchRoom, 3000);
-        return () => clearInterval(interval);
+
+        const socket = getSocket();
+        socket.emit('join-room', code);
+
+        socket.on('room_update', (data: { room: RoomState }) => {
+            console.log('[Socket] Room updated:', data.room);
+            setRoom(data.room);
+            if (data.room.status === 'retention') router.push(`/retention/${code}`);
+            if (data.room.status === 'auction') router.push(`/auction/${code}`);
+            if (data.room.status === 'match') router.push(`/match/${code}`);
+        });
+
+        return () => {
+            socket.off('room_update');
+        };
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
+    }, [code, isLoggedIn]);
 
     const fetchRoom = async () => {
         try {

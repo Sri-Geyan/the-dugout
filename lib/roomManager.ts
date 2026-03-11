@@ -1,3 +1,4 @@
+import { RoomStatus } from '@prisma/client';
 import prisma from './prisma';
 import redis from './redis';
 import { v4 as uuidv4 } from 'uuid';
@@ -137,7 +138,7 @@ export async function updateRoomStatus(code: string, status: string): Promise<Ro
     try {
         await prisma.room.update({
             where: { code },
-            data: { status: status as any }
+            data: { status: status.toUpperCase() as RoomStatus }
         });
     } catch (err) {
         console.error('Prisma updateRoomStatus error:', err);

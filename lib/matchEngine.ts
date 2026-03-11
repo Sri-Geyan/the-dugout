@@ -1,5 +1,5 @@
 import redis from './redis';
-import { STADIUMS, getStadiumById } from '@/data/stadiums';
+import { getStadiumById } from '@/data/stadiums';
 
 export interface MatchState {
     matchId: string;
@@ -470,7 +470,12 @@ export function processNextBall(state: MatchState): { state: MatchState; ballRes
     );
 
     // Process result
-    state.freeHit = ballResult.extraType === 'no_ball';
+    if (ballResult.extraType === 'no_ball') {
+        state.freeHit = true;
+    } else if (!ballResult.isExtra) {
+        state.freeHit = false;
+    }
+    // Wide balls don't change the free-hit status
 
     if (ballResult.isExtra) {
         battingTeam.score += ballResult.extraRuns;
@@ -519,9 +524,6 @@ export function processNextBall(state: MatchState): { state: MatchState; ballRes
         if (state.currentBowler.overBalls >= 6) {
             state.currentBowler.overs++;
             state.currentBowler.overBalls = 0;
-            state.currentBowler.economy = state.currentBowler.overs > 0
-                ? Math.round((state.currentBowler.runs / state.currentBowler.overs) * 100) / 100
-                : 0;
 
             battingTeam.overs++;
             battingTeam.balls = 0;
@@ -547,7 +549,16 @@ export function processNextBall(state: MatchState): { state: MatchState; ballRes
     }
 
     // Update strike rates and run rates
-    state.striker && (state.striker.strikeRate = state.striker.balls > 0 ? Math.round((state.striker.runs / state.striker.balls) * 100 * 100) / 100 : 0);
+    if (state.striker) {
+        state.striker.strikeRate = state.striker.balls > 0 ? Math.round((state.striker.runs / state.striker.balls) * 100 * 100) / 100 : 0;
+    }
+    if (state.nonStriker) {
+        state.nonStriker.strikeRate = state.nonStriker.balls > 0 ? Math.round((state.nonStriker.runs / state.nonStriker.balls) * 100 * 100) / 100 : 0;
+    }
+    if (state.currentBowler) {
+        const bBalls = state.currentBowler.overs * 6 + state.currentBowler.overBalls;
+        state.currentBowler.economy = bBalls > 0 ? Math.round((state.currentBowler.runs / bBalls) * 6 * 100) / 100 : 0;
+    }
     const totalBalls = battingTeam.overs * 6 + battingTeam.balls;
     battingTeam.runRate = totalBalls > 0 ? Math.round((battingTeam.score / totalBalls) * 6 * 100) / 100 : 0;
 
@@ -583,12 +594,16 @@ export function processNextBall(state: MatchState): { state: MatchState; ballRes
             setupSecondInnings(state);
         } else {
             state.status = 'completed';
-            const homeScore = state.homeTeam.score;
-            const awayScore = state.awayTeam.score;
-            if (homeScore > awayScore) {
-                state.result = `${state.homeTeam.name} won by ${homeScore - awayScore} runs!`;
-            } else if (awayScore > homeScore) {
-                state.result = `${state.awayTeam.name} won by ${MAX_WICKETS - state.awayTeam.wickets} wickets!`;
+            const battingTeam = state.currentBatting === 'home' ? state.homeTeam : state.awayTeam;
+            const bowlingTeam = state.currentBatting === 'home' ? state.awayTeam : state.homeTeam;
+
+            if (bowlingTeam.score > battingTeam.score) {
+                // Bowling team (batting first) won
+                state.result = `${bowlingTeam.name} won by ${bowlingTeam.score - battingTeam.score} runs!`;
+            } else if (battingTeam.score > bowlingTeam.score) {
+                // Batting team (batting second) won - though this should be caught by the previous block
+                const wicketsLeft = MAX_WICKETS - battingTeam.wickets;
+                state.result = `${battingTeam.name} won by ${wicketsLeft} wickets!`;
             } else {
                 state.result = 'Match tied!';
             }
@@ -652,10 +667,15 @@ function setupSecondInnings(state: MatchState): void {
         isOut: false, dismissal: '', strikeRate: 0,
     }));
 
-    state.bowlingOrder = newBowlingTeam.players
-        .filter(p => p.role !== 'BATSMAN' && p.role !== 'WICKET_KEEPER')
-        .concat(newBowlingTeam.players.filter(p => p.role === 'BATSMAN' || p.role === 'WICKET_KEEPER'))
-        .slice(0, 6)
+    state.bowlingOrder = [...newBowlingTeam.players]
+        .sort((a, b) => {
+            const getPriority = (role: string) => {
+                if (role === 'BOWLER') return 0;
+                if (role === 'ALL_ROUNDER') return 1;
+                return 2;
+            };
+            return getPriority(a.role) - getPriority(b.role);
+        })
         .map(p => ({
             player: p,
             overs: 0, balls: 0, maidens: 0, runs: 0,

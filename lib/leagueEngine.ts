@@ -179,8 +179,14 @@ export function updateStandings(state: LeagueState, matchResult: MatchResult): v
     away.matches++;
 
     // Calculate balls for NRR
-    const homeBallsFaced = oversToBalls(matchResult.homeOvers, matchResult.homeBalls);
-    const awayBallsFaced = oversToBalls(matchResult.awayOvers, matchResult.awayBalls);
+    // Cricket Rule: If a team is all out, their overs faced is considered to be the full quota (20.0)
+    const homeBallsFaced = matchResult.homeWickets >= 10 
+        ? 120 
+        : oversToBalls(matchResult.homeOvers, matchResult.homeBalls);
+    
+    const awayBallsFaced = matchResult.awayWickets >= 10 
+        ? 120 
+        : oversToBalls(matchResult.awayOvers, matchResult.awayBalls);
 
     // Home team batting first, away team chasing
     home.runsScored += matchResult.homeScore;

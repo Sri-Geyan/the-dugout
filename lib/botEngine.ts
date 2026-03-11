@@ -1,9 +1,9 @@
-import { AuctionState, AuctionTeam, placeBid, getAuctionState, sellCurrentPlayer, nextPlayer, BID_INCREMENT, saveAuctionState, handleRtm } from './auctionEngine';
-import { CricketPlayer, IPL_PLAYERS } from '@/data/players';
+import { AuctionState, AuctionTeam, placeBid, getAuctionState, sellCurrentPlayer, BID_INCREMENT, handleRtm } from './auctionEngine';
+import { CricketPlayer } from '@/data/players';
 import { getRoomState } from './roomManager';
 import type { MatchState, BatterState, BowlerState } from './matchEngine';
 import { getRetentionState, retainPlayer, confirmRetentions, getRetentionEligiblePool } from './retentionEngine';
-import { analyzeSquadNeeds, canAddOverseas, playerFillScore, getSquadComposition, IPL_MAX_SQUAD, IPL_MIN_SQUAD, IPL_MAX_OVERSEAS } from './squadUtils';
+import { analyzeSquadNeeds, canAddOverseas, playerFillScore, getSquadComposition, IPL_MAX_SQUAD, IPL_MIN_SQUAD } from './squadUtils';
 
 // ======================================================
 // Bot Detection
@@ -315,7 +315,6 @@ export function botChooseNextBowler(state: MatchState): string | null {
     );
     if (available.length === 0) return null;
 
-    const phase = state.matchPhase;
 
     // In powerplay, prefer fast bowlers (high bowling skill)
     // In middle overs, prefer spinners

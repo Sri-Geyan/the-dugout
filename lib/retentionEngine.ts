@@ -170,7 +170,7 @@ export async function retainPlayer(
     }
 
     let cost = 0;
-    let slot = team.retained.length + 1;
+    const slot = team.retained.length + 1;
 
     if (isUncapped) {
         cost = UNCAPPED_RETENTION_COST;

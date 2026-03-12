@@ -311,33 +311,30 @@ export default function AuctionPage() {
                         <button
                             onClick={async () => {
                                 try {
-                                    // 1. Update room status to 'selection'
+                                    // 1. Update room status to 'league'
                                     await fetch(`/api/rooms/${code}`, {
                                         method: 'PATCH',
                                         headers: { 'Content-Type': 'application/json' },
-                                        body: JSON.stringify({ status: 'selection' }),
+                                        body: JSON.stringify({ status: 'league' }),
                                     });
 
-                                    // 2. Trigger robust bot auto-selection on the server
-                                    await fetch('/api/selection', {
+                                    // 2. Initialize league fixtures
+                                    await fetch('/api/league', {
                                         method: 'POST',
                                         headers: { 'Content-Type': 'application/json' },
-                                        body: JSON.stringify({
-                                            roomCode: code,
-                                            action: 'autoSelectBots'
-                                        }),
+                                        body: JSON.stringify({ action: 'init', roomCode: code }),
                                     });
 
-                                    router.push(`/selection/${code}`);
+                                    router.push(`/league/${code}`);
                                 } catch (err) {
-                                    console.error('Failed to transition to selection:', err);
-                                    router.push(`/selection/${code}`);
+                                    console.error('Failed to transition to league:', err);
+                                    router.push(`/league/${code}`);
                                 }
                             }}
                             className="btn-primary"
                             style={{ animation: 'pulse 2s infinite' }}
                         >
-                            Select Playing 11 →
+                            View Match Fixtures →
                         </button>
                     )}
                     <button

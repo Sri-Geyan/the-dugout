@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { useRouter, useParams, useSearchParams } from 'next/navigation';
 import { useUserStore } from '@/lib/store';
 import Navbar from '@/components/Navbar';
+import { getSocket } from '@/lib/socket';
 import PlayerAvatar from '@/components/PlayerAvatar';
 
 interface MatchTeam {
@@ -74,6 +75,14 @@ interface MatchState {
     ballsRemaining?: number;
     requiredRunRate?: number;
     toss?: TossResult;
+    homeLocked?: boolean;
+    awayLocked?: boolean;
+    homeCaptainId?: string;
+    awayCaptainId?: string;
+    homeWkId?: string;
+    awayWkId?: string;
+    homeOpeningBowlerId?: string;
+    awayOpeningBowlerId?: string;
 }
 
 export default function MatchPage() {
@@ -123,11 +132,56 @@ export default function MatchPage() {
                 setHostId(roomData.room.hostId);
             }
 
+            // Fetch existing match or toss state
+            const id = `${code}-${fixtureId || 'match'}`;
+            setMatchId(id);
+
+            const matchRes = await fetch(`/api/match?action=status&matchId=${id}`);
+            if (matchRes.ok) {
+                const data = await matchRes.json();
+                if (data.state) {
+                    setMatch(data.state);
+                } else {
+                    // Check if toss exists
+                    const tossRes = await fetch(`/api/match?action=getToss&roomCode=${code}&matchId=${id}`);
+                    if (tossRes.ok) {
+                        const tossData = await tossRes.json();
+                        if (tossData.toss) {
+                            setTossResult(tossData.toss);
+                            setTossPhase(tossData.toss.decision ? 'decided' : 'result');
+                        }
+                    }
+                }
+            }
+
             setLoading(false);
         };
         init();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
+
+    // Socket.IO for real-time updates
+    useEffect(() => {
+        const socket = getSocket();
+        if (!socket) return;
+
+        socket.emit('join-room', code);
+
+        socket.on('match_update', (data: any) => {
+            if (data.state) {
+                setMatch(data.state);
+            }
+            if (data.toss) {
+                setTossResult(data.toss);
+                if (data.toss.decision) setTossPhase('decided');
+                else setTossPhase('result');
+            }
+        });
+
+        return () => {
+            socket.off('match_update');
+        };
+    }, [code]);
 
     // Bot Auto-play Effect
     useEffect(() => {
@@ -300,6 +354,17 @@ export default function MatchPage() {
         if (data.state) setMatch(data.state);
     };
 
+    const handleLockSelection = async (selection: { selectedIds: string[], captainId: string, wkId: string, openingBowlerId: string }) => {
+        if (!match) return;
+        const res = await fetch('/api/match', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'lockSelection', matchId: match.matchId, roomCode: code, ...selection }),
+        });
+        const data = await res.json();
+        if (data.state) setMatch(data.state);
+    };
+
     if (loading) {
         return (
             <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--color-bg-primary)' }}>
@@ -399,6 +464,46 @@ export default function MatchPage() {
     }
 
     // MATCH PHASE
+    const isHome = match.homeTeam.userId === userId;
+    const isAway = match.awayTeam.userId === userId;
+    const userTeam = isHome ? match.homeTeam : match.awayTeam;
+    const isLocked = isHome ? match.homeLocked : match.awayLocked;
+
+    if (match.status === 'awaiting_selection') {
+        return (
+            <div className="min-h-screen" style={{ background: 'var(--color-bg-primary)' }}>
+                <Navbar />
+                <main className="max-w-4xl mx-auto px-6 pt-24 pb-12">
+                    <div className="mb-8 p-4 rounded-2xl text-center" style={{ background: 'rgba(255,215,0,0.05)', border: '1px solid rgba(255,215,0,0.2)' }}>
+                        <h2 className="text-xl font-bold mb-1">📋 Team Selection</h2>
+                        <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
+                            {match.toss?.winnerName} won the toss and chose to <span className="gold-text font-bold uppercase">{match.toss?.decision}</span> first.
+                        </p>
+                    </div>
+
+                    {!isHome && !isAway ? (
+                        <div className="panel p-12 text-center">
+                            <h3 className="text-xl font-bold mb-4">Spectating Selection</h3>
+                            <p style={{ color: 'var(--color-text-muted)' }}>Waiting for teams to finalize their squads...</p>
+                        </div>
+                    ) : isLocked ? (
+                        <div className="panel p-12 text-center space-y-4">
+                            <div className="w-16 h-16 mx-auto rounded-full bg-green-500/20 flex items-center justify-center text-2xl text-green-500">✓</div>
+                            <h3 className="text-xl font-bold">Selection Locked!</h3>
+                            <p style={{ color: 'var(--color-text-muted)' }}>Waiting for opponent to lock their squad...</p>
+                        </div>
+                    ) : (
+                        <MatchSelectionUI 
+                            team={userTeam} 
+                            onLock={handleLockSelection} 
+                            isBattingFirst={(match.currentBatting === 'home' && isHome) || (match.currentBatting === 'away' && isAway)}
+                        />
+                    )}
+                </main>
+            </div>
+        );
+    }
+
     const battingTeam = match.currentBatting === 'home' ? match.homeTeam : match.awayTeam;
     const bowlingTeam = match.currentBatting === 'home' ? match.awayTeam : match.homeTeam;
     const isUserBattingTeam = battingTeam.userId === userId;
@@ -762,6 +867,163 @@ export default function MatchPage() {
                     </div>
                 </div>
             )}
+        </div>
+    );
+}
+
+// --- Helper Components ---
+
+function MatchSelectionUI({ team, onLock, isBattingFirst }: { 
+    team: MatchTeam, 
+    onLock: (s: any) => void,
+    isBattingFirst: boolean
+}) {
+    const [selectedIds, setSelectedIds] = useState<string[]>([]);
+    const [captainId, setCaptainId] = useState('');
+    const [wkId, setWkId] = useState('');
+    const [openingBowlerId, setOpeningBowlerId] = useState('');
+
+    // Pre-select top 11 by skill by default
+    useEffect(() => {
+        const initial = [...team.players]
+            .sort((a, b) => (b.battingSkill + b.bowlingSkill) - (a.battingSkill + a.bowlingSkill))
+            .slice(0, 11)
+            .map(p => p.id);
+        setSelectedIds(initial);
+        
+        const cap = team.players.find(p => p.isCaptain)?.id || initial[0];
+        const wk = team.players.find(p => p.isWicketKeeper)?.id || team.players.find(p => p.role === 'WICKET_KEEPER')?.id || initial[0];
+        const bowl = team.players.find(p => p.role === 'BOWLER')?.id || initial[0];
+        
+        setCaptainId(cap);
+        setWkId(wk);
+        setOpeningBowlerId(bowl);
+    }, [team.players]);
+
+    const togglePlayer = (id: string) => {
+        if (selectedIds.includes(id)) {
+            setSelectedIds(selectedIds.filter(i => i !== id));
+        } else if (selectedIds.length < 11) {
+            setSelectedIds([...selectedIds, id]);
+        }
+    };
+
+    const isValid = selectedIds.length === 11 && captainId && wkId && (isBattingFirst ? true : openingBowlerId);
+
+    return (
+        <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
+            <div className="grid md:grid-cols-2 gap-8">
+                {/* Squad List */}
+                <div className="panel p-6">
+                    <div className="flex items-center justify-between mb-6">
+                        <h3 className="text-lg font-bold">Pick Your 11</h3>
+                        <span className={`px-3 py-1 rounded-full text-xs font-black ${selectedIds.length === 11 ? 'bg-green-500/20 text-green-500' : 'bg-yellow-500/20 text-yellow-500'}`}>
+                            {selectedIds.length} / 11 SELECTED
+                        </span>
+                    </div>
+                    <div className="space-y-2 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
+                        {team.players.map(p => {
+                            const isSelected = selectedIds.includes(p.id);
+                            return (
+                                <button
+                                    key={p.id}
+                                    onClick={() => togglePlayer(p.id)}
+                                    className={`w-full flex items-center justify-between p-3 rounded-xl transition-all border ${
+                                        isSelected 
+                                            ? 'bg-gold/10 border-gold/30 shadow-[0_0_15px_rgba(212,175,55,0.1)]' 
+                                            : 'bg-white/5 border-white/5 opacity-60 grayscale hover:grayscale-0 hover:opacity-100'
+                                    }`}
+                                >
+                                    <div className="flex items-center gap-3">
+                                        <PlayerAvatar name={p.name} size={32} />
+                                        <div className="text-left">
+                                            <p className="text-sm font-bold">{p.name}</p>
+                                            <p className="text-[10px] opacity-50 uppercase tracking-tighter">{p.role.replace('_', ' ')}</p>
+                                        </div>
+                                    </div>
+                                    <div className="text-right">
+                                        <div className="flex gap-2 text-[10px] font-black">
+                                            <span className="text-blue-400">BAT:{p.battingSkill}</span>
+                                            <span className="text-red-400">BWL:{p.bowlingSkill}</span>
+                                        </div>
+                                    </div>
+                                </button>
+                            );
+                        })}
+                    </div>
+                </div>
+
+                {/* Roles & Order */}
+                <div className="space-y-6">
+                    <div className="panel p-6 space-y-6">
+                        <h3 className="text-lg font-bold mb-4">Assign Roles</h3>
+                        
+                        <div className="space-y-4">
+                            <div>
+                                <label className="text-xs font-black opacity-50 uppercase mb-2 block">Team Captain</label>
+                                <select 
+                                    value={captainId} 
+                                    onChange={(e) => setCaptainId(e.target.value)}
+                                    className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-sm focus:border-gold/50 outline-none"
+                                >
+                                    <option value="">Select Captain</option>
+                                    {team.players.filter(p => selectedIds.includes(p.id)).map(p => (
+                                        <option key={p.id} value={p.id}>{p.name}</option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            <div>
+                                <label className="text-xs font-black opacity-50 uppercase mb-2 block">Wicket Keeper</label>
+                                <select 
+                                    value={wkId} 
+                                    onChange={(e) => setWkId(e.target.value)}
+                                    className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-sm focus:border-gold/50 outline-none"
+                                >
+                                    <option value="">Select WK</option>
+                                    {team.players.filter(p => selectedIds.includes(p.id)).map(p => (
+                                        <option key={p.id} value={p.id}>{p.name}</option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            {!isBattingFirst && (
+                                <div>
+                                    <label className="text-xs font-black opacity-50 uppercase mb-2 block text-red-400">Opening Bowler</label>
+                                    <select 
+                                        value={openingBowlerId} 
+                                        onChange={(e) => setOpeningBowlerId(e.target.value)}
+                                        className="w-full bg-black/40 border border-red-500/20 rounded-xl px-4 py-3 text-sm focus:border-red-500/50 outline-none"
+                                    >
+                                        <option value="">Select Opening Bowler</option>
+                                        {team.players.filter(p => selectedIds.includes(p.id)).map(p => (
+                                            <option key={p.id} value={p.id}>{p.name}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            )}
+                        </div>
+
+                        <button
+                            disabled={!isValid}
+                            onClick={() => onLock({ selectedIds, captainId, wkId, openingBowlerId })}
+                            className={`w-full py-4 rounded-xl font-black text-lg transition-all ${
+                                isValid 
+                                    ? 'bg-gold text-black hover:scale-[1.02] shadow-[0_10px_30px_rgba(212,175,55,0.3)]' 
+                                    : 'bg-white/5 text-white/20 cursor-not-allowed'
+                            }`}
+                        >
+                            LOCK SQUAD & START →
+                        </button>
+                    </div>
+
+                    <div className="panel p-4 bg-blue-500/5 border-blue-500/20">
+                        <p className="text-xs leading-relaxed" style={{ color: 'var(--color-text-muted)' }}>
+                            <span className="text-blue-400 font-bold">Pro Tip:</span> Since you are {isBattingFirst ? 'batting' : 'bowling'} first, make sure to pick your {isBattingFirst ? 'best batsmen' : 'best bowlers'} accordingly.
+                        </p>
+                    </div>
+                </div>
+            </div>
         </div>
     );
 }

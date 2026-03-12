@@ -30,63 +30,56 @@ export async function POST(request: NextRequest) {
             let hTeam = homeTeam;
             let aTeam = awayTeam;
 
+            // Perform toss from database/redis if exists
+            const tossKey = `toss:${rCode || roomCode}:${id}`;
+            const tossData = await redis.get(tossKey);
+            const tossResult = tossData ? JSON.parse(tossData) : undefined;
+
+            // Fetch selections from Redis if they exist (for bots or pre-match flow)
+            let homeSelection = body.homeSelection;
+            let awaySelection = body.awaySelection;
+
             if (fixtureId && rCode) {
                 const leagueState = await getLeagueState(rCode);
                 const fixture = leagueState?.fixtures.find(f => f.id === fixtureId);
 
                 if (fixture) {
+                    const getPreMatchSelection = async (uId: string) => {
+                        const data = await redis.get(`selection:${rCode}:${fixtureId}:${uId}`);
+                        return data ? JSON.parse(data) : null;
+                    };
+
+                    if (!homeSelection) homeSelection = await getPreMatchSelection(fixture.homeTeamUserId);
+                    if (!awaySelection) awaySelection = await getPreMatchSelection(fixture.awayTeamUserId);
+
                     const auctionState = await getAuctionState(rCode);
                     const teams = auctionState?.teams || [];
 
                     const homeLeagueTeam = teams.find(t => t.userId === fixture.homeTeamUserId);
                     const awayLeagueTeam = teams.find(t => t.userId === fixture.awayTeamUserId);
 
+                    const mapToMatchTeam = (leagueTeam: any, selection: any) => {
+                        let playingSquad = leagueTeam.squad;
+                        playingSquad = [...playingSquad].sort((a: any, b: any) => b.soldPrice - a.soldPrice);
+
+                        return {
+                            teamId: leagueTeam.userId,
+                            name: leagueTeam.teamName,
+                            userId: leagueTeam.userId,
+                            score: 0, wickets: 0, overs: 0, balls: 0, extras: 0, runRate: 0,
+                            players: playingSquad.map((s: any) => ({
+                                id: s.player.id,
+                                name: s.player.name,
+                                role: s.player.role,
+                                battingSkill: s.player.battingSkill,
+                                bowlingSkill: s.player.bowlingSkill,
+                                isCaptain: s.player.id === selection?.captainId,
+                                isWicketKeeper: s.player.id === selection?.wkId,
+                            }))
+                        };
+                    };
+
                     if (homeLeagueTeam && awayLeagueTeam) {
-                        const getPreMatchSelection = async (uId: string) => {
-                            const data = await redis.get(`selection:${rCode}:${fixtureId}:${uId}`);
-                            return data ? JSON.parse(data) : null;
-                        };
-
-                        const homeSelection = await getPreMatchSelection(fixture.homeTeamUserId);
-                        const awaySelection = await getPreMatchSelection(fixture.awayTeamUserId);
-
-                        const mapToMatchTeam = (leagueTeam: any, selection: any) => {
-                            let playingSquad = leagueTeam.squad;
-                            const selectedIds = selection?.selectedIds || selection;
-
-                            if (Array.isArray(selectedIds) && selectedIds.length === 11) {
-                                playingSquad = leagueTeam.squad.filter((s: any) => selectedIds.includes(s.player.id));
-                            } else {
-                                playingSquad = [...leagueTeam.squad].sort((a: any, b: any) => b.soldPrice - a.soldPrice).slice(0, 11);
-                            }
-
-                            // Apply batting order if provided
-                            const battingOrder = selection?.battingOrder;
-                            if (battingOrder && battingOrder.length > 0) {
-                                const ordered = battingOrder
-                                    .map((id: string) => playingSquad.find((s: any) => s.player.id === id))
-                                    .filter(Boolean);
-                                const rest = playingSquad.filter((s: any) => !battingOrder.includes(s.player.id));
-                                playingSquad = [...ordered, ...rest];
-                            }
-
-                            return {
-                                teamId: leagueTeam.userId,
-                                name: leagueTeam.teamName,
-                                userId: leagueTeam.userId,
-                                score: 0, wickets: 0, overs: 0, balls: 0, extras: 0, runRate: 0,
-                                players: playingSquad.map((s: any) => ({
-                                    id: s.player.id,
-                                    name: s.player.name,
-                                    role: s.player.role,
-                                    battingSkill: s.player.battingSkill,
-                                    bowlingSkill: s.player.bowlingSkill,
-                                    isCaptain: s.player.id === selection?.captainId,
-                                    isWicketKeeper: s.player.id === selection?.wkId,
-                                }))
-                            };
-                        };
-
                         hTeam = mapToMatchTeam(homeLeagueTeam, homeSelection);
                         aTeam = mapToMatchTeam(awayLeagueTeam, awaySelection);
                     }
@@ -97,28 +90,111 @@ export async function POST(request: NextRequest) {
                 return NextResponse.json({ error: 'Missing team data for initialization' }, { status: 400 });
             }
 
-            // Get toss result from redis if already performed
-            const tossKey = `toss:${rCode || roomCode}:${id}`;
-            const tossData = await redis.get(tossKey);
-            const tossResult = tossData ? JSON.parse(tossData) : undefined;
-
-            // Get selection data for options
-            const homeSelData = body.homeSelection;
-            const awaySelData = body.awaySelection;
-
             const state = initMatchState(id, rCode, hTeam, aTeam, bodyPitchType || 'BALANCED', {
                 tossResult,
-                homeBattingOrder: homeSelData?.battingOrder,
-                awayBattingOrder: awaySelData?.battingOrder,
-                homeCaptainId: homeSelData?.captainId,
-                awayCaptainId: awaySelData?.captainId,
-                homeWkId: homeSelData?.wkId,
-                awayWkId: awaySelData?.wkId,
-                homeOpeningBowlerId: homeSelData?.openingBowlerId,
-                awayOpeningBowlerId: awaySelData?.openingBowlerId,
+                homeBattingOrder: homeSelection?.battingOrder,
+                awayBattingOrder: awaySelection?.battingOrder,
+                homeCaptainId: homeSelection?.captainId,
+                awayCaptainId: awaySelection?.captainId,
+                homeWkId: homeSelection?.wkId,
+                awayWkId: awaySelection?.wkId,
+                homeOpeningBowlerId: homeSelection?.openingBowlerId,
+                awayOpeningBowlerId: awaySelection?.openingBowlerId,
             });
+
+            // Auto-lock for bots
+            const room = await getRoomState(rCode);
+            if (room) {
+                const homePlayer = room.players.find(p => p.userId === state.homeTeam.userId);
+                const awayPlayer = room.players.find(p => p.userId === state.awayTeam.userId);
+                
+                if (homePlayer && isBotUser(homePlayer.username)) {
+                    state.homeLocked = true;
+                }
+                if (awayPlayer && isBotUser(awayPlayer.username)) {
+                    state.awayLocked = true;
+                }
+
+                // If both locked (e.g. both bots), start match immediately
+                if (state.homeLocked && state.awayLocked) {
+                    state.status = 'live';
+                }
+            }
+
             await saveMatchState(state);
             emitToRoom(rCode, 'match_update', { state });
+            return NextResponse.json({ state });
+        }
+
+        if (action === 'lockSelection') {
+            const { captainId, wkId, openingBowlerId, selectedIds } = body;
+            let state = await getMatchState(matchId);
+            if (!state) return NextResponse.json({ error: 'Match not found' }, { status: 404 });
+
+            const isHome = state.homeTeam.userId === session.userId;
+            const isAway = state.awayTeam.userId === session.userId;
+
+            if (!isHome && !isAway) {
+                // Check if host acting for a bot
+                const room = await getRoomState(state.roomCode);
+                if (room?.hostId !== session.userId) {
+                    return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
+                }
+            }
+
+            // Determine which team to update
+            const targetTeam = isHome ? state.homeTeam : state.awayTeam;
+            const targetPrefix = isHome ? 'home' : 'away';
+
+            // Filter players and assign roles
+            if (selectedIds && selectedIds.length === 11) {
+                targetTeam.players = targetTeam.players.filter(p => selectedIds.includes(p.id));
+                // Maintain order if possible? initMatchState handles the ordering from battingOrder usually.
+                // For now, let's just make sure roles are set.
+            }
+
+            targetTeam.players.forEach(p => {
+                p.isCaptain = p.id === captainId;
+                p.isWicketKeeper = p.id === wkId;
+            });
+
+            if (isHome) {
+                state.homeLocked = true;
+                state.homeCaptainId = captainId;
+                state.homeWkId = wkId;
+                state.homeOpeningBowlerId = openingBowlerId;
+            } else {
+                state.awayLocked = true;
+                state.awayCaptainId = captainId;
+                state.awayWkId = wkId;
+                state.awayOpeningBowlerId = openingBowlerId;
+            }
+
+            // Sync players to battingOrder and bowlingOrder
+            // This is critical because processNextBall uses these orders.
+            // We need to re-run the parts of initMatchState that setup these orders.
+            
+            // For simplicity, let's just mark it as locked. 
+            // The match only starts when BOTH are locked.
+            if (state.homeLocked && state.awayLocked) {
+                // Transition to live: Actually recreate the orders based on final selections
+                const finalState = initMatchState(state.matchId, state.roomCode, state.homeTeam, state.awayTeam, state.pitchType, {
+                    tossResult: state.toss,
+                    homeCaptainId: state.homeCaptainId,
+                    awayCaptainId: state.awayCaptainId,
+                    homeWkId: state.homeWkId,
+                    awayWkId: state.awayWkId,
+                    homeOpeningBowlerId: state.homeOpeningBowlerId,
+                    awayOpeningBowlerId: state.awayOpeningBowlerId,
+                });
+                finalState.homeLocked = true;
+                finalState.awayLocked = true;
+                finalState.status = 'live';
+                state = finalState;
+            }
+
+            await saveMatchState(state);
+            emitToRoom(state.roomCode, 'match_update', { state });
             return NextResponse.json({ state });
         }
 

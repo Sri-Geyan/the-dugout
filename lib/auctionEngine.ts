@@ -489,16 +489,24 @@ export async function handleFinalMatch(roomCode: string, execute: boolean): Prom
  */
 function simulateBiddingWar(player: CricketPlayer, state: AuctionState): { winner: AuctionTeam | null; price: number } {
     const participants = state.teams
-        .filter(team => isBotUser(team.username)) // Smart skip only sells to bots
+        .filter(team => {
+            // Include bots always
+            if (isBotUser(team.username)) return true;
+            // Include human ONLY if they are the current high bidder
+            return state.currentBidder?.userId === team.userId;
+        }) 
         .map(team => {
-        // If team is the current high bidder, their "max" is at least the current bid
-        const isCurrentHigh = state.currentBidder?.userId === team.userId;
-        const botMax = getBotMaxHighBid(player, team);
-        return {
-            team,
-            max: isCurrentHigh ? Math.max(state.currentBid, botMax) : botMax
-        };
-    }).filter(p => p.max >= (state.currentBid || player.basePrice));
+            const isCurrentHigh = state.currentBidder?.userId === team.userId;
+            
+            // For bots, use their calculated max. 
+            // For humans, we only know their CURRENT bid (assume that is their max for skip purposes)
+            const botMax = isBotUser(team.username) ? getBotMaxHighBid(player, team) : (isCurrentHigh ? state.currentBid : 0);
+            
+            return {
+                team,
+                max: isCurrentHigh ? Math.max(state.currentBid, botMax) : botMax
+            };
+        }).filter(p => p.max >= (state.currentBid || player.basePrice));
 
     if (participants.length === 0) return { winner: null, price: 0 };
     

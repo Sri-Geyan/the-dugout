@@ -7,7 +7,7 @@ export interface MatchState {
     homeTeam: MatchTeam;
     awayTeam: MatchTeam;
     innings: number;
-    status: 'scheduled' | 'toss' | 'toss_decision' | 'live' | 'innings_break' | 'awaiting_batter' | 'awaiting_bowler' | 'completed';
+    status: 'scheduled' | 'toss' | 'toss_decision' | 'awaiting_selection' | 'live' | 'innings_break' | 'awaiting_batter' | 'awaiting_bowler' | 'completed';
     currentBatting: 'home' | 'away';
     pitchType: 'BATTING' | 'BOWLING' | 'BALANCED' | 'SPINNING';
     target: number | null;
@@ -32,10 +32,14 @@ export interface MatchState {
     awayCaptainId?: string;
     homeWkId?: string;
     awayWkId?: string;
+    homeOpeningBowlerId?: string;
+    awayOpeningBowlerId?: string;
     // History
     firstInningsBattingOrder?: BatterState[];
     firstInningsBowlingOrder?: BowlerState[];
     stadiumId?: string;
+    homeLocked?: boolean;
+    awayLocked?: boolean;
 }
 
 export interface TossResult {
@@ -391,29 +395,43 @@ export function initMatchState(
     // Determine opening bowler
     const openingBowlerId = battingFirst === 'home' ? options?.awayOpeningBowlerId : options?.homeOpeningBowlerId;
 
-    const bowlingOrder = firstBowlingTeam.players
+    let bowlingOrder = firstBowlingTeam.players
         .filter(p => p.role !== 'BATSMAN' && p.role !== 'WICKET_KEEPER')
         .concat(firstBowlingTeam.players.filter(p => p.role === 'BATSMAN' || p.role === 'WICKET_KEEPER'))
-        .slice(0, 6)
+        .slice(0, 11) // Take more to ensure we don't miss the selected opening bowler
         .map(p => ({
             player: p,
             overs: 0, balls: 0, maidens: 0, runs: 0,
             wickets: 0, economy: 0, overBalls: 0,
         }));
 
-    // Set opening bowler if specified
-    let currentBowler = bowlingOrder[0] || null;
+    // If opening bowler is specified, move them to the front of the list
     if (openingBowlerId) {
-        const specifiedBowler = bowlingOrder.find(b => b.player.id === openingBowlerId);
-        if (specifiedBowler) currentBowler = specifiedBowler;
+        const index = bowlingOrder.findIndex(b => b.player.id === openingBowlerId);
+        if (index > -1) {
+            const [opener] = bowlingOrder.splice(index, 1);
+            bowlingOrder.unshift(opener);
+        } else {
+            // If not found in the "bowlers" list, look in the whole squad
+            const p = firstBowlingTeam.players.find(p => p.id === openingBowlerId);
+            if (p) {
+                bowlingOrder.unshift({
+                    player: p,
+                    overs: 0, balls: 0, maidens: 0, runs: 0,
+                    wickets: 0, economy: 0, overBalls: 0,
+                });
+            }
+        }
     }
+
+    const currentBowler = bowlingOrder[0] || null;
 
     return {
         matchId, roomCode,
         homeTeam: { ...homeTeam, score: 0, wickets: 0, overs: 0, balls: 0, extras: 0, runRate: 0 },
         awayTeam: { ...awayTeam, score: 0, wickets: 0, overs: 0, balls: 0, extras: 0, runRate: 0 },
         innings: 1,
-        status: 'live',
+        status: 'awaiting_selection',
         currentBatting: battingFirst,
         pitchType,
         target: null,
@@ -438,6 +456,8 @@ export function initMatchState(
         firstInningsBattingOrder: [],
         firstInningsBowlingOrder: [],
         stadiumId: options?.stadiumId,
+        homeLocked: false,
+        awayLocked: false,
     };
 }
 

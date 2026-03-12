@@ -84,9 +84,6 @@ export default function AuctionPanel({
     const isHighestBidder = currentUserId === currentBidder?.userId;
     const isOriginalTeam = currentUserId === rtmOriginalTeamId;
 
-    // Suppress unused variable
-    void onSell;
-
     const updateTimer = useCallback(() => {
         if (timerEnd) {
             const remaining = Math.max(0, Math.ceil((timerEnd - Date.now()) / 1000));
@@ -101,6 +98,30 @@ export default function AuctionPanel({
         const interval = setInterval(updateTimer, 100);
         return () => clearInterval(interval);
     }, [updateTimer]);
+
+    // Auto-transition logic for host
+    useEffect(() => {
+        if (!isHost || !timerEnd || timeLeft > 0) return;
+        
+        // Ensure we only trigger once by checking the actual time
+        const now = Date.now();
+        if (now < timerEnd) return;
+
+        if (status === 'bidding' && !rtmPending) {
+            onSell();
+        } else if (rtmPending) {
+            if (rtmState === 'pending' && onRtm) {
+                // Auto-decline RTM
+                onRtm(false);
+            } else if (rtmState === 'bargain' && onBargain) {
+                // Auto-stay at current bid
+                onBargain(currentBid);
+            } else if (rtmState === 'final_match' && onFinalMatch) {
+                // Auto-decline final match
+                onFinalMatch(false);
+            }
+        }
+    }, [isHost, timeLeft, status, rtmPending, rtmState, onSell, onRtm, onBargain, onFinalMatch, timerEnd, currentBid]);
 
     const roleColors: Record<string, string> = {
         BATSMAN: '#4FC3F7',

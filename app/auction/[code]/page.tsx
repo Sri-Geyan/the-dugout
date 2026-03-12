@@ -129,7 +129,14 @@ export default function AuctionPage() {
         init();
 
         const socket = getSocket();
-        socket.emit('join-room', code);
+        
+        const onConnect = () => {
+            console.log('[Socket] AuctionPage connected, joining room:', code);
+            socket.emit('join-room', code);
+        };
+
+        if (socket.connected) onConnect();
+        socket.on('connect', onConnect);
 
         socket.on('auction_update', (data: { state: AuctionState }) => {
             console.log('[Socket] Auction updated:', data.state);

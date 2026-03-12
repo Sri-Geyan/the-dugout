@@ -108,7 +108,14 @@ export default function SelectionPage() {
             await fetchData();
 
             const socket = await import('@/lib/socket').then(m => m.getSocket());
-            socket.emit('join-room', code);
+            
+            const onConnect = () => {
+                console.log('[Socket] SelectionPage connected, joining room:', code);
+                socket.emit('join-room', code);
+            };
+
+            if (socket.connected) onConnect();
+            socket.on('connect', onConnect);
 
             socket.on('room_update', (data: { room: any }) => {
                 if (data.room.status === 'match' || data.room.status === 'league') {

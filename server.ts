@@ -2,8 +2,10 @@ import { createServer } from 'http';
 import { parse } from 'url';
 import next from 'next';
 import { Server } from 'socket.io';
+import { setIO } from './lib/socket-server';
 
 const dev = process.env.NODE_ENV !== 'production';
+// ...
 const hostname = dev ? 'localhost' : '0.0.0.0';
 const port = parseInt(process.env.PORT || '3000', 10);
 
@@ -25,15 +27,15 @@ app.prepare().then(() => {
         },
     });
 
-    // Global instance for API routes
-    (global as any).io = io;
+    // Set the singleton instance
+    setIO(io);
 
     io.on('connection', (socket) => {
         console.log('[Socket] New connection:', socket.id);
 
         socket.on('join-room', (roomCode: string) => {
             socket.join(roomCode);
-            console.log(`[Socket] Student ${socket.id} joined room ${roomCode}`);
+            console.log(`[Socket] User ${socket.id} joined room ${roomCode}`);
         });
 
         socket.on('disconnect', () => {

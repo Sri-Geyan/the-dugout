@@ -10,11 +10,12 @@ export const getSocket = (): Socket => {
         socket = io(undefined as any, {
             path: '/api/socket/io',
             addTrailingSlash: false,
-            transports: ['polling', 'websocket'],
+            transports: ['websocket', 'polling'], // Prefer websocket
             reconnection: true,
-            reconnectionAttempts: 10,
+            reconnectionAttempts: Infinity,
             reconnectionDelay: 1000,
             reconnectionDelayMax: 5000,
+            timeout: 20000,
         });
 
         socket.on('connect', () => {

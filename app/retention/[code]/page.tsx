@@ -5,6 +5,7 @@ import { useRouter, useParams } from 'next/navigation';
 import { useUserStore } from '@/lib/store';
 import Navbar from '@/components/Navbar';
 import PlayerAvatar from '@/components/PlayerAvatar';
+import { getSocket } from '@/lib/socket';
 import { IPL_TEAMS } from '@/data/teams';
 
 // Hardcoding these constants on the client avoid importing lib/retentionEngine which requires node dependencies (redis)
@@ -138,8 +139,36 @@ export default function RetentionPage() {
         };
         init();
 
-        const poll = setInterval(fetchState, 2000);
-        return () => clearInterval(poll);
+        const socket = getSocket();
+        
+        const onConnect = () => {
+            console.log('[Socket] RetentionPage connected, joining room:', code);
+            socket.emit('join-room', code);
+        };
+
+        if (socket.connected) onConnect();
+        socket.on('connect', onConnect);
+
+        socket.on('retention_update', (data: { state: RetentionState }) => {
+            console.log('[Socket] Retention updated:', data.state);
+            setState(data.state);
+            if (data.state.allConfirmed) {
+                // Check if we should move to auction
+                fetchState(); 
+            }
+        });
+
+        socket.on('auction_update', () => {
+            router.push(`/auction/${code}`);
+        });
+
+        // Still keep a slow poll as fallback for network issues
+        const poll = setInterval(fetchState, 10000);
+        return () => {
+            socket.off('retention_update');
+            socket.off('auction_update');
+            clearInterval(poll);
+        };
     }, [isLoggedIn, code, router, setUser, fetchState]);
 
     // ── Timer countdown ───────────────────────────────────────────────────────

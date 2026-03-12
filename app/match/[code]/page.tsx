@@ -165,7 +165,13 @@ export default function MatchPage() {
         const socket = getSocket();
         if (!socket) return;
 
-        socket.emit('join-room', code);
+        const onConnect = () => {
+            console.log('[Socket] MatchPage connected, joining room:', code);
+            socket.emit('join-room', code);
+        };
+
+        if (socket.connected) onConnect();
+        socket.on('connect', onConnect);
 
         socket.on('match_update', (data: any) => {
             if (data.state) {

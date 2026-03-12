@@ -110,7 +110,14 @@ export default function LeaguePage() {
     useEffect(() => {
         const socket = getSocket();
         if (!socket) return;
-        socket.emit('join-room', code);
+        
+        const onConnect = () => {
+            console.log('[Socket] LeaguePage connected, joining room:', code);
+            socket.emit('join-room', code);
+        };
+
+        if (socket.connected) onConnect();
+        socket.on('connect', onConnect);
 
         socket.on('league_update', (data: any) => {
             if (data.state) setLeague(data.state);

@@ -49,7 +49,14 @@ export default function RoomPage() {
         init();
 
         const socket = getSocket();
-        socket.emit('join-room', code);
+        
+        const onConnect = () => {
+            console.log('[Socket] RoomPage connected, joining room:', code);
+            socket.emit('join-room', code);
+        };
+
+        if (socket.connected) onConnect();
+        socket.on('connect', onConnect);
 
         socket.on('room_update', (data: { room: RoomState }) => {
             console.log('[Socket] Room updated:', data.room);

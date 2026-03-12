@@ -461,7 +461,17 @@ export async function runBotRtmDecisions(roomCode: string): Promise<AuctionState
 
     console.log(`[Bot RTM] ${botTeam.teamName} deciding on ${state.currentPlayer.name}. Bid: ${state.currentBid}, Max: ${maxRtmPrice.toFixed(2)}. Decision: ${shouldRtm}`);
 
-    return await handleRtm(roomCode, shouldRtm);
+    const updatedState = await handleRtm(roomCode, shouldRtm);
+    if (updatedState) {
+        emitToRoom(roomCode, 'auction_update', { state: updatedState });
+        
+        // If decision leads to bargain phase, and highest bidder is a bot, trigger it
+        if (updatedState.rtmState === 'bargain') {
+            await delay(1500);
+            return await runBotBargainDecisions(roomCode);
+        }
+    }
+    return updatedState;
 }
 
 export async function runBotBargainDecisions(roomCode: string): Promise<AuctionState | null> {
@@ -491,7 +501,17 @@ export async function runBotBargainDecisions(roomCode: string): Promise<AuctionS
 
     console.log(`[Bot Bargain] ${botTeam.teamName} deciding on ${state.currentPlayer.name}. Bid: ${state.currentBid}, Bargain: ${bargainAmount}, Max: ${maxBargainPrice.toFixed(2)}`);
 
-    return await handleBargain(roomCode, bargainAmount);
+    const updatedState = await handleBargain(roomCode, bargainAmount);
+    if (updatedState) {
+        emitToRoom(roomCode, 'auction_update', { state: updatedState });
+
+        // If decision leads to final match phase, and original team is a bot, trigger it
+        if (updatedState.rtmState === 'final_match') {
+            await delay(1500);
+            return await runBotFinalMatchDecisions(roomCode);
+        }
+    }
+    return updatedState;
 }
 
 export async function runBotFinalMatchDecisions(roomCode: string): Promise<AuctionState | null> {
@@ -511,5 +531,9 @@ export async function runBotFinalMatchDecisions(roomCode: string): Promise<Aucti
 
     console.log(`[Bot Final Match] ${botTeam.teamName} deciding on ${state.currentPlayer.name}. Bargain Price: ${state.rtmBargainBid}, Max: ${maxFinalPrice.toFixed(2)}. Decision: ${shouldMatch}`);
 
-    return await handleFinalMatch(roomCode, shouldMatch);
+    const updatedState = await handleFinalMatch(roomCode, shouldMatch);
+    if (updatedState) {
+        emitToRoom(roomCode, 'auction_update', { state: updatedState });
+    }
+    return updatedState;
 }

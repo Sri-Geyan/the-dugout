@@ -536,6 +536,9 @@ export async function skipPlayer(roomCode: string): Promise<AuctionState | null>
     const state = await getAuctionState(roomCode);
     if (!state || !state.currentPlayer) return null;
 
+    // If already sold or unsold, don't re-process (prevents double-selling/double-unsold)
+    if (state.status === 'sold' || state.status === 'unsold') return state;
+
     const { winner, price } = simulateBiddingWar(state.currentPlayer, state);
 
     if (winner) {
@@ -570,7 +573,10 @@ export async function skipSet(roomCode: string): Promise<AuctionState | null> {
     if (!state) return null;
 
     const playersToSkip = [];
-    if (state.currentPlayer) playersToSkip.push(state.currentPlayer);
+    // Only include current player if they haven't been sold/unsold yet
+    if (state.currentPlayer && (state.status === 'bidding' || state.status === 'idle')) {
+        playersToSkip.push(state.currentPlayer);
+    }
     playersToSkip.push(...state.remainingPlayers);
 
     for (let i = 0; i < playersToSkip.length; i++) {

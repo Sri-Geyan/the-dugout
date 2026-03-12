@@ -499,10 +499,14 @@ function simulateBiddingWar(player: CricketPlayer, state: AuctionState): { winne
     }).filter(p => p.max >= (state.currentBid || player.basePrice));
 
     if (participants.length === 0) return { winner: null, price: 0 };
+    
+    // Determine the base price for this simulation
+    const floorPrice = Math.max(state.currentBid, player.basePrice);
+
     if (participants.length === 1) {
         return { 
             winner: participants[0].team, 
-            price: Math.max(state.currentBid, player.basePrice) 
+            price: floorPrice 
         };
     }
 
@@ -513,10 +517,15 @@ function simulateBiddingWar(player: CricketPlayer, state: AuctionState): { winne
     const runnerUpMax = participants[1].max;
     
     // Price is second-highest max + 1 increment, but not exceeding winner's max
-    // Also must be at least the current bid
+    // Also must be at least the floor price
     let finalPrice = Math.min(participants[0].max, runnerUpMax + BID_INCREMENT);
-    finalPrice = Math.max(finalPrice, state.currentBid, player.basePrice);
+    finalPrice = Math.max(finalPrice, floorPrice);
     
+    // If the winner is NOT the original high bidder, they must bid at least state.currentBid + BID_INCREMENT
+    if (state.currentBidder && winner.userId !== state.currentBidder.userId) {
+        finalPrice = Math.max(finalPrice, state.currentBid + BID_INCREMENT);
+    }
+
     // Round to 0.25 Cr
     finalPrice = Math.round(finalPrice / BID_INCREMENT) * BID_INCREMENT;
 
@@ -564,7 +573,16 @@ export async function skipSet(roomCode: string): Promise<AuctionState | null> {
     if (state.currentPlayer) playersToSkip.push(state.currentPlayer);
     playersToSkip.push(...state.remainingPlayers);
 
-    for (const p of playersToSkip) {
+    for (let i = 0; i < playersToSkip.length; i++) {
+        const p = playersToSkip[i];
+        
+        // If it's NOT the first player in the skip list (which was the currentPlayer), 
+        // we must reset the bid state so they aren't sold at the previous player's price.
+        if (i > 0) {
+            state.currentBid = 0;
+            state.currentBidder = null;
+        }
+
         const { winner, price } = simulateBiddingWar(p, state);
         if (winner) {
             const soldPlayer: SoldPlayer = {

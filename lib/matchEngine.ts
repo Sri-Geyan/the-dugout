@@ -93,6 +93,7 @@ export interface BowlerState {
     wickets: number;
     economy: number;
     overBalls: number;
+    runsInOver: number;
 }
 
 export interface BallResult {
@@ -402,7 +403,7 @@ export function initMatchState(
         .map(p => ({
             player: p,
             overs: 0, balls: 0, maidens: 0, runs: 0,
-            wickets: 0, economy: 0, overBalls: 0,
+            wickets: 0, economy: 0, overBalls: 0, runsInOver: 0,
         }));
 
     // If opening bowler is specified, move them to the front of the list
@@ -418,7 +419,7 @@ export function initMatchState(
                 bowlingOrder.unshift({
                     player: p,
                     overs: 0, balls: 0, maidens: 0, runs: 0,
-                    wickets: 0, economy: 0, overBalls: 0,
+                    wickets: 0, economy: 0, overBalls: 0, runsInOver: 0,
                 });
             }
         }
@@ -501,6 +502,7 @@ export function processNextBall(state: MatchState): { state: MatchState; ballRes
         battingTeam.score += ballResult.extraRuns;
         battingTeam.extras += ballResult.extraRuns;
         state.currentBowler.runs += ballResult.extraRuns;
+        state.currentBowler.runsInOver += ballResult.extraRuns;
         // Don't count as a legal delivery
     } else {
         // Legal delivery
@@ -531,6 +533,7 @@ export function processNextBall(state: MatchState): { state: MatchState; ballRes
             battingTeam.score += ballResult.runs;
             state.striker.runs += ballResult.runs;
             state.currentBowler.runs += ballResult.runs;
+            state.currentBowler.runsInOver += ballResult.runs;
 
             if (ballResult.isBoundary) state.striker.fours++;
             if (ballResult.isSix) state.striker.sixes++;
@@ -545,8 +548,12 @@ export function processNextBall(state: MatchState): { state: MatchState; ballRes
 
         // Check over completion
         if (state.currentBowler.overBalls >= 6) {
+            if (state.currentBowler.runsInOver === 0) {
+                state.currentBowler.maidens++;
+            }
             state.currentBowler.overs++;
             state.currentBowler.overBalls = 0;
+            state.currentBowler.runsInOver = 0;
 
             battingTeam.overs++;
             battingTeam.balls = 0;
@@ -704,7 +711,7 @@ function setupSecondInnings(state: MatchState): void {
         .map(p => ({
             player: p,
             overs: 0, balls: 0, maidens: 0, runs: 0,
-            wickets: 0, economy: 0, overBalls: 0,
+            wickets: 0, economy: 0, overBalls: 0, runsInOver: 0,
         }));
 
     state.striker = state.battingOrder[0] || null;

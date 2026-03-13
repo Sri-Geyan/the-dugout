@@ -13,7 +13,7 @@ import {
     handleFinalMatch,
     saveAuctionState,
 } from '@/lib/auctionEngine';
-import { getRoomState, fillRoomWithBots } from '@/lib/roomManager';
+import { getRoomState, updateRoomStatus, fillRoomWithBots } from '@/lib/roomManager';
 import { TEAM_NAMES } from '@/data/players';
 import { IPL_PLAYERS } from '@/data/players';
 import { getRetentionState } from '@/lib/retentionEngine';
@@ -77,8 +77,12 @@ export async function POST(request: NextRequest) {
 
             const state = await initAuction(roomCode, enrichedTeams, excludePlayerIds);
 
+            const updatedStatusRoom = await updateRoomStatus(roomCode, 'AUCTION');
+            if (updatedStatusRoom) room = updatedStatusRoom;
+
             console.log(`[Auction] Room ${roomCode} initialized with ${state.totalPlayers} players in sets`);
             emitToRoom(roomCode, 'auction_update', { state });
+            if (room) emitToRoom(roomCode, 'room_update', { room });
             return NextResponse.json({ state });
         }
 

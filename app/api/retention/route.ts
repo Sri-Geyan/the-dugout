@@ -78,7 +78,8 @@ export async function POST(request: NextRequest) {
             }
 
             const state = await initRetention(roomCode, room.players);
-            await updateRoomStatus(roomCode, 'RETENTION');
+            const updatedStatusRoom = await updateRoomStatus(roomCode, 'RETENTION');
+            if (updatedStatusRoom) room = updatedStatusRoom;
 
             // Run bot retentions immediately
             console.log(`[Retention] Running bot retentions for room ${roomCode}`);
@@ -118,7 +119,7 @@ export async function POST(request: NextRequest) {
 
         // ── proceed (host only) — persist DB, init auction ────────────────────────
         if (action === 'proceed') {
-            const room = await getRoomState(roomCode);
+            let room = await getRoomState(roomCode);
             if (!room) return NextResponse.json({ error: 'Room not found' }, { status: 404 });
             if (room.hostId !== session.userId) {
                 return NextResponse.json({ error: 'Only host can proceed to auction' }, { status: 403 });
@@ -166,10 +167,11 @@ export async function POST(request: NextRequest) {
             }));
 
             const auctionState = await initAuction(roomCode, enrichedTeams, excludedIds);
-            await updateRoomStatus(roomCode, 'AUCTION');
+            const updatedStatusRoom = await updateRoomStatus(roomCode, 'AUCTION');
+            if (updatedStatusRoom) room = updatedStatusRoom;
 
             emitToRoom(roomCode, 'auction_update', { state: auctionState });
-            if (room) emitToRoom(roomCode, 'room_update', { room: { ...room, status: 'AUCTION' } });
+            if (room) emitToRoom(roomCode, 'room_update', { room });
             return NextResponse.json({ auctionState });
         }
 

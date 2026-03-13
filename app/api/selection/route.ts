@@ -205,9 +205,10 @@ export async function POST(request: NextRequest) {
 
                         const leagueState = initLeagueState(roomCode, teams);
                         await saveLeagueState(leagueState);
-                        await updateRoomStatus(roomCode, 'LEAGUE');
+                        const updatedRoom = await updateRoomStatus(roomCode, 'LEAGUE');
                         
                         emitToRoom(roomCode, 'league_update', { state: leagueState });
+                        if (updatedRoom) emitToRoom(roomCode, 'room_update', { room: updatedRoom });
                     } catch (err) {
                         console.error('Failed to auto-init league:', err);
                     }

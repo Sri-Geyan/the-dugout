@@ -91,6 +91,21 @@ export async function POST(request: NextRequest) {
             const auctionState = await getAuctionState(roomCode);
             if (!room || !auctionState) return NextResponse.json({ error: 'Room or auction not found' }, { status: 404 });
 
+            const { getPitchProfile } = await import('@/lib/pitchData');
+            let pitchType = 'BALANCED';
+
+            if (fixtureId) {
+                const { getLeagueState } = await import('@/lib/leagueEngine');
+                const leagueState = await getLeagueState(roomCode);
+                const fixture = leagueState?.fixtures?.find(f => f.id === fixtureId);
+                
+                if (fixture) {
+                    const homeTeam = auctionState.teams.find(t => t.userId === fixture.homeTeamUserId);
+                    const profile = getPitchProfile(homeTeam?.teamName || '');
+                    if (profile) pitchType = profile.pitchType;
+                }
+            }
+
             const results: Record<string, SelectionData> = {};
 
             for (const team of auctionState.teams) {
@@ -106,7 +121,7 @@ export async function POST(request: NextRequest) {
                     nationality: s.player.nationality,
                 }));
 
-                const selection = botSelectPlaying11(squad);
+                const selection = botSelectPlaying11(squad, pitchType);
 
                 const key = fixtureId
                     ? `selection:${roomCode}:${fixtureId}:${team.userId}`

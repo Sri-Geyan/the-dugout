@@ -731,6 +731,11 @@ export default function MatchPage() {
                                         <div className="flex items-center gap-2 flex-shrink-0">
                                             <span className="font-bold">{b.runs}</span>
                                             <span style={{ color: 'var(--color-text-muted)' }}>({b.balls})</span>
+                                            <div className="flex gap-2 ml-2 w-28 text-right justify-end text-[10px]" style={{ color: 'var(--color-text-secondary)' }}>
+                                                <span>4s: {b.fours || 0}</span>
+                                                <span>6s: {b.sixes || 0}</span>
+                                                <span className="font-semibold text-white/80">SR: {b.balls > 0 ? ((b.runs / b.balls) * 100).toFixed(1) : '0.0'}</span>
+                                            </div>
                                         </div>
                                     </div>
                                 ))}

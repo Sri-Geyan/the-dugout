@@ -60,6 +60,11 @@ export async function POST(request: NextRequest) {
 
                     const mapToMatchTeam = (leagueTeam: any, selection: any) => {
                         let playingSquad = leagueTeam.squad;
+
+                        if (selection?.selectedIds && selection.selectedIds.length > 0) {
+                            playingSquad = playingSquad.filter((s: any) => selection.selectedIds.includes(s.player.id));
+                        }
+
                         playingSquad = [...playingSquad].sort((a: any, b: any) => b.soldPrice - a.soldPrice);
 
                         return {

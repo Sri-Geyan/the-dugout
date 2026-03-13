@@ -231,7 +231,7 @@ interface EnrichedPlayer {
     nationality?: string;
 }
 
-export function botSelectPlaying11(squad: EnrichedPlayer[]): {
+export function botSelectPlaying11(squad: EnrichedPlayer[], pitchType: string = 'BALANCED'): {
     selectedIds: string[];
     battingOrder: string[];
     captainId: string;
@@ -262,17 +262,29 @@ export function botSelectPlaying11(squad: EnrichedPlayer[]): {
 
     const selected: EnrichedPlayer[] = [];
 
-    // Mandatory picks for a balanced XI:
-    // 1 WK, 4 BAT, 2 AR, 4 BOWL — adjust based on availability
-    const wk = byRole.WICKET_KEEPER.shift();
+    // Mandatory picks for a balanced XI depending on pitch:
+    let targetBat = 4;
+    let targetBowl = 4;
+
+    if (pitchType === 'BATTING') {
+        targetBat = 5;
+        targetBowl = 3;
+    } else if (pitchType === 'BOWLING' || pitchType === 'PACE' || pitchType === 'SPIN') {
+        targetBat = 3;
+        targetBowl = 5;
+    }
+
+    const wk = byRole.WICKET_KEEPER.shift() || byRole.BATSMAN.shift();
     if (wk) selected.push(wk);
 
-    // Pick top 4 batsmen
-    selected.push(...byRole.BATSMAN.splice(0, 4));
-    // Pick top 2 all-rounders
+    const neededBat = Math.max(0, targetBat - (wk?.role === 'BATSMAN' ? 1 : 0));
+    selected.push(...byRole.BATSMAN.splice(0, neededBat));
+    
+    // Pick top all-rounders
     selected.push(...byRole.ALL_ROUNDER.splice(0, 2));
-    // Pick top 4 bowlers
-    selected.push(...byRole.BOWLER.splice(0, 4));
+    
+    // Pick top bowlers
+    selected.push(...byRole.BOWLER.splice(0, targetBowl));
 
     // Fill remainder from best available
     const remaining = [
@@ -284,13 +296,12 @@ export function botSelectPlaying11(squad: EnrichedPlayer[]): {
         selected.push(remaining.shift()!);
     }
 
-    // Batting order: impact players first then WK, pure batsmen, all-rounders, then bowlers
+    // Batting order: top order batsmen, then middle order ARs, then bowlers
     const battingOrder = [...selected].sort((a, b) => {
         const orderWeight = (p: EnrichedPlayer) => {
-            // Prioritise high batting skill players at top
-            const batScore = p.battingSkill * 1.5;
-            const roleBonus = p.role === 'WICKET_KEEPER' ? 10 : p.role === 'BATSMAN' ? 0 :
-                p.role === 'ALL_ROUNDER' ? -10 : -30;
+            const batScore = p.battingSkill;
+            const roleBonus = (p.role === 'BATSMAN' || p.role === 'WICKET_KEEPER') ? 20 :
+                p.role === 'ALL_ROUNDER' ? 0 : -30;
             return batScore + roleBonus;
         };
         return orderWeight(b) - orderWeight(a);

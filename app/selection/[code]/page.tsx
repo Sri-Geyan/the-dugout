@@ -37,7 +37,7 @@ export default function SelectionPage() {
     const [hostId, setHostId] = useState<string | null>(null);
     const [myTeam, setMyTeam] = useState<TeamData | null>(null);
     const [allTeams, setAllTeams] = useState<TeamData[]>([]);
-    const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+    const [selectedIds, setSelectedIds] = useState<string[]>([]);
     const [isLocked, setIsLocked] = useState(false);
     const [captainId, setCaptainId] = useState<string | null>(null);
     const [wkId, setWkId] = useState<string | null>(null);
@@ -67,7 +67,8 @@ export default function SelectionPage() {
                     setSelectionsStatus(selData.selections);
                     if (userId && selData.selections[userId]) {
                         const sel = selData.selections[userId];
-                        setSelectedIds(new Set(sel.selectedIds || sel));
+                        const ids = Array.isArray(sel) ? sel : (sel.selectedIds || []);
+                        setSelectedIds(ids);
                         setIsLocked(true);
                         if (sel.captainId) setCaptainId(sel.captainId);
                         if (sel.wkId) setWkId(sel.wkId);
@@ -138,44 +139,37 @@ export default function SelectionPage() {
 
     const handleTogglePlayer = (playerId: string) => {
         if (isLocked) return;
-
+        
         setSelectedIds(prev => {
-            const next = new Set(prev);
-            if (next.has(playerId)) {
-                next.delete(playerId);
+            if (prev.includes(playerId)) {
+                // Remove player
+                const next = prev.filter(id => id !== playerId);
                 // Clear roles if this player was assigned any
                 if (captainId === playerId) setCaptainId(null);
                 if (wkId === playerId) setWkId(null);
                 if (openingBowlerId === playerId) setOpeningBowlerId(null);
+                return next;
             } else {
-                if (next.size >= 11) return prev; // Max 11
-                next.add(playerId);
+                // Add player if quota remains
+                if (prev.length >= 11) return prev;
+                const next = [...prev, playerId];
 
                 // Auto-assign roles for better UX
                 if (myTeam) {
                     const playerObj = myTeam.squad.find(s => s.player.id === playerId)?.player;
                     if (playerObj) {
-                        // 1. Auto-assign WK if none set and player is a WK
-                        if (!wkId && playerObj.role === 'WICKET_KEEPER') {
-                            setWkId(playerId);
-                        }
-                        // 2. Auto-assign Captain if none set
-                        if (!captainId) {
-                            setCaptainId(playerId);
-                        }
-                        // 3. Auto-assign Opening Bowler if none set and is a bowler/all-rounder
-                        if (!openingBowlerId && (playerObj.role === 'BOWLER' || playerObj.role === 'ALL_ROUNDER')) {
-                            setOpeningBowlerId(playerId);
-                        }
+                        if (!wkId && playerObj.role === 'WICKET_KEEPER') setWkId(playerId);
+                        if (!captainId) setCaptainId(playerId);
+                        if (!openingBowlerId && (playerObj.role === 'BOWLER' || playerObj.role === 'ALL_ROUNDER')) setOpeningBowlerId(playerId);
                     }
                 }
+                return next;
             }
-            return next;
         });
     };
 
     const handleLockSelection = async () => {
-        if (selectedIds.size !== 11) return;
+        if (selectedIds.length !== 11) return;
         if (!captainId || !wkId || !openingBowlerId) {
             alert('Please select a Captain, Wicketkeeper, and Opening Bowler before locking.');
             return;
@@ -188,7 +182,8 @@ export default function SelectionPage() {
                 body: JSON.stringify({
                     roomCode: code,
                     teamId: userId,
-                    selectedIds: Array.from(selectedIds),
+                    selectedIds: selectedIds,
+                    battingOrder: selectedIds, // Order preserved from array selection
                     captainId,
                     wkId,
                     openingBowlerId
@@ -205,7 +200,7 @@ export default function SelectionPage() {
 
     const handleSetRole = (playerId: string, roleType: 'captain' | 'wk' | 'bowler') => {
         if (isLocked) return;
-        if (!selectedIds.has(playerId)) return;
+        if (!selectedIds.includes(playerId)) return;
 
         if (roleType === 'captain') setCaptainId(playerId);
         else if (roleType === 'wk') setWkId(playerId);
@@ -257,12 +252,12 @@ export default function SelectionPage() {
                     <div>
                         <p className="text-sm font-bold text-white mb-1">Playing 11 Selection</p>
                         <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
-                            Selected: <span className={selectedIds.size === 11 ? 'gold-text font-bold' : ''}>{selectedIds.size}/11</span>
+                            Selected: <span className={selectedIds.length === 11 ? 'gold-text font-bold' : ''}>{selectedIds.length}/11</span>
                         </p>
                     </div>
 
                     <div className="flex-1 px-8">
-                        {!isLocked && selectedIds.size === 11 && (
+                        {!isLocked && selectedIds.length === 11 && (
                             <div className="flex gap-4">
                                 <span className={`text-[10px] font-bold px-2 py-1 rounded border transition-colors ${captainId ? 'bg-gold/10 text-gold border-gold/30' : 'bg-red-500/10 text-red-500 border-red-500/30'}`}>
                                     {captainId ? '✓ Captain' : '! Cap Missing'}
@@ -281,8 +276,8 @@ export default function SelectionPage() {
                         {!isLocked ? (
                             <button
                                 onClick={handleLockSelection}
-                                disabled={selectedIds.size !== 11}
-                                className={selectedIds.size === 11 ? 'btn-primary' : 'btn-secondary opacity-50 cursor-not-allowed'}
+                                disabled={selectedIds.length !== 11}
+                                className={selectedIds.length === 11 ? 'btn-primary' : 'btn-secondary opacity-50 cursor-not-allowed'}
                             >
                                 Lock Playing 11 🔒
                             </button>
@@ -321,7 +316,8 @@ export default function SelectionPage() {
                         {myTeam ? (
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                 {myTeam.squad.map(({ player }) => {
-                                    const isSelected = selectedIds.has(player.id);
+                                    const selectionIndex = selectedIds.indexOf(player.id);
+                                    const isSelected = selectionIndex !== -1;
                                     const isCap = captainId === player.id;
                                     const isWk = wkId === player.id;
                                     const isBowler = openingBowlerId === player.id;
@@ -355,9 +351,9 @@ export default function SelectionPage() {
                                                         OPENER
                                                     </span>
                                                 )}
-                                                {isSelected && !isCap && !isWk && !isBowler && (
-                                                    <div className="w-6 h-6 rounded-full flex items-center justify-center bg-gold text-black text-[12px] font-bold shadow-lg">
-                                                        ✓
+                                                {isSelected && (
+                                                    <div className="w-6 h-6 rounded-full flex items-center justify-center bg-gold text-black text-[12px] font-bold shadow-lg border border-white/20">
+                                                        {selectionIndex + 1}
                                                     </div>
                                                 )}
                                             </div>

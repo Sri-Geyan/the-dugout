@@ -402,3 +402,111 @@ export async function getLeagueState(roomCode: string): Promise<LeagueState | nu
     if (!raw) return null;
     return JSON.parse(raw);
 }
+
+// ======================================================
+// Match Result Sync
+// ======================================================
+
+export async function syncMatchToLeague(roomCode: string, fixtureId: string, matchState: any) {
+    const state = await getLeagueState(roomCode);
+    if (!state) return null;
+
+    const fixture = state.fixtures.find(f => f.id === fixtureId);
+    if (!fixture || fixture.status === 'completed') return state;
+
+    // Map MatchState to MatchResult
+    const homeInningsBatting = matchState.innings === 1 && matchState.currentBatting === 'home' 
+        ? matchState.battingOrder 
+        : matchState.firstInningsBattingOrder;
+    
+    const awayInningsBatting = matchState.innings === 1 && matchState.currentBatting === 'away'
+        ? matchState.battingOrder
+        : matchState.firstInningsBattingOrder;
+
+    const homeInningsBowling = matchState.innings === 1 && matchState.currentBatting === 'away'
+        ? matchState.bowlingOrder
+        : matchState.firstInningsBowlingOrder;
+
+    const awayInningsBowling = matchState.innings === 1 && matchState.currentBatting === 'home'
+        ? matchState.bowlingOrder
+        : matchState.firstInningsBowlingOrder;
+
+    // Note: The logic above assumes first innings stats were saved in matchState
+    // If we are currently in 2nd innings, battingOrder is the 2nd innings team.
+    
+    const batting2nd = matchState.currentBatting;
+    const batting1st = batting2nd === 'home' ? 'away' : 'home';
+
+    const team1State = batting1st === 'home' ? matchState.homeTeam : matchState.awayTeam;
+    const team2State = batting2nd === 'home' ? matchState.homeTeam : matchState.awayTeam;
+
+    const matchResult: MatchResult = {
+        homeUserId: matchState.homeTeam.userId,
+        awayUserId: matchState.awayTeam.userId,
+        homeScore: matchState.homeTeam.score,
+        homeWickets: matchState.homeTeam.wickets,
+        homeOvers: matchState.homeTeam.overs,
+        homeBalls: matchState.homeTeam.balls,
+        awayScore: matchState.awayTeam.score,
+        awayWickets: matchState.awayTeam.wickets,
+        awayOvers: matchState.awayTeam.overs,
+        awayBalls: matchState.awayTeam.balls,
+        result: matchState.result || 'Match Completed',
+        winnerUserId: matchState.result?.includes(matchState.homeTeam.name) 
+            ? matchState.homeTeam.userId 
+            : matchState.result?.includes(matchState.awayTeam.name)
+                ? matchState.awayTeam.userId
+                : null,
+        battingStats: [
+            ...(matchState.firstInningsBattingOrder || []).map((b: any) => ({
+                playerId: b.player.id,
+                playerName: b.player.name,
+                teamName: b.player.teamName || (batting1st === 'home' ? matchState.homeTeam.name : matchState.awayTeam.name),
+                runs: b.runs, balls: b.balls, fours: b.fours, sixes: b.sixes, isOut: b.isOut
+            })),
+            ...(matchState.battingOrder || []).map((b: any) => ({
+                playerId: b.player.id,
+                playerName: b.player.name,
+                teamName: b.player.teamName || (batting2nd === 'home' ? matchState.homeTeam.name : matchState.awayTeam.name),
+                runs: b.runs, balls: b.balls, fours: b.fours, sixes: b.sixes, isOut: b.isOut
+            }))
+        ],
+        bowlingStats: [
+            ...(matchState.firstInningsBowlingOrder || []).map((b: any) => ({
+                playerId: b.player.id,
+                playerName: b.player.name,
+                teamName: b.player.teamName || (batting2nd === 'home' ? matchState.homeTeam.name : matchState.awayTeam.name), // bowl 1st = team 2
+                overs: b.overs, balls: b.overBalls, runs: b.runs, wickets: b.wickets
+            })),
+            ...(matchState.bowlingOrder || []).map((b: any) => ({
+                playerId: b.player.id,
+                playerName: b.player.name,
+                teamName: b.player.teamName || (batting1st === 'home' ? matchState.homeTeam.name : matchState.awayTeam.name), // bowl 2nd = team 1
+                overs: b.overs, balls: b.overBalls, runs: b.runs, wickets: b.wickets
+            }))
+        ]
+    };
+
+    fixture.status = 'completed';
+    fixture.matchId = matchState.matchId;
+    fixture.homeScore = matchState.homeTeam.score;
+    fixture.homeWickets = matchState.homeTeam.wickets;
+    fixture.homeOvers = matchState.homeTeam.overs;
+    fixture.awayScore = matchState.awayTeam.score;
+    fixture.awayWickets = matchState.awayTeam.wickets;
+    fixture.awayOvers = matchState.awayTeam.overs;
+    fixture.result = matchState.result;
+
+    updateStandings(state, matchResult);
+    updatePlayerStats(state, matchResult);
+
+    const nextPending = state.fixtures.findIndex(f => f.status === 'pending');
+    if (nextPending === -1) {
+        state.status = 'completed';
+    } else {
+        state.currentMatchIndex = nextPending;
+    }
+
+    await saveLeagueState(state);
+    return state;
+}

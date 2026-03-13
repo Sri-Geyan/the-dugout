@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { initMatchState, processNextBall, saveMatchState, getMatchState, performToss, selectNextBatter, selectNextBowler } from '@/lib/matchEngine';
 import { v4 as uuidv4 } from 'uuid';
-import { getLeagueState } from '@/lib/leagueEngine';
+import { getLeagueState, syncMatchToLeague } from '@/lib/leagueEngine';
 import { emitToRoom } from '@/lib/socket-server';
 import { getAuctionState } from '@/lib/auctionEngine';
 import { getRoomState } from '@/lib/roomManager';
@@ -318,6 +318,23 @@ export async function POST(request: NextRequest) {
 
             await saveMatchState(state);
             emitToRoom(state.roomCode, 'match_update', { state, ballResult: result.ballResult });
+
+            // Auto-sync to league if match completed
+            if (state.status === 'completed' && !wasCompleted) {
+                const parts = matchId.split('-');
+                if (parts.length >= 2 && parts[1].startsWith('fixture')) {
+                    const fixtureId = parts.slice(1).join('-');
+                    try {
+                        const updatedLeague = await syncMatchToLeague(state.roomCode, fixtureId, state);
+                        if (updatedLeague) {
+                            emitToRoom(state.roomCode, 'league_update', { state: updatedLeague });
+                        }
+                    } catch (err) {
+                        console.error('Failed to sync match to league:', err);
+                    }
+                }
+            }
+
             return NextResponse.json({ state, ballResult: result.ballResult });
         }
 

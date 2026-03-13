@@ -333,6 +333,7 @@ async function findOriginalTeam(playerName: string): Promise<string | null> {
 export async function sellCurrentPlayer(roomCode: string): Promise<AuctionState | null> {
     const state = await getAuctionState(roomCode);
     if (!state || !state.currentPlayer) return null;
+    if (state.status === 'sold' || state.status === 'unsold') return state;
 
     if (state.currentBidder) {
         // Check for RTM eligibility

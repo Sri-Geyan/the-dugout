@@ -451,11 +451,10 @@ export async function runBotRtmDecisions(roomCode: string): Promise<AuctionState
     if (!botTeam || !isBotUser(botTeam.username)) return state;
 
     // Evaluate if bot should use RTM
-    const personality = generatePersonality(botTeam.teamName);
-    const value = evaluatePlayerValue(state.currentPlayer, botTeam, personality);
-
-    // RTM is "guaranteed" purchase, so we might be a bit more willing if it's a marquee player
-    const maxRtmPrice = state.currentPlayer.basePrice * personality.maxOverpay * value * 1.1; // 10% premium for RTM
+    const baseMax = getBotMaxHighBid(state.currentPlayer, botTeam);
+    
+    // RTM is "guaranteed" purchase, so we might be a bit more willing, but respect overall cap heuristics
+    const maxRtmPrice = Math.min(baseMax * 1.1, botTeam.purse); 
 
     const shouldRtm = state.currentBid <= maxRtmPrice && botTeam.purse >= state.currentBid;
 
@@ -482,11 +481,10 @@ export async function runBotBargainDecisions(roomCode: string): Promise<AuctionS
     if (!botTeam || !isBotUser(botTeam.username)) return state;
 
     // Evaluate if bot should increase price
-    const personality = generatePersonality(botTeam.teamName);
-    const value = evaluatePlayerValue(state.currentPlayer, botTeam, personality);
+    const baseMax = getBotMaxHighBid(state.currentPlayer, botTeam);
 
-    // Max bargaining price — potentially even higher since they are so close to losing the player
-    const maxBargainPrice = state.currentPlayer.basePrice * personality.maxOverpay * value * 1.25;
+    // Max bargaining price — slightly higher since they are close to losing the player
+    const maxBargainPrice = Math.min(baseMax * 1.25, botTeam.purse);
 
     // Decide how much to increase. IPL 2025 rule: any amount >= current bid.
     // Bot will try to increase by a significant amount if they really want the player,
@@ -522,10 +520,9 @@ export async function runBotFinalMatchDecisions(roomCode: string): Promise<Aucti
     if (!botTeam || !isBotUser(botTeam.username)) return state;
 
     // Evaluate if bot should match final bargain price
-    const personality = generatePersonality(botTeam.teamName);
-    const value = evaluatePlayerValue(state.currentPlayer, botTeam, personality);
+    const baseMax = getBotMaxHighBid(state.currentPlayer, botTeam);
 
-    const maxFinalPrice = state.currentPlayer.basePrice * personality.maxOverpay * value * 1.15;
+    const maxFinalPrice = Math.min(baseMax * 1.15, botTeam.purse);
 
     const shouldMatch = state.rtmBargainBid <= maxFinalPrice && botTeam.purse >= state.rtmBargainBid;
 

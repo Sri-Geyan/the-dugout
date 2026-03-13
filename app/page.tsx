@@ -85,11 +85,11 @@ export default function Home() {
       </div>
 
       {/* Hero */}
-      <div className="relative z-10 flex flex-col items-center justify-center min-h-[calc(100vh-120px)] px-6">
+      <div className="relative z-10 flex flex-col items-center min-h-[calc(100vh-120px)] px-6 pt-32 md:pt-40">
         <div className={`text-center max-w-4xl mx-auto transition-all duration-1000 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'}`}>
 
           {/* Season badge */}
-          <div className="inline-flex items-center gap-2 mb-10 px-5 py-2.5 rounded-full glass-panel border border-[var(--color-gold)]/15 shadow-lg shadow-[var(--color-gold)]/5 animate-fadeInUp">
+          <div className="inline-flex items-center gap-2 mb-14 px-5 py-2.5 rounded-full glass-panel border border-[var(--color-gold)]/15 shadow-lg shadow-[var(--color-gold)]/5 animate-fadeInUp">
             <div className="w-2 h-2 rounded-full animate-pulse" style={{ background: 'var(--color-gold)' }} />
             <span className="text-[10px] font-black tracking-[0.35em] uppercase gold-text">
               IPL 2026 SEASON

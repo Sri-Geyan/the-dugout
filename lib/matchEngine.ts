@@ -40,6 +40,7 @@ export interface MatchState {
     stadiumId?: string;
     homeLocked?: boolean;
     awayLocked?: boolean;
+    lastBowlerId?: string | null;
 }
 
 export interface TossResult {
@@ -59,6 +60,20 @@ export interface MatchTeam {
     overs: number;
     balls: number;
     extras: number;
+    extrasBreakdown: {
+        wides: number;
+        noBalls: number;
+        byes: number;
+        legByes: number;
+        penalty: number;
+    };
+    fow: {
+        wickets: number;
+        score: number;
+        over: number;
+        ball: number;
+        batterName: string;
+    }[];
     runRate: number;
     players: MatchPlayer[];
 }
@@ -92,6 +107,7 @@ export interface BowlerState {
     runs: number;
     wickets: number;
     economy: number;
+    dots: number;
     overBalls: number;
     runsInOver: number;
 }
@@ -181,16 +197,25 @@ function simulateBall(
     const extraRoll = Math.random();
     if (extraRoll < 0.03) {
         return {
-            runs: 1, isWicket: false, isBoundary: false, isSix: false,
+            runs: 0, isWicket: false, isBoundary: false, isSix: false,
             isExtra: true, extraType: 'wide', extraRuns: 1, dismissalType: null,
             commentary: `Wide ball! One extra run.`,
         };
     }
     if (extraRoll < 0.05) {
+        // No ball: simulation continues to see if batter scored runs
+        const runProbs = getRunProbabilities(effectiveBat, effectiveBowl, phase, pressureFactor, stadium?.boundarySize || 1.0);
+        const runRoll = Math.random();
+        let cumulative = 0;
+        let runs = 0;
+        for (const [outcome, prob] of runProbs) {
+            cumulative += prob;
+            if (runRoll < cumulative) { runs = outcome; break; }
+        }
         return {
-            runs: 1, isWicket: false, isBoundary: false, isSix: false,
+            runs, isWicket: false, isBoundary: runs === 4, isSix: runs === 6,
             isExtra: true, extraType: 'no_ball', extraRuns: 1, dismissalType: null,
-            commentary: `No ball! Free hit coming up.`,
+            commentary: `No ball! ${runs > 0 ? `${runs} runs off the bat!` : ''} Free hit coming up.`,
         };
     }
 
@@ -241,11 +266,27 @@ function simulateBall(
     };
 
     const options = commentaries[runs] || [`${runs} runs.`];
-    const commentary = options[Math.floor(Math.random() * options.length)];
+    let commentary = options[Math.floor(Math.random() * options.length)];
+
+    // Small chance of Byes / Leg-Byes on dot balls (runs === 0)
+    let extraType = null;
+    let extraRuns = 0;
+    if (runs === 0 && Math.random() < 0.03) {
+        const isBye = Math.random() < 0.5;
+        extraType = isBye ? 'bye' : 'leg_bye';
+        extraRuns = Math.random() < 0.1 ? 4 : 1; // 10% chance of 4 byes (passed keeper)
+        const isBoundaryExtra = extraRuns === 4;
+        commentary = `${extraType === 'bye' ? 'Byes' : 'Leg byes'}! The batters ${isBoundaryExtra ? 'get a boundary' : 'sneak a run'}.`;
+        return {
+            runs, isWicket: false, isBoundary: isBoundaryExtra, isSix: false,
+            isExtra: false, extraType, extraRuns, dismissalType: null,
+            commentary,
+        };
+    }
 
     return {
         runs, isWicket: false, isBoundary, isSix,
-        isExtra: false, extraType: null, extraRuns: 0, dismissalType: null,
+        isExtra: false, extraType, extraRuns, dismissalType: null,
         commentary,
     };
 }
@@ -403,7 +444,7 @@ export function initMatchState(
         .map(p => ({
             player: p,
             overs: 0, balls: 0, maidens: 0, runs: 0,
-            wickets: 0, economy: 0, overBalls: 0, runsInOver: 0,
+            wickets: 0, economy: 0, dots: 0, overBalls: 0, runsInOver: 0,
         }));
 
     // If opening bowler is specified, move them to the front of the list
@@ -419,7 +460,7 @@ export function initMatchState(
                 bowlingOrder.unshift({
                     player: p,
                     overs: 0, balls: 0, maidens: 0, runs: 0,
-                    wickets: 0, economy: 0, overBalls: 0, runsInOver: 0,
+                    wickets: 0, economy: 0, dots: 0, overBalls: 0, runsInOver: 0,
                 });
             }
         }
@@ -429,8 +470,8 @@ export function initMatchState(
 
     return {
         matchId, roomCode,
-        homeTeam: { ...homeTeam, score: 0, wickets: 0, overs: 0, balls: 0, extras: 0, runRate: 0 },
-        awayTeam: { ...awayTeam, score: 0, wickets: 0, overs: 0, balls: 0, extras: 0, runRate: 0 },
+        homeTeam: { ...homeTeam, score: 0, wickets: 0, overs: 0, balls: 0, extras: 0, extrasBreakdown: { wides: 0, noBalls: 0, byes: 0, legByes: 0, penalty: 0 }, fow: [], runRate: 0 },
+        awayTeam: { ...awayTeam, score: 0, wickets: 0, overs: 0, balls: 0, extras: 0, extrasBreakdown: { wides: 0, noBalls: 0, byes: 0, legByes: 0, penalty: 0 }, fow: [], runRate: 0 },
         innings: 1,
         status: 'awaiting_selection',
         currentBatting: battingFirst,
@@ -499,10 +540,33 @@ export function processNextBall(state: MatchState): { state: MatchState; ballRes
     // Wide balls don't change the free-hit status
 
     if (ballResult.isExtra) {
-        battingTeam.score += ballResult.extraRuns;
+        const teamRuns = ballResult.runs + ballResult.extraRuns;
+        battingTeam.score += teamRuns;
         battingTeam.extras += ballResult.extraRuns;
-        state.currentBowler.runs += ballResult.extraRuns;
-        state.currentBowler.runsInOver += ballResult.extraRuns;
+        
+        if (ballResult.extraType === 'wide') {
+            battingTeam.extrasBreakdown.wides += ballResult.extraRuns;
+        } else if (ballResult.extraType === 'no_ball') {
+            battingTeam.extrasBreakdown.noBalls += ballResult.extraRuns;
+            state.striker.runs += ballResult.runs;
+            if (ballResult.isBoundary) state.striker.fours++;
+            if (ballResult.isSix) state.striker.sixes++;
+        } else if (ballResult.extraType === 'bye') {
+            battingTeam.extrasBreakdown.byes += ballResult.extraRuns;
+        } else if (ballResult.extraType === 'leg_bye') {
+            battingTeam.extrasBreakdown.legByes += ballResult.extraRuns;
+        }
+
+        if (ballResult.extraType === 'wide' || ballResult.extraType === 'no_ball') {
+            state.currentBowler.runs += teamRuns;
+            state.currentBowler.runsInOver += teamRuns;
+        }
+
+        if (ballResult.runs % 2 === 1) {
+            const temp = state.striker;
+            state.striker = state.nonStriker;
+            state.nonStriker = temp;
+        }
         // Don't count as a legal delivery
     } else {
         // Legal delivery
@@ -512,6 +576,9 @@ export function processNextBall(state: MatchState): { state: MatchState; ballRes
         if (state.currentBowler) {
             state.currentBowler.balls++;
             state.currentBowler.overBalls++;
+            if (ballResult.runs === 0 && !ballResult.isWicket) {
+                state.currentBowler.dots++;
+            }
         }
 
         if (ballResult.isWicket) {
@@ -519,6 +586,15 @@ export function processNextBall(state: MatchState): { state: MatchState; ballRes
             state.striker.dismissal = ballResult.dismissalType || 'out';
             battingTeam.wickets++;
             state.currentBowler.wickets++;
+
+            // Record Fall of Wicket
+            battingTeam.fow.push({
+                wickets: battingTeam.wickets,
+                score: battingTeam.score,
+                over: battingTeam.overs,
+                ball: battingTeam.balls,
+                batterName: state.striker.player.name
+            });
 
             // Check if innings is over due to all out
             if (battingTeam.wickets >= MAX_WICKETS) {
@@ -530,16 +606,28 @@ export function processNextBall(state: MatchState): { state: MatchState; ballRes
                 state.striker = null;
             }
         } else {
-            battingTeam.score += ballResult.runs;
+            const teamRuns = ballResult.runs + ballResult.extraRuns;
+            battingTeam.score += teamRuns;
             state.striker.runs += ballResult.runs;
+            
+            // Byes/Leg-byes are extras on a legal ball
+            if (ballResult.extraType === 'bye') {
+                battingTeam.extras += ballResult.extraRuns;
+                battingTeam.extrasBreakdown.byes += ballResult.extraRuns;
+            } else if (ballResult.extraType === 'leg_bye') {
+                battingTeam.extras += ballResult.extraRuns;
+                battingTeam.extrasBreakdown.legByes += ballResult.extraRuns;
+            }
+
+            // Only runs off the bat count against the bowler on a legal ball
             state.currentBowler.runs += ballResult.runs;
             state.currentBowler.runsInOver += ballResult.runs;
 
             if (ballResult.isBoundary) state.striker.fours++;
             if (ballResult.isSix) state.striker.sixes++;
 
-            // Rotate strike on odd runs
-            if (ballResult.runs % 2 === 1) {
+            // Rotate strike on odd TOTAL runs (including byes) - but NOT on boundaries
+            if (teamRuns % 2 === 1 && !ballResult.isBoundary) {
                 const temp = state.striker;
                 state.striker = state.nonStriker;
                 state.nonStriker = temp;
@@ -561,13 +649,13 @@ export function processNextBall(state: MatchState): { state: MatchState; ballRes
             state.currentOver++;
 
             // Rotate strike at end of over
-            if (state.striker && state.nonStriker) {
-                const temp = state.striker;
-                state.striker = state.nonStriker;
-                state.nonStriker = temp;
-            }
+            // In cricket, both batters swap ends. This works even if one is null (awaiting new batter).
+            const temp = state.striker;
+            state.striker = state.nonStriker;
+            state.nonStriker = temp;
 
             // Always clear current bowler at the end of the over
+            state.lastBowlerId = state.currentBowler?.player.id;
             state.currentBowler = null;
 
             // Set status to awaiting_bowler — user must choose the next bowler
@@ -653,10 +741,14 @@ export function processNextBall(state: MatchState): { state: MatchState; ballRes
 export function selectNextBatter(state: MatchState, batterId: string): MatchState {
     if (state.status !== 'awaiting_batter') return state;
 
-    const batter = state.battingOrder.find(b => b.player.id === batterId && !b.isOut && b !== state.nonStriker);
+    const batter = state.battingOrder.find(b => b.player.id === batterId && !b.isOut && b !== state.striker && b !== state.nonStriker);
     if (!batter) return state;
 
-    state.striker = batter;
+    if (!state.striker) {
+        state.striker = batter;
+    } else {
+        state.nonStriker = batter;
+    }
     state.status = 'live';
 
     // If bowler was also pending (wicket fell on last ball of over), mark accordingly
@@ -711,7 +803,7 @@ function setupSecondInnings(state: MatchState): void {
         .map(p => ({
             player: p,
             overs: 0, balls: 0, maidens: 0, runs: 0,
-            wickets: 0, economy: 0, overBalls: 0, runsInOver: 0,
+            wickets: 0, economy: 0, dots: 0, overBalls: 0, runsInOver: 0,
         }));
 
     state.striker = state.battingOrder[0] || null;

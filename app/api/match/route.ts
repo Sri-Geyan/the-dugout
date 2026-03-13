@@ -5,7 +5,7 @@ import { getLeagueState, syncMatchToLeague } from '@/lib/leagueEngine';
 import { emitToRoom } from '@/lib/socket-server';
 import { getAuctionState } from '@/lib/auctionEngine';
 import { getRoomState } from '@/lib/roomManager';
-import { isBotUser, botChooseNextBatter, botChooseNextBowler, botTossDecision } from '@/lib/botEngine';
+import { isBotUser, botChooseNextBatter, botChooseNextBowler, botTossDecision, ensureBotSelections } from '@/lib/botEngine';
 import redis from '@/lib/redis';
 
 function getSession(request: NextRequest) {
@@ -50,7 +50,14 @@ export async function POST(request: NextRequest) {
                     };
 
                     if (!homeSelection) homeSelection = await getPreMatchSelection(fixture.homeTeamUserId);
+                    if (!homeSelection && rCode && fixture.id) {
+                        homeSelection = await ensureBotSelections(rCode, fixture.id, fixture.homeTeamUserId);
+                    }
+
                     if (!awaySelection) awaySelection = await getPreMatchSelection(fixture.awayTeamUserId);
+                    if (!awaySelection && rCode && fixture.id) {
+                        awaySelection = await ensureBotSelections(rCode, fixture.id, fixture.awayTeamUserId);
+                    }
 
                     const auctionState = await getAuctionState(rCode);
                     const teams = auctionState?.teams || [];

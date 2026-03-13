@@ -61,10 +61,11 @@ export default function RoomPage() {
         socket.on('room_update', (data: { room: RoomState }) => {
             console.log('[Socket] Room updated:', data.room);
             setRoom(data.room);
-            const status = data.room.status.toLowerCase();
-            if (status === 'retention') router.push(`/retention/${code}`);
-            if (status === 'auction') router.push(`/auction/${code}`);
-            if (status === 'match') router.push(`/match/${code}`);
+            const status = data.room.status.toUpperCase();
+            if (status === 'RETENTION') router.push(`/retention/${code}`);
+            if (status === 'AUCTION') router.push(`/auction/${code}`);
+            if (status === 'SELECTION') router.push(`/selection/${code}`);
+            if (status === 'MATCH' || status === 'LEAGUE') router.push(`/league/${code}`);
         });
 
         return () => {

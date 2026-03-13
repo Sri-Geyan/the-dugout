@@ -420,9 +420,20 @@ export async function handleBargain(roomCode: string, amount: number): Promise<A
     const state = await getAuctionState(roomCode);
     if (!state || state.rtmState !== 'bargain' || !state.currentBidder) return null;
 
+    const team = state.teams.find(t => t.userId === state.currentBidder!.userId);
+    if (!team) return null;
+
     // amount 0 or same means "Stay at current bid"
     const finalAmount = Math.max(state.currentBid, amount);
-    state.rtmBargainBid = finalAmount;
+    
+    // Purse check for the highest bidder
+    if (finalAmount > team.purse) {
+        // If they can't afford the increase, force them to stay at current bid (which they already validated earlier)
+        state.rtmBargainBid = state.currentBid;
+    } else {
+        state.rtmBargainBid = finalAmount;
+    }
+
     state.rtmState = 'final_match';
     state.timerEnd = Date.now() + 15 * 1000; // 15 seconds for original team to match final
 
@@ -436,6 +447,14 @@ export async function handleFinalMatch(roomCode: string, execute: boolean): Prom
 
     const originalTeam = state.teams.find(t => t.userId === state.rtmOriginalTeamId);
     if (!originalTeam) return null;
+
+    if (execute) {
+        // Purse check for final match
+        if (state.rtmBargainBid > originalTeam.purse) {
+            // Force declining if insufficient funds (shouldn't happen with UI guards, but engine safety first)
+            execute = false;
+        }
+    }
 
     if (execute) {
         // Matched final bargain price
@@ -459,14 +478,27 @@ export async function handleFinalMatch(roomCode: string, execute: boolean): Prom
             soldTo: state.currentBidder!,
             soldPrice: state.rtmBargainBid,
         };
-        state.soldPlayers.push(soldPlayer);
-        // Update price for UI
-        state.currentBid = state.rtmBargainBid;
+        
         const team = state.teams.find(t => t.userId === state.currentBidder!.userId);
         if (team) {
-            team.purse -= state.rtmBargainBid;
+            // Final safety check for highest bidder as well
+            if (state.rtmBargainBid > team.purse) {
+                // If even the highest bidder can't afford their own bargain price (should be impossible due to handleBargain check)
+                // Fallback to original bid
+                soldPlayer.soldPrice = state.currentBid;
+                state.currentBid = state.currentBid;
+            } else {
+                state.currentBid = state.rtmBargainBid;
+            }
+            
+            team.purse -= soldPlayer.soldPrice;
             team.purse = Math.round(team.purse * 100) / 100;
             team.squad.push(soldPlayer);
+            state.soldPlayers.push(soldPlayer);
+        } else {
+            // This case shouldn't happen if state is consistent
+            state.soldPlayers.push(soldPlayer);
+            state.currentBid = state.rtmBargainBid;
         }
     }
 
@@ -553,19 +585,36 @@ export async function skipPlayer(roomCode: string): Promise<AuctionState | null>
     const { winner, price } = simulateBiddingWar(state.currentPlayer, state);
 
     if (winner) {
+        state.currentBidder = { userId: winner.userId, username: winner.username, teamName: winner.teamName };
+        state.currentBid = price;
+        
+        // Check for RTM
+        const originalTeamName = await findOriginalTeam(state.currentPlayer.name);
+        const originalTeam = state.teams.find(t => t.teamName === originalTeamName);
+
+        if (originalTeam &&
+            originalTeam.rtmCardsUsed < originalTeam.maxRtmCards &&
+            originalTeam.userId !== state.currentBidder.userId &&
+            originalTeam.purse >= state.currentBid) {
+
+            state.rtmPending = true;
+            state.rtmOriginalTeamId = originalTeam.userId;
+            state.rtmState = 'pending';
+            state.rtmBargainBid = state.currentBid;
+            state.status = 'bidding'; // Keep bidding status so RTM UI shows
+            await saveAuctionState(roomCode, state);
+            return state;
+        }
+
         const soldPlayer: SoldPlayer = {
             player: state.currentPlayer,
-            soldTo: { userId: winner.userId, username: winner.username, teamName: winner.teamName },
+            soldTo: state.currentBidder,
             soldPrice: price,
         };
         winner.squad.push(soldPlayer);
         winner.purse -= price;
         winner.purse = Math.round(winner.purse * 100) / 100;
         state.soldPlayers.push(soldPlayer);
-        
-        // Update state for UI consistency
-        state.currentBidder = soldPlayer.soldTo;
-        state.currentBid = price;
         state.status = 'sold';
     } else {
         state.unsoldPlayers.push(state.currentPlayer);

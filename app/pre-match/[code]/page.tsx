@@ -269,12 +269,20 @@ export default function PreMatchSelectionPage() {
         if (willRemove) {
             setSelectedIds(prev => prev.filter(id => id !== playerId));
             setBattingOrder(prev => prev.filter(id => id !== playerId));
-            setCaptainId(c => c === playerId ? '' : c);
-            setWkId(w => w === playerId ? '' : w);
-            setOpeningBowlerId(o => o === playerId ? '' : o);
+            if (captainId === playerId) setCaptainId('');
+            if (wkId === playerId) setWkId('');
+            if (openingBowlerId === playerId) setOpeningBowlerId('');
         } else if (selectedIds.length < 11) {
             setSelectedIds(prev => [...prev, playerId]);
-            setBattingOrder(prev => prev.includes(playerId) ? prev : [...prev, playerId]);
+            setBattingOrder(prev => [...prev, playerId]);
+            
+            // Auto-assign roles if first of their kind
+            const p = myTeam?.squad.find(s => s.player.id === playerId);
+            if (p) {
+                if (!captainId) setCaptainId(playerId);
+                if (!wkId && p.player.role === 'WICKET_KEEPER') setWkId(playerId);
+                if (!openingBowlerId && (p.player.role === 'BOWLER' || p.player.role === 'ALL_ROUNDER')) setOpeningBowlerId(playerId);
+            }
         }
     };
 
@@ -522,17 +530,25 @@ export default function PreMatchSelectionPage() {
                                                 (pitchProfile.pitchType === 'BATTING' && player.battingSkill >= 80)
                                             );
                                             return (
-                                                <div key={player.id} onClick={() => handleTogglePlayer(player.id)}
+                                                <div key={player.id}
                                                     className={`flex items-center gap-3 p-2.5 rounded-xl cursor-pointer transition-all ${locked ? 'pointer-events-none opacity-60' : 'hover:bg-white/5'}`}
                                                     style={{
                                                         background: isSelected ? 'rgba(34,197,94,0.08)' : highlighted ? 'rgba(212,175,55,0.04)' : 'rgba(255,255,255,0.02)',
                                                         border: `1px solid ${isSelected ? 'rgba(34,197,94,0.3)' : highlighted ? 'rgba(212,175,55,0.2)' : 'rgba(255,255,255,0.05)'}`,
                                                     }}>
-                                                    <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${isSelected ? 'bg-green-500 border-green-500' : 'border-white/20'}`}>
-                                                        {isSelected && <span className="text-[10px]">✓</span>}
+                                                    {/* Selection / Order Number */}
+                                                    <div 
+                                                        onClick={(e) => { e.stopPropagation(); handleTogglePlayer(player.id); }}
+                                                        className={`w-7 h-7 rounded-lg border-2 flex items-center justify-center flex-shrink-0 transition-all font-black text-xs ${
+                                                            isSelected 
+                                                                ? 'bg-green-500 border-green-500 text-white shadow-[0_0_10px_rgba(34,197,94,0.4)]' 
+                                                                : 'border-white/10 text-white/20 hover:border-white/30'
+                                                        }`}>
+                                                        {isSelected ? `#${battingOrder.indexOf(player.id) + 1}` : ''}
                                                     </div>
+
                                                     <PlayerAvatar name={player.name} size={32} />
-                                                    <div className="flex-1 min-w-0">
+                                                    <div className="flex-1 min-w-0" onClick={() => handleTogglePlayer(player.id)}>
                                                         <div className="flex items-center gap-1.5">
                                                             <p className="font-semibold text-sm truncate">{player.name}</p>
                                                             {highlighted && <span className="text-[9px] px-1 py-0.5 rounded font-bold" style={{ background: 'rgba(212,175,55,0.2)', color: 'var(--color-gold)' }}>★ PITCH FIT</span>}
@@ -544,9 +560,31 @@ export default function PreMatchSelectionPage() {
                                                             {player.nationality === 'Overseas' && (
                                                                 <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-900/30 text-purple-400">🌍 OS</span>
                                                             )}
+                                                            {/* Quick Role Tags */}
+                                                            {isSelected && (
+                                                                <div className="flex gap-1 ml-auto" onClick={e => e.stopPropagation()}>
+                                                                    <button 
+                                                                        onClick={() => setCaptainId(captainId === player.id ? '' : player.id)}
+                                                                        className={`w-5 h-5 rounded flex items-center justify-center text-[9px] font-black border transition-all ${captainId === player.id ? 'bg-yellow-500 border-yellow-400 text-black' : 'bg-white/5 border-white/10 text-white/30 hover:text-white'}`}
+                                                                        title="Set as Captain"
+                                                                    >C</button>
+                                                                    <button 
+                                                                        onClick={() => setWkId(wkId === player.id ? '' : player.id)}
+                                                                        className={`w-5 h-5 rounded flex items-center justify-center text-[9px] font-black border transition-all ${wkId === player.id ? 'bg-orange-500 border-orange-400 text-black' : 'bg-white/5 border-white/10 text-white/30 hover:text-white'}`}
+                                                                        title="Set as Wicket Keeper"
+                                                                    >WK</button>
+                                                                    {(player.role === 'BOWLER' || player.role === 'ALL_ROUNDER') && (
+                                                                        <button 
+                                                                            onClick={() => setOpeningBowlerId(openingBowlerId === player.id ? '' : player.id)}
+                                                                            className={`w-5 h-5 rounded flex items-center justify-center text-[9px] font-black border transition-all ${openingBowlerId === player.id ? 'bg-red-500 border-red-400 text-black' : 'bg-white/5 border-white/10 text-white/30 hover:text-white'}`}
+                                                                            title="Set as Opening Bowler"
+                                                                        >OB</button>
+                                                                    )}
+                                                                </div>
+                                                            )}
                                                         </div>
                                                     </div>
-                                                    <div className="text-right flex-shrink-0">
+                                                    <div className="text-right flex-shrink-0" onClick={() => handleTogglePlayer(player.id)}>
                                                         <p className="text-xs font-bold" style={{ color: 'var(--color-text-muted)' }}>
                                                             BAT {player.battingSkill} | BWL {player.bowlingSkill}
                                                         </p>

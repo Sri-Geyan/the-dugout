@@ -19,6 +19,16 @@ export default function LoginPage() {
     const router = useRouter();
     const setUser = useUserStore((s) => s.setUser);
 
+    // Load remembered username
+    useEffect(() => {
+        const saved = localStorage.getItem('dugout_username');
+        if (saved) {
+            setUsername(saved);
+            // If we have a saved username, we can potentially skip the first step
+            // but let's keep it simple: just pre-fill it.
+        }
+    }, []);
+
     const triggerShake = () => {
         setShake(true);
         setTimeout(() => setShake(false), 500);
@@ -42,9 +52,12 @@ export default function LoginPage() {
             });
             const data = await res.json();
 
+            localStorage.setItem('dugout_username', name);
+
             if (res.status === 200 && data.requiresPin) {
                 setPhase('pin-verify');
             } else if (res.ok && data.userId) {
+                // User exists but has no PIN (legacy or skipped)
                 setIsNewUser(false);
                 setPhase('pin-set');
             } else if (res.status === 404 || (!res.ok && !data.requiresPin)) {
@@ -72,16 +85,19 @@ export default function LoginPage() {
 
     // ── Auto-advance when 6 digits filled ────────────────────────────────────
     useEffect(() => {
-        if (phase === 'pin-verify' && pin.length === 6) handlePinVerify();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [pin, phase]);
-
-    useEffect(() => {
-        if (phase === 'pin-set' && pin.length === 6) {
-            setTimeout(() => setPhase('pin-confirm'), 120);
+        if (pin.length === 6) {
+            if (phase === 'pin-verify') handlePinVerify();
+            else if (phase === 'pin-set') {
+                if (isNewUser) {
+                    setTimeout(() => setPhase('pin-confirm'), 120);
+                } else {
+                    handlePinSet();
+                }
+            }
+            else if (phase === 'username') handlePinVerify(); // Combined screen
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [pin, phase]);
+    }, [pin, phase, isNewUser]);
 
     useEffect(() => {
         if (phase === 'pin-confirm' && pinConfirm.length === 6) handlePinConfirm();
@@ -114,15 +130,7 @@ export default function LoginPage() {
         }
     };
 
-    const handlePinConfirm = async () => {
-        if (pin !== pinConfirm) {
-            setError('PINs don\'t match. Try again.');
-            setPinConfirm('');
-            setPin('');
-            setPhase('pin-set');
-            triggerShake();
-            return;
-        }
+    const handlePinSet = async () => {
         setLoading(true);
         setError('');
         try {
@@ -136,32 +144,30 @@ export default function LoginPage() {
                 setUser(data.userId, data.username);
                 router.push('/dashboard');
             } else {
-                setError(data.error || 'Failed to create account');
+                setError(data.error || 'Failed to set PIN');
+                setPin('');
+                triggerShake();
             }
         } catch {
             setError('Network error');
+            setPin('');
         } finally {
             setLoading(false);
         }
     };
 
-    const skipPin = async () => {
-        setLoading(true);
-        try {
-            const res = await fetch('/api/auth/login', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ username: username.trim() }),
-            });
-            const data = await res.json();
-            if (res.ok && data.userId) {
-                setUser(data.userId, data.username);
-                router.push('/dashboard');
-            }
-        } catch { } finally {
-            setLoading(false);
+    const handlePinConfirm = async () => {
+        if (pin !== pinConfirm) {
+            setError('PINs don\'t match. Try again.');
+            setPinConfirm('');
+            setPin('');
+            setPhase('pin-set');
+            triggerShake();
+            return;
         }
+        handlePinSet();
     };
+
 
     const currentPinValue = phase === 'pin-confirm' ? pinConfirm : pin;
     const currentTarget: 'pin' | 'confirm' = phase === 'pin-confirm' ? 'confirm' : 'pin';
@@ -314,7 +320,7 @@ export default function LoginPage() {
                         </div>
                     )}
 
-                    {/* ── Username ── */}
+                    {/* ── Username or Combined ── */}
                     {phase === 'username' && (
                         <form onSubmit={handleUsernameSubmit} className="space-y-4">
                             <div>
@@ -323,7 +329,7 @@ export default function LoginPage() {
                                 </label>
                                 <input
                                     id="username-input"
-                                    autoFocus
+                                    autoFocus={!username}
                                     type="text"
                                     value={username}
                                     onChange={e => { setUsername(e.target.value); setError(''); }}
@@ -333,36 +339,47 @@ export default function LoginPage() {
                                     disabled={loading}
                                 />
                             </div>
+
+                            {/* If we have a username, show PIN on same screen for "Once" login */}
+                            {username.length >= 3 && (
+                                <div className="pt-2">
+                                    <label className="block text-xs font-semibold mb-2 tracking-wider uppercase text-center" style={{ color: 'var(--color-text-muted)' }}>
+                                        Enter PIN (if set)
+                                    </label>
+                                    <PinDots value={pin} />
+                                    <PinPad target="pin" />
+                                </div>
+                            )}
+
                             {error && (
                                 <p className="text-sm text-center py-2 px-3 rounded-lg"
                                     style={{ background: 'rgba(239,68,68,0.08)', color: 'var(--color-danger)', border: '1px solid rgba(239,68,68,0.2)' }}>
                                     {error}
                                 </p>
                             )}
-                            <button
-                                id="login-button"
-                                type="submit"
-                                disabled={loading || username.trim().length < 3}
-                                className="btn-primary w-full py-3.5 font-bold"
-                            >
-                                {loading ? (
-                                    <span className="flex items-center justify-center gap-2">
-                                        <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
-                                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                                        </svg>
-                                        Checking...
-                                    </span>
-                                ) : 'Continue →'}
-                            </button>
+
+                            {/* Only show "Continue" button if PIN isn't being typed */}
+                            {pin.length === 0 && (
+                                <button
+                                    id="login-button"
+                                    type="submit"
+                                    disabled={loading || username.trim().length < 3}
+                                    className="btn-primary w-full py-3.5 font-bold"
+                                >
+                                    {loading ? 'Checking...' : 'Continue →'}
+                                </button>
+                            )}
                         </form>
                     )}
 
-                    {/* ── PIN Verify ── */}
-                    {phase === 'pin-verify' && (
+                    {/* ── PIN Verify / Set / Confirm (Legacy Fallback) ── */}
+                    {(phase === 'pin-verify' || phase === 'pin-set' || phase === 'pin-confirm') && (
                         <div>
-                            <PinDots value={pin} />
-                            <PinPad target="pin" />
+                            <p className="text-xs text-center mb-4 opacity-60">
+                                {phase === 'pin-verify' ? 'Confirming access for' : phase === 'pin-confirm' ? 'Confirm your new PIN for' : 'Setting up security for'} <strong className="gold-text">{username}</strong>
+                            </p>
+                            <PinDots value={phase === 'pin-confirm' ? pinConfirm : pin} />
+                            <PinPad target={phase === 'pin-confirm' ? 'confirm' : 'pin'} />
                             {error && (
                                 <p className="text-sm text-center mt-4 py-2 rounded-lg"
                                     style={{ background: 'rgba(239,68,68,0.08)', color: 'var(--color-danger)', border: '1px solid rgba(239,68,68,0.15)' }}>
@@ -370,42 +387,12 @@ export default function LoginPage() {
                                 </p>
                             )}
                             <button
-                                onClick={() => { setPhase('username'); setPin(''); setError(''); }}
+                                onClick={() => { setPhase('username'); setPin(''); setPinConfirm(''); setError(''); }}
                                 className="w-full mt-4 text-xs text-center py-2"
                                 style={{ color: 'var(--color-text-muted)' }}
                             >
-                                ← Use a different name
+                                ← Change name
                             </button>
-                        </div>
-                    )}
-
-                    {/* ── PIN Set ── */}
-                    {phase === 'pin-set' && (
-                        <div>
-                            <PinDots value={pin} />
-                            <PinPad target="pin" />
-                            <button
-                                onClick={skipPin}
-                                disabled={loading}
-                                className="w-full mt-5 text-xs text-center py-2 rounded-lg transition-colors"
-                                style={{ color: 'var(--color-text-muted)' }}
-                            >
-                                Skip — enter without a PIN
-                            </button>
-                        </div>
-                    )}
-
-                    {/* ── PIN Confirm ── */}
-                    {phase === 'pin-confirm' && (
-                        <div>
-                            <PinDots value={pinConfirm} />
-                            <PinPad target="confirm" />
-                            {error && (
-                                <p className="text-sm text-center mt-4 py-2 rounded-lg"
-                                    style={{ background: 'rgba(239,68,68,0.08)', color: 'var(--color-danger)', border: '1px solid rgba(239,68,68,0.15)' }}>
-                                    {error}
-                                </p>
-                            )}
                         </div>
                     )}
                 </div>

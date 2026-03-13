@@ -39,7 +39,7 @@ export default function Navbar() {
                 </Link>
 
                 <div className="flex items-center gap-6">
-                    {isLoggedIn ? (
+                    {isLoggedIn && (
                         <>
                             <Link href="/dashboard" className="text-[11px] font-black tracking-widest uppercase text-[var(--color-text-secondary)] hover:text-[var(--color-gold)] transition-colors">
                                 Dashboard
@@ -58,10 +58,6 @@ export default function Navbar() {
                                 </button>
                             </div>
                         </>
-                    ) : (
-                        <Link href="/login" className="btn-primary text-[10px] px-6 py-2.5">
-                            Launch
-                        </Link>
                     )}
                 </div>
             </div>

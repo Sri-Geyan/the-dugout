@@ -16,6 +16,20 @@ interface MatchTeam {
     overs: number;
     balls: number;
     extras: number;
+    extrasBreakdown: {
+        wides: number;
+        noBalls: number;
+        byes: number;
+        legByes: number;
+        penalty: number;
+    };
+    fow: {
+        wickets: number;
+        score: number;
+        over: number;
+        ball: number;
+        batterName: string;
+    }[];
     runRate: number;
     players: { id: string; name: string; role: string; battingSkill: number; bowlingSkill: number; isCaptain?: boolean; isWicketKeeper?: boolean }[];
 }
@@ -39,6 +53,7 @@ interface BowlerState {
     runs: number;
     wickets: number;
     economy: number;
+    dots: number;
     overBalls: number;
 }
 
@@ -83,6 +98,8 @@ interface MatchState {
     awayWkId?: string;
     homeOpeningBowlerId?: string;
     awayOpeningBowlerId?: string;
+    firstInningsBattingOrder?: BatterState[];
+    firstInningsBowlingOrder?: BowlerState[];
 }
 
 export default function MatchPage() {
@@ -97,6 +114,7 @@ export default function MatchPage() {
     const [loading, setLoading] = useState(true);
     const [matchId, setMatchId] = useState('');
     const [hostId, setHostId] = useState('');
+    const [activeInningsTab, setActiveInningsTab] = useState<1 | 2>(1);
 
     const BOT_USERNAMES = [
         'Chennai Super Kings', 'Mumbai Indians', 'Royal Challengers Bengaluru', 'Kolkata Knight Riders',
@@ -221,7 +239,7 @@ export default function MatchPage() {
                     // Actually, let's just use handleBall as the driver.
                     handleBall();
                 }
-            }, 1500);
+            }, 1000);
             return () => clearTimeout(timer);
         }
     }, [match?.status, match?.currentBall, match?.currentOver, match?.homeTeam?.score, match?.awayTeam?.score, hostId, userId]);
@@ -711,55 +729,160 @@ export default function MatchPage() {
 
                     {/* Sidebar — Scorecard */}
                     <div className="space-y-4">
-                        {/* Batting Card */}
-                        <div className="panel">
-                            <h3 className="text-xs font-semibold tracking-wider uppercase mb-3" style={{ color: 'var(--color-text-muted)' }}>
-                                Batting — {battingTeam.name}
-                            </h3>
-                            <div className="space-y-1">
-                                {match.battingOrder.filter(b => b.runs > 0 || b.balls > 0 || b.isOut).map((b, i) => (
-                                    <div key={i} className="flex items-center justify-between text-xs py-1.5 px-2 rounded" style={{
-                                        background: b.isOut ? 'rgba(239,68,68,0.05)' : 'rgba(255,255,255,0.02)',
-                                    }}>
-                                        <div className="flex items-center gap-2 flex-1 min-w-0">
-                                            <span className="truncate font-medium">
-                                                {b.player.name}
-                                                {b.player.isCaptain && <span className="text-yellow-400">(C)</span>}
-                                            </span>
-                                            {b.isOut && <span className="text-red-400 text-[10px] truncate">{b.dismissal}</span>}
+                        {/* Innings Tabs */}
+                        <div className="flex bg-black/40 p-1 rounded-xl border border-white/5">
+                            {[1, 2].map((inn) => (
+                                <button
+                                    key={inn}
+                                    onClick={() => setActiveInningsTab(inn as 1 | 2)}
+                                    className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${
+                                        activeInningsTab === inn 
+                                            ? 'bg-gold text-black' 
+                                            : 'text-white/50 hover:text-white hover:bg-white/5'
+                                    }`}
+                                >
+                                    Innings {inn}
+                                </button>
+                            ))}
+                        </div>
+
+                        {/* Scorecard Content */}
+                        {(() => {
+                            const isFirstInnings = activeInningsTab === 1;
+                            const displayBatting = isFirstInnings 
+                                ? (match.innings === 1 ? match.battingOrder : match.firstInningsBattingOrder || []) 
+                                : (match.innings === 2 ? match.battingOrder : []);
+                            const displayBowling = isFirstInnings 
+                                ? (match.innings === 1 ? match.bowlingOrder : match.firstInningsBowlingOrder || []) 
+                                : (match.innings === 2 ? match.bowlingOrder : []);
+                            const displayBattingTeam = isFirstInnings
+                                ? (match.toss?.decision === 'bat' ? (match.toss.winnerId === match.homeTeam.userId ? match.homeTeam : match.awayTeam) : (match.toss?.winnerId === match.homeTeam.userId ? match.awayTeam : match.homeTeam))
+                                : (match.toss?.decision === 'bat' ? (match.toss.winnerId === match.homeTeam.userId ? match.awayTeam : match.homeTeam) : (match.toss?.winnerId === match.homeTeam.userId ? match.homeTeam : match.awayTeam));
+                            const displayBowlingTeam = isFirstInnings
+                                ? (match.toss?.decision === 'bat' ? (match.toss.winnerId === match.homeTeam.userId ? match.awayTeam : match.homeTeam) : (match.toss?.winnerId === match.homeTeam.userId ? match.homeTeam : match.awayTeam))
+                                : (match.toss?.decision === 'bat' ? (match.toss.winnerId === match.homeTeam.userId ? match.homeTeam : match.awayTeam) : (match.toss?.winnerId === match.homeTeam.userId ? match.awayTeam : match.homeTeam));
+
+                            return (
+                                <>
+                                    {/* Batting Card */}
+                                    <div className="panel">
+                                        <h3 className="text-[10px] font-black tracking-widest uppercase mb-3 text-white/40">
+                                            Batting — {displayBattingTeam.name}
+                                        </h3>
+                                        <div className="space-y-1">
+                                            {displayBatting.filter(b => b.runs > 0 || b.balls > 0 || b.isOut).map((b, i) => (
+                                                <div key={i} className="flex items-center justify-between text-xs py-2 px-2.5 rounded-xl border border-white/[0.02]" style={{
+                                                    background: b.isOut ? 'rgba(239,68,68,0.03)' : (b === match.striker || b === match.nonStriker ? 'rgba(34,197,94,0.05)' : 'rgba(255,255,255,0.02)'),
+                                                    borderColor: b === match.striker || b === match.nonStriker ? 'rgba(34,197,94,0.1)' : undefined
+                                                }}>
+                                                    <div className="flex-1 min-w-0 pr-2">
+                                                        <div className="flex items-center gap-1">
+                                                            <span className="truncate font-bold text-white/90">
+                                                                {b.player.name}
+                                                                {b.player.isCaptain && <span className="text-yellow-400 text-[9px] ml-0.5" title="Captain">©</span>}
+                                                            </span>
+                                                            {(b === match.striker || b === match.nonStriker) && <span className="w-1 h-1 rounded-full bg-green-500 animate-pulse" />}
+                                                        </div>
+                                                        {b.isOut ? (
+                                                            <p className="text-[9px] text-red-400/80 italic truncate">{b.dismissal}</p>
+                                                        ) : (
+                                                            <p className="text-[9px] text-white/30 uppercase tracking-tighter">not out</p>
+                                                        )}
+                                                    </div>
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="text-right">
+                                                            <span className="font-black text-sm">{b.runs}</span>
+                                                            <span className="text-[10px] text-white/40 ml-1">({b.balls})</span>
+                                                        </div>
+                                                        <div className="flex gap-2 w-24 justify-end text-[9px] text-white/30 font-medium">
+                                                            <span title="Fours" className="flex items-center gap-0.5">
+                                                                <span className="text-[8px] opacity-50">4s:</span>{b.fours || 0}
+                                                            </span>
+                                                            <span title="Sixes" className="flex items-center gap-0.5">
+                                                                <span className="text-[8px] opacity-50">6s:</span>{b.sixes || 0}
+                                                            </span>
+                                                            <span className="text-white/60 font-bold ml-1">SR: {b.strikeRate}</span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            ))}
                                         </div>
-                                        <div className="flex items-center gap-2 flex-shrink-0">
-                                            <span className="font-bold">{b.runs}</span>
-                                            <span style={{ color: 'var(--color-text-muted)' }}>({b.balls})</span>
-                                            <div className="flex gap-2 ml-2 w-28 text-right justify-end text-[10px]" style={{ color: 'var(--color-text-secondary)' }}>
-                                                <span>4s: {b.fours || 0}</span>
-                                                <span>6s: {b.sixes || 0}</span>
-                                                <span className="font-semibold text-white/80">SR: {b.balls > 0 ? ((b.runs / b.balls) * 100).toFixed(1) : '0.0'}</span>
+
+                                        {/* Innings Summary Section */}
+                                        <div className="mt-4 pt-3 border-t border-white/5 space-y-2">
+                                            <div className="flex justify-between items-center px-2">
+                                                <span className="text-[10px] font-bold text-white/40 uppercase tracking-wider">Extras</span>
+                                                <div className="text-right">
+                                                    <span className="text-xs font-black text-white/90">{displayBattingTeam.extras}</span>
+                                                    <p className="text-[8px] text-white/30">
+                                                        (w{displayBattingTeam.extrasBreakdown?.wides || 0}, nb{displayBattingTeam.extrasBreakdown?.noBalls || 0}, b{displayBattingTeam.extrasBreakdown?.byes || 0}, lb{displayBattingTeam.extrasBreakdown?.legByes || 0})
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            <div className="flex justify-between items-center px-2 bg-white/[0.02] p-2 rounded-lg">
+                                                <span className="text-[10px] font-bold gold-text uppercase tracking-widest">Total</span>
+                                                <div className="text-right">
+                                                    <span className="text-lg font-black">{displayBattingTeam.score}/{displayBattingTeam.wickets}</span>
+                                                    <span className="text-[10px] text-white/40 ml-2">({displayBattingTeam.overs}.{displayBattingTeam.balls} ov)</span>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
-                                ))}
-                            </div>
-                        </div>
 
-                        {/* Bowling Card */}
-                        <div className="panel">
-                            <h3 className="text-xs font-semibold tracking-wider uppercase mb-3" style={{ color: 'var(--color-text-muted)' }}>
-                                Bowling — {bowlingTeam.name}
-                            </h3>
-                            <div className="space-y-1">
-                                {match.bowlingOrder.filter(b => b.overs > 0 || b.overBalls > 0).map((b, i) => (
-                                    <div key={i} className="flex items-center justify-between text-xs py-1.5 px-2 rounded" style={{
-                                        background: 'rgba(255,255,255,0.02)',
-                                    }}>
-                                        <span className="truncate font-medium flex-1 min-w-0">{b.player.name}</span>
-                                        <div className="flex items-center gap-3 flex-shrink-0" style={{ color: 'var(--color-text-muted)' }}>
-                                            <span>{b.overs}.{b.overBalls}-{b.maidens}-{b.runs}-{b.wickets}</span>
+                                    {/* Bowling Card */}
+                                    <div className="panel">
+                                        <h3 className="text-[10px] font-black tracking-widest uppercase mb-3 text-white/40">
+                                            Bowling — {displayBowlingTeam.name}
+                                        </h3>
+                                        <div className="space-y-1">
+                                            {/* Table Header */}
+                                            <div className="grid grid-cols-6 gap-1 px-2 mb-1 text-[8px] font-black text-white/20 uppercase tracking-tighter">
+                                                <div className="col-span-2">Bowler</div>
+                                                <div className="text-center">O</div>
+                                                <div className="text-center">M</div>
+                                                <div className="text-center">R</div>
+                                                <div className="text-center">W</div>
+                                            </div>
+                                            {displayBowling.filter(b => b.overs > 0 || b.overBalls > 0 || b === match.currentBowler).map((b, i) => (
+                                                <div key={i} className="grid grid-cols-6 gap-1 items-center text-[10px] py-1.5 px-2 rounded-lg bg-white/[0.02] border border-white/[0.01]">
+                                                    <div className="col-span-2 truncate font-bold text-white/80">
+                                                        {b.player.name}
+                                                    </div>
+                                                    <div className="text-center font-medium text-white/60">{b.overs}.{b.overBalls}</div>
+                                                    <div className="text-center font-medium text-white/60">{b.maidens}</div>
+                                                    <div className="text-center font-black text-white/90">{b.runs}</div>
+                                                    <div className="text-center font-black gold-text">{b.wickets}</div>
+                                                </div>
+                                            ))}
+                                            {/* Extra stats footer */}
+                                            {displayBowling.some(b => b.dots > 0) && (
+                                                <p className="text-[8px] text-center mt-3 text-white/20 italic">
+                                                    Dots and Economy stats available in detailed match report
+                                                </p>
+                                            )}
                                         </div>
                                     </div>
-                                ))}
-                            </div>
-                        </div>
+
+                                    {/* Fall of Wickets */}
+                                    {displayBattingTeam.fow && displayBattingTeam.fow.length > 0 && (
+                                        <div className="panel">
+                                            <h3 className="text-[10px] font-black tracking-widest uppercase mb-3 text-white/40">
+                                                Fall of Wickets
+                                            </h3>
+                                            <div className="flex flex-wrap gap-2">
+                                                {displayBattingTeam.fow.map((f, i) => (
+                                                    <div key={i} className="bg-white/5 border border-white/5 rounded-lg px-2 py-1.5 text-center min-w-[60px]">
+                                                        <p className="text-[9px] font-black gold-text mb-0.5">{f.score}/{f.wickets}</p>
+                                                        <p className="text-[7px] text-white/40 truncate w-full" title={f.batterName}>{f.batterName}</p>
+                                                        <p className="text-[7px] text-white/20">({f.over}.{f.ball})</p>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                </>
+                            );
+                        })()}
                     </div>
                 </div>
             </main>
@@ -775,9 +898,27 @@ export default function MatchPage() {
                         border: '1px solid var(--color-border)',
                     }}>
                         <div className="p-4 border-b" style={{ borderColor: 'var(--color-border)', background: 'var(--color-bg-elevated)' }}>
-                            <h2 className="text-xl font-bold text-center">🏏 Choose Next Batter</h2>
+                            <div className="flex items-center justify-center gap-2 mb-2">
+                                <span className="text-2xl animate-bounce">☝️</span>
+                                <h2 className="text-xl font-black gold-text uppercase tracking-tighter">Wicket Fallen!</h2>
+                            </div>
+                            
+                            {/* Gone out batter details */}
+                            {battingTeam.fow && battingTeam.fow.length > 0 && (
+                                <div className="mb-4 p-3 rounded-xl text-center bg-red-500/5 border border-red-500/20">
+                                    <p className="text-xs font-bold text-red-400 uppercase tracking-widest mb-1">Batter Out</p>
+                                    <p className="text-lg font-black text-white">
+                                        {battingTeam.fow[battingTeam.fow.length - 1].batterName}
+                                    </p>
+                                    <p className="text-[10px] text-white/50">
+                                        {match.commentary[0]?.includes('OUT!') ? match.commentary[0].split('!')[1].trim() : 'has departed'}
+                                    </p>
+                                </div>
+                            )}
+
+                            <h3 className="text-sm font-bold text-center">🏏 Choose Next Batter</h3>
                             <p className="text-xs text-center mt-1" style={{ color: 'var(--color-text-muted)' }}>
-                                {isUserBattingTeam ? 'Wicket fallen! Select who comes in next.' : 'Wicket fallen! Waiting for batting team to select next player...'}
+                                {isUserBattingTeam ? 'Select who comes in next to steady the ship.' : 'Waiting for batting team to select next player...'}
                             </p>
                         </div>
                         {isUserBattingTeam && (
@@ -913,9 +1054,21 @@ function MatchSelectionUI({ team, onLock, isBattingFirst }: {
 
     const togglePlayer = (id: string) => {
         if (selectedIds.includes(id)) {
-            setSelectedIds(selectedIds.filter(i => i !== id));
+            setSelectedIds(prev => prev.filter(i => i !== id));
+            if (captainId === id) setCaptainId('');
+            if (wkId === id) setWkId('');
+            if (openingBowlerId === id) setOpeningBowlerId('');
         } else if (selectedIds.length < 11) {
-            setSelectedIds([...selectedIds, id]);
+            const next = [...selectedIds, id];
+            setSelectedIds(next);
+            
+            // Auto-assign roles
+            const p = team.players.find(p => p.id === id);
+            if (p) {
+                if (!captainId) setCaptainId(id);
+                if (!wkId && p.role === 'WICKET_KEEPER') setWkId(id);
+                if (!openingBowlerId && (p.role === 'BOWLER' || p.role === 'ALL_ROUNDER')) setOpeningBowlerId(id);
+            }
         }
     };
 
@@ -935,30 +1088,67 @@ function MatchSelectionUI({ team, onLock, isBattingFirst }: {
                     <div className="space-y-2 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
                         {team.players.map(p => {
                             const isSelected = selectedIds.includes(p.id);
+                            const orderNum = selectedIds.indexOf(p.id) + 1;
                             return (
-                                <button
+                                <div
                                     key={p.id}
-                                    onClick={() => togglePlayer(p.id)}
                                     className={`w-full flex items-center justify-between p-3 rounded-xl transition-all border ${
                                         isSelected 
                                             ? 'bg-gold/10 border-gold/30 shadow-[0_0_15px_rgba(212,175,55,0.1)]' 
                                             : 'bg-white/5 border-white/5 opacity-60 grayscale hover:grayscale-0 hover:opacity-100'
                                     }`}
                                 >
-                                    <div className="flex items-center gap-3">
+                                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                                        {/* Selection / Order Number */}
+                                        <div 
+                                            onClick={(e) => { e.stopPropagation(); togglePlayer(p.id); }}
+                                            className={`w-7 h-7 rounded-lg border-2 flex items-center justify-center flex-shrink-0 transition-all font-black text-xs cursor-pointer ${
+                                                isSelected 
+                                                    ? 'bg-gold border-gold text-black shadow-[0_0_10px_rgba(212,175,55,0.4)]' 
+                                                    : 'border-white/10 text-white/20 hover:border-white/30'
+                                            }`}>
+                                            {isSelected ? `#${orderNum}` : ''}
+                                        </div>
+
                                         <PlayerAvatar name={p.name} size={32} />
-                                        <div className="text-left">
-                                            <p className="text-sm font-bold">{p.name}</p>
-                                            <p className="text-[10px] opacity-50 uppercase tracking-tighter">{p.role.replace('_', ' ')}</p>
+                                        <div className="text-left flex-1 min-w-0 cursor-pointer" onClick={() => togglePlayer(p.id)}>
+                                            <div className="flex items-center gap-1.5">
+                                                <p className="text-sm font-bold truncate">{p.name}</p>
+                                            </div>
+                                            <div className="flex items-center gap-1.5 mt-0.5">
+                                                <p className="text-[9px] opacity-50 uppercase tracking-tighter">{p.role.replace('_', ' ')}</p>
+                                                {/* Role Shortcuts */}
+                                                {isSelected && (
+                                                    <div className="flex gap-1 ml-auto" onClick={e => e.stopPropagation()}>
+                                                        <button 
+                                                            onClick={() => setCaptainId(captainId === p.id ? '' : p.id)}
+                                                            className={`w-5 h-5 rounded flex items-center justify-center text-[9px] font-black border transition-all ${captainId === p.id ? 'bg-yellow-500 border-yellow-400 text-black' : 'bg-white/5 border-white/10 text-white/30 hover:text-white'}`}
+                                                            title="Captain"
+                                                        >C</button>
+                                                        <button 
+                                                            onClick={() => setWkId(wkId === p.id ? '' : p.id)}
+                                                            className={`w-5 h-5 rounded flex items-center justify-center text-[9px] font-black border transition-all ${wkId === p.id ? 'bg-orange-500 border-orange-400 text-black' : 'bg-white/5 border-white/10 text-white/30 hover:text-white'}`}
+                                                            title="Wicket Keeper"
+                                                        >WK</button>
+                                                        {(p.role === 'BOWLER' || p.role === 'ALL_ROUNDER') && !isBattingFirst && (
+                                                            <button 
+                                                                onClick={() => setOpeningBowlerId(openingBowlerId === p.id ? '' : p.id)}
+                                                                className={`w-5 h-5 rounded flex items-center justify-center text-[9px] font-black border transition-all ${openingBowlerId === p.id ? 'bg-red-500 border-red-400 text-black' : 'bg-white/5 border-white/10 text-white/30 hover:text-white'}`}
+                                                                title="Opening Bowler"
+                                                            >OB</button>
+                                                        )}
+                                                    </div>
+                                                )}
+                                            </div>
                                         </div>
                                     </div>
-                                    <div className="text-right">
-                                        <div className="flex gap-2 text-[10px] font-black">
+                                    <div className="text-right flex-shrink-0 ml-4 cursor-pointer" onClick={() => togglePlayer(p.id)}>
+                                        <div className="flex flex-col items-end gap-0.5 text-[10px] font-black">
                                             <span className="text-blue-400">BAT:{p.battingSkill}</span>
                                             <span className="text-red-400">BWL:{p.bowlingSkill}</span>
                                         </div>
                                     </div>
-                                </button>
+                                </div>
                             );
                         })}
                     </div>

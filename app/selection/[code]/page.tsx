@@ -158,8 +158,8 @@ export default function SelectionPage() {
                 if (myTeam) {
                     const playerObj = myTeam.squad.find(s => s.player.id === playerId)?.player;
                     if (playerObj) {
-                        if (!wkId && playerObj.role === 'WICKET_KEEPER') setWkId(playerId);
                         if (!captainId) setCaptainId(playerId);
+                        if (!wkId && playerObj.role === 'WICKET_KEEPER') setWkId(playerId);
                         if (!openingBowlerId && (playerObj.role === 'BOWLER' || playerObj.role === 'ALL_ROUNDER')) setOpeningBowlerId(playerId);
                     }
                 }
@@ -372,30 +372,32 @@ export default function SelectionPage() {
                                                 </div>
                                             </div>
 
-                                            {/* Role Selection Controls */}
+                                            {/* Role Selection Controls — More Premium */}
                                             {isSelected && !isLocked && (
-                                                <div className="flex gap-2 mt-4 pt-4 border-t border-white/10" onClick={e => e.stopPropagation()}>
+                                                <div className="flex gap-1.5 mt-4 pt-4 border-t border-white/10" onClick={e => e.stopPropagation()}>
                                                     <button
                                                         type="button"
-                                                        onClick={() => handleSetRole(player.id, 'captain')}
-                                                        className={`flex-1 py-1.5 rounded text-[9px] font-black uppercase transition-all duration-300 border ${isCap ? 'bg-gold text-black border-gold shadow-[0_0_15px_rgba(212,175,55,0.3)]' : 'bg-white/5 text-white/40 border-white/10 hover:bg-white/10 hover:text-white'}`}
+                                                        onClick={() => setCaptainId(captainId === player.id ? null : player.id)}
+                                                        className={`flex-1 py-2 rounded-lg text-[9px] font-black uppercase transition-all duration-300 border ${isCap ? 'bg-gold text-black border-gold shadow-[0_0_15px_rgba(212,175,55,0.4)]' : 'bg-white/5 text-white/40 border-white/10 hover:bg-white/10 hover:text-white'}`}
                                                     >
-                                                        Captain
+                                                        Captain (C)
                                                     </button>
                                                     <button
                                                         type="button"
-                                                        onClick={() => handleSetRole(player.id, 'wk')}
-                                                        className={`flex-1 py-1.5 rounded text-[9px] font-black uppercase transition-all duration-300 border ${isWk ? 'bg-blue-600 text-white border-blue-500 shadow-[0_0_15px_rgba(59,130,246,0.3)]' : 'bg-white/5 text-white/40 border-white/10 hover:bg-white/10 hover:text-white'}`}
+                                                        onClick={() => setWkId(wkId === player.id ? null : player.id)}
+                                                        className={`flex-1 py-2 rounded-lg text-[9px] font-black uppercase transition-all duration-300 border ${isWk ? 'bg-orange-600 text-white border-orange-500 shadow-[0_0_15px_rgba(249,115,22,0.4)]' : 'bg-white/5 text-white/40 border-white/10 hover:bg-white/10 hover:text-white'}`}
                                                     >
-                                                        WK
+                                                        Keeper (WK)
                                                     </button>
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => handleSetRole(player.id, 'bowler')}
-                                                        className={`flex-1 py-1.5 rounded text-[9px] font-black uppercase transition-all duration-300 border ${isBowler ? 'bg-red-600 text-white border-red-500 shadow-[0_0_15px_rgba(239,68,68,0.3)]' : 'bg-white/5 text-white/40 border-white/10 hover:bg-white/10 hover:text-white'}`}
-                                                    >
-                                                        Opener
-                                                    </button>
+                                                    {(player.role === 'BOWLER' || player.role === 'ALL_ROUNDER') && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setOpeningBowlerId(openingBowlerId === player.id ? null : player.id)}
+                                                            className={`flex-1 py-2 rounded-lg text-[9px] font-black uppercase transition-all duration-300 border ${isBowler ? 'bg-red-600 text-white border-red-500 shadow-[0_0_15px_rgba(239,68,68,0.4)]' : 'bg-white/5 text-white/40 border-white/10 hover:bg-white/10 hover:text-white'}`}
+                                                        >
+                                                            Opener (OB)
+                                                        </button>
+                                                    )}
                                                 </div>
                                             )}
 

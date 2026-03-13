@@ -48,11 +48,20 @@ export async function POST(request: NextRequest) {
                     if (hashed !== existing.pin) {
                         return NextResponse.json({ error: 'Wrong PIN. Try again.' }, { status: 401 });
                     }
+                } else {
+                    // Returning user has no PIN (legacy) — they MUST set one now
+                    if (!pin) {
+                        return NextResponse.json({ requiresPin: true }, { status: 200 });
+                    }
                 }
                 user = existing;
             } else {
-                // New user — create with optional PIN
-                const pinHash = pin ? hashPin(String(pin)) : null;
+                // New user — PIN is MANDATORY
+                if (!pin) {
+                    // Request user to provide a PIN (will trigger phase change in frontend)
+                    return NextResponse.json({ requiresPin: false, isNewUser: true }, { status: 200 });
+                }
+                const pinHash = hashPin(String(pin));
                 user = await prisma.user.create({
                     data: { id: uuidv4(), username: trimmed, pin: pinHash },
                 });

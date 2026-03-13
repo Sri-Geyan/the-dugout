@@ -199,17 +199,21 @@ export async function POST(request: NextRequest) {
             // Find and update the fixture
             const fixtureIndex = body.fixtureIndex ?? state.currentMatchIndex;
             const fixture = state.fixtures[fixtureIndex];
-            if (fixture) {
-                fixture.status = 'completed';
-                fixture.matchId = body.matchId;
-                fixture.homeScore = matchResult.homeScore;
-                fixture.homeWickets = matchResult.homeWickets;
-                fixture.homeOvers = matchResult.homeOvers;
-                fixture.awayScore = matchResult.awayScore;
-                fixture.awayWickets = matchResult.awayWickets;
-                fixture.awayOvers = matchResult.awayOvers;
-                fixture.result = matchResult.result;
+            if (!fixture) return NextResponse.json({ error: 'Fixture not found' }, { status: 404 });
+
+            if (fixture.status === 'completed') {
+                return NextResponse.json({ error: 'Match result already processed', state }, { status: 400 });
             }
+
+            fixture.status = 'completed';
+            fixture.matchId = body.matchId;
+            fixture.homeScore = matchResult.homeScore;
+            fixture.homeWickets = matchResult.homeWickets;
+            fixture.homeOvers = matchResult.homeOvers;
+            fixture.awayScore = matchResult.awayScore;
+            fixture.awayWickets = matchResult.awayWickets;
+            fixture.awayOvers = matchResult.awayOvers;
+            fixture.result = matchResult.result;
 
             // Update standings
             updateStandings(state, matchResult);

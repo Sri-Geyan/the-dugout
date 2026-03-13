@@ -9,8 +9,11 @@ import { getSocket } from '@/lib/socket';
 import { IPL_TEAMS } from '@/data/teams';
 
 // Hardcoding these constants on the client avoid importing lib/retentionEngine which requires node dependencies (redis)
-const RETENTION_COSTS = [16, 12, 8, 6];
-const MAX_RETENTIONS = 4;
+const CAPPED_RETENTION_COSTS = [18, 14, 11, 18, 14];
+const UNCAPPED_RETENTION_COST = 4;
+const MAX_RETENTIONS = 6;
+const MAX_CAPPED_RETENTIONS = 5;
+const MAX_UNCAPPED_RETENTIONS = 2;
 const MAX_OVERSEAS_RETENTIONS = 2;
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -258,8 +261,16 @@ export default function RetentionPage() {
     // ── Computed ──────────────────────────────────────────────────────────────
     const isHost = hostId === userId;
     const myOverseasCount = myTeam?.retained.filter(r => r.nationality === 'Overseas').length ?? 0;
+    const myUncappedCount = myTeam?.retained.filter(r => {
+        const p = eligiblePool.find(ep => ep.name === r.playerName);
+        return p?.capStatus === 'Uncapped';
+    }).length ?? 0;
+    const myCappedCount = (myTeam?.retained.length ?? 0) - myUncappedCount;
+
     const nextSlot = (myTeam?.retained.length ?? 0) + 1;
-    const nextCost = nextSlot <= MAX_RETENTIONS ? RETENTION_COSTS[nextSlot - 1] : 0;
+    // We don't know if the NEXT player will be capped or uncapped here, so we show the base capped cost as default in preview
+    const nextCappedCost = myCappedCount < MAX_CAPPED_RETENTIONS ? CAPPED_RETENTION_COSTS[myCappedCount] : 0;
+    
     const isTimerExpired = timeLeft === 0 && (state?.timerEnd ?? 0) > 0 && Date.now() > (state?.timerEnd ?? 0);
     const timerWarning = timeLeft > 0 && timeLeft < 30000;
 
@@ -269,9 +280,16 @@ export default function RetentionPage() {
         if (myTeam?.confirmed) return { ok: false, reason: 'Already confirmed' };
         if (isTimerExpired) return { ok: false, reason: 'Timer expired' };
         if (isRetained(p.name)) return { ok: false, reason: 'Already retained' };
-        if ((myTeam?.retained.length ?? 0) >= MAX_RETENTIONS) return { ok: false, reason: 'Max 4 reached' };
-        if (p.nationality === 'Overseas' && myOverseasCount >= MAX_OVERSEAS_RETENTIONS) return { ok: false, reason: 'Max 2 overseas reached' };
-        if ((myTeam?.purse ?? 0) < nextCost) return { ok: false, reason: 'Insufficient purse' };
+        if ((myTeam?.retained.length ?? 0) >= MAX_RETENTIONS) return { ok: false, reason: `Max ${MAX_RETENTIONS} reached` };
+        
+        const isUncapped = p.capStatus === 'Uncapped';
+        if (isUncapped && myUncappedCount >= MAX_UNCAPPED_RETENTIONS) return { ok: false, reason: `Max ${MAX_UNCAPPED_RETENTIONS} uncapped reached` };
+        if (!isUncapped && myCappedCount >= MAX_CAPPED_RETENTIONS) return { ok: false, reason: `Max ${MAX_CAPPED_RETENTIONS} capped reached` };
+
+        if (p.nationality === 'Overseas' && myOverseasCount >= MAX_OVERSEAS_RETENTIONS) return { ok: false, reason: `Max ${MAX_OVERSEAS_RETENTIONS} overseas reached` };
+        
+        const cost = isUncapped ? UNCAPPED_RETENTION_COST : nextCappedCost;
+        if ((myTeam?.purse ?? 0) < cost) return { ok: false, reason: 'Insufficient purse' };
         return { ok: true };
     };
 
@@ -334,7 +352,7 @@ export default function RetentionPage() {
                         </div>
                         <h1 className="text-2xl font-black text-white">Pre-Auction Retention</h1>
                         <p className="text-xs mt-1" style={{ color: 'var(--color-text-muted)' }}>
-                            Retain up to 4 players from your previous squad · Max 2 overseas
+                            Retain up to {MAX_RETENTIONS} players ({MAX_CAPPED_RETENTIONS} capped, {MAX_UNCAPPED_RETENTIONS} uncapped) · Max {MAX_OVERSEAS_RETENTIONS} overseas
                         </p>
                     </div>
 
@@ -458,7 +476,7 @@ export default function RetentionPage() {
                                                     2025 price: <span className="font-bold" style={{ color: 'var(--color-text-secondary)' }}>₹{player.auctionPrice2025} Cr</span>
                                                 </span>
 
-                                                {myTeam?.confirmed ? null : retained ? (
+                                                 {myTeam?.confirmed ? null : retained ? (
                                                     <button
                                                         onClick={() => retainedData && handleRelease(retainedData.playerId)}
                                                         disabled={!!actionLoading}
@@ -480,7 +498,7 @@ export default function RetentionPage() {
                                                             cursor: canDo ? 'pointer' : 'not-allowed',
                                                         }}
                                                     >
-                                                        {isLoading ? '...' : player.capStatus === 'Uncapped' ? '+ Retain (₹4 Cr)' : `+ Retain (₹${nextCost} Cr)`}
+                                                        {isLoading ? '...' : player.capStatus === 'Uncapped' ? `+ Retain (₹${UNCAPPED_RETENTION_COST} Cr)` : `+ Retain (₹${nextCappedCost} Cr)`}
                                                     </button>
                                                 )}
                                             </div>
@@ -497,7 +515,12 @@ export default function RetentionPage() {
                         <div className="panel-gold">
                             <div className="flex items-center justify-between mb-3">
                                 <h3 className="text-sm font-bold text-white">My Retentions</h3>
-                                <span className="text-xs font-bold gold-text">{myTeam?.retained.length ?? 0}/{MAX_RETENTIONS}</span>
+                                <div className="text-right">
+                                    <span className="text-xs font-bold gold-text block">{myTeam?.retained.length ?? 0}/{MAX_RETENTIONS}</span>
+                                    <span className="text-[9px] font-bold text-success uppercase tracking-wider">
+                                        {Math.min(2, Math.max(0, 6 - (myTeam?.retained.length ?? 0)))} RTM Cards
+                                    </span>
+                                </div>
                             </div>
 
                             {/* Purse */}
@@ -518,7 +541,8 @@ export default function RetentionPage() {
                                 {/* Slot cost preview */}
                                 {!myTeam?.confirmed && (myTeam?.retained.length ?? 0) < MAX_RETENTIONS && (
                                     <p className="text-[10px] mt-2" style={{ color: 'var(--color-text-muted)' }}>
-                                        Next retention (slot {nextSlot}) costs <span className="font-bold" style={{ color: 'var(--color-gold)' }}>₹{nextCost} Cr</span>
+                                        Next capped retention (slot {myCappedCount + 1}) costs <span className="font-bold" style={{ color: 'var(--color-gold)' }}>₹{nextCappedCost} Cr</span>
+                                        <br />Uncapped retentions are fixed at <span className="font-bold" style={{ color: 'var(--color-gold)' }}>₹{UNCAPPED_RETENTION_COST} Cr</span>
                                     </p>
                                 )}
                             </div>
@@ -595,14 +619,15 @@ export default function RetentionPage() {
                         {/* Slot cost table */}
                         <div className="panel">
                             <h3 className="text-xs font-semibold tracking-wider uppercase mb-3" style={{ color: 'var(--color-text-muted)' }}>
-                                Retention Costs
+                                Retention Fee Structure
                             </h3>
                             <div className="space-y-2">
-                                {RETENTION_COSTS.map((cost, i) => (
+                                <div className="text-[10px] font-bold gold-text mb-2 uppercase tracking-tighter">Capped Players</div>
+                                {CAPPED_RETENTION_COSTS.map((cost, i) => (
                                     <div key={i} className="flex justify-between items-center text-xs py-1 px-2 rounded-lg" style={{
-                                        background: (myTeam?.retained.length ?? 0) > i
+                                        background: myCappedCount > i
                                             ? 'rgba(212,175,55,0.08)'
-                                            : (myTeam?.retained.length ?? 0) === i
+                                            : myCappedCount === i
                                                 ? 'rgba(255,255,255,0.04)'
                                                 : 'transparent',
                                     }}>
@@ -610,12 +635,20 @@ export default function RetentionPage() {
                                             {i + 1}{i === 0 ? 'st' : i === 1 ? 'nd' : i === 2 ? 'rd' : 'th'} player
                                         </span>
                                         <span className="font-bold font-mono" style={{
-                                            color: (myTeam?.retained.length ?? 0) > i ? 'var(--color-gold)' : 'var(--color-text-primary)',
+                                            color: myCappedCount > i ? 'var(--color-gold)' : 'var(--color-text-primary)',
                                         }}>
-                                            {(myTeam?.retained.length ?? 0) > i ? '✓ ' : ''}₹{cost} Cr
+                                            {myCappedCount > i ? '✓ ' : ''}₹{cost} Cr
                                         </span>
                                     </div>
                                 ))}
+                                <div className="text-[10px] font-bold gold-text mb-2 mt-4 uppercase tracking-tighter">Uncapped Players</div>
+                                <div className="flex justify-between items-center text-xs py-1 px-2 rounded-lg" style={{
+                                    background: 'rgba(102,187,106,0.05)',
+                                    border: '1px solid rgba(102,187,106,0.1)'
+                                }}>
+                                    <span style={{ color: 'var(--color-text-secondary)' }}>Any player</span>
+                                    <span className="font-bold font-mono" style={{ color: '#66BB6A' }}>₹{UNCAPPED_RETENTION_COST} Cr</span>
+                                </div>
                             </div>
                         </div>
 
@@ -646,13 +679,13 @@ export default function RetentionPage() {
                                                         <p className="text-[10px]" style={{ color: 'var(--color-text-muted)' }}>{team.username}</p>
                                                     </div>
                                                 </div>
-                                                {team.confirmed ? (
+                                                 {team.confirmed ? (
                                                     <span className="text-[10px] px-2 py-0.5 rounded-full font-bold" style={{ background: 'rgba(102,187,106,0.15)', color: '#66BB6A' }}>
                                                         LOCKED ✓
                                                     </span>
                                                 ) : (
                                                     <span className="text-[10px] px-2 py-0.5 rounded-full font-bold" style={{ background: 'rgba(255,255,255,0.05)', color: 'var(--color-text-muted)' }}>
-                                                        {team.retained.length}/4
+                                                        {team.retained.length}/{MAX_RETENTIONS}
                                                     </span>
                                                 )}
                                             </div>

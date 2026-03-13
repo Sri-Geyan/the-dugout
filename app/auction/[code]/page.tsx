@@ -161,6 +161,7 @@ export default function AuctionPage() {
     }, [code, isLoggedIn]);
 
     const handleBid = async (amount: number) => {
+        setBidError(null);
         try {
             const res = await fetch('/api/auction', {
                 method: 'POST',
@@ -168,9 +169,13 @@ export default function AuctionPage() {
                 body: JSON.stringify({ action: 'bid', roomCode: code, amount }),
             });
             const data = await res.json();
+            if (!res.ok) {
+                setBidError(data.error || 'Bid failed');
+            }
             if (data.state) setAuction(data.state);
         } catch (err) {
             console.error('Bid failed:', err);
+            setBidError('Failed to place bid. Please try again.');
         }
     };
 
@@ -253,6 +258,7 @@ export default function AuctionPage() {
     };
 
     const handleBargain = async (amount: number) => {
+        setBidError(null);
         try {
             const res = await fetch('/api/auction', {
                 method: 'POST',
@@ -260,8 +266,14 @@ export default function AuctionPage() {
                 body: JSON.stringify({ action: 'bargain', roomCode: code, amount }),
             });
             const data = await res.json();
+            if (!res.ok) {
+                setBidError(data.error || 'Bargain bid failed');
+            }
             if (data.state) setAuction(data.state);
-        } catch (err) { console.error(err); }
+        } catch (err) {
+            console.error('Bargain failed:', err);
+            setBidError('Failed to place bargain bid.');
+        }
     };
 
     const handleFinalMatch = async (execute: boolean) => {

@@ -97,6 +97,8 @@ export async function POST(request: NextRequest) {
             const result = await retainPlayer(roomCode, session.userId, playerName);
             if (!result.success) return NextResponse.json({ error: result.error, state: result.state }, { status: 400 });
             emitToRoom(roomCode, 'retention_update', { state: result.state });
+            const room = await getRoomState(roomCode);
+            if (room) emitToRoom(roomCode, 'room_update', { room });
             return NextResponse.json({ state: result.state });
         }
 
@@ -106,6 +108,8 @@ export async function POST(request: NextRequest) {
             const result = await releasePlayer(roomCode, session.userId, playerId);
             if (!result.success) return NextResponse.json({ error: result.error, state: result.state }, { status: 400 });
             emitToRoom(roomCode, 'retention_update', { state: result.state });
+            const room = await getRoomState(roomCode);
+            if (room) emitToRoom(roomCode, 'room_update', { room });
             return NextResponse.json({ state: result.state });
         }
 
@@ -114,6 +118,8 @@ export async function POST(request: NextRequest) {
             const result = await confirmRetentions(roomCode, session.userId);
             if (!result.success) return NextResponse.json({ error: result.error, state: result.state }, { status: 400 });
             emitToRoom(roomCode, 'retention_update', { state: result.state });
+            const room = await getRoomState(roomCode);
+            if (room) emitToRoom(roomCode, 'room_update', { room });
             return NextResponse.json({ state: result.state });
         }
 

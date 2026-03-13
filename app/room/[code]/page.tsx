@@ -61,9 +61,10 @@ export default function RoomPage() {
         socket.on('room_update', (data: { room: RoomState }) => {
             console.log('[Socket] Room updated:', data.room);
             setRoom(data.room);
-            if (data.room.status === 'retention') router.push(`/retention/${code}`);
-            if (data.room.status === 'auction') router.push(`/auction/${code}`);
-            if (data.room.status === 'match') router.push(`/match/${code}`);
+            const status = data.room.status.toLowerCase();
+            if (status === 'retention') router.push(`/retention/${code}`);
+            if (status === 'auction') router.push(`/auction/${code}`);
+            if (status === 'match') router.push(`/match/${code}`);
         });
 
         return () => {
@@ -78,9 +79,10 @@ export default function RoomPage() {
             if (res.ok) {
                 const data = await res.json();
                 setRoom(data.room);
-                if (data.room.status === 'retention') router.push(`/retention/${code}`);
-                if (data.room.status === 'auction') router.push(`/auction/${code}`);
-                if (data.room.status === 'match') router.push(`/match/${code}`);
+                const status = data.room.status.toLowerCase();
+                if (status === 'retention') router.push(`/retention/${code}`);
+                if (status === 'auction') router.push(`/auction/${code}`);
+                if (status === 'match') router.push(`/match/${code}`);
             }
         } catch (err) {
             console.error('Failed to fetch room:', err);

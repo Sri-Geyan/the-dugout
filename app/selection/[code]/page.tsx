@@ -97,11 +97,10 @@ export default function SelectionPage() {
             if (roomRes.ok) {
                 const roomData = await roomRes.json();
                 setHostId(roomData.room.hostId);
-                // If match already started, auto-redirect
-                if (roomData.room.status === 'MATCH' || roomData.room.status === 'match') {
+                const status = roomData.room.status?.toLowerCase();
+                if (status === 'match') {
                     router.push(`/match/${code}`);
-                }
-                if (roomData.room.status === 'LEAGUE' || roomData.room.status === 'league') {
+                } else if (status === 'league') {
                     router.push(`/league/${code}`);
                 }
             }
@@ -119,7 +118,8 @@ export default function SelectionPage() {
             socket.on('connect', onConnect);
 
             socket.on('room_update', (data: { room: any }) => {
-                if (data.room.status === 'match' || data.room.status === 'league') {
+                const status = data.room.status?.toLowerCase();
+                if (status === 'match' || status === 'league') {
                     router.push(`/league/${code}`);
                 }
             });

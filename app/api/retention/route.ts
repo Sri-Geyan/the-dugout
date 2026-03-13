@@ -86,6 +86,7 @@ export async function POST(request: NextRequest) {
 
             console.log(`[Retention] Room ${roomCode} moved to retention phase`);
             emitToRoom(roomCode, 'retention_update', { state });
+            if (room) emitToRoom(roomCode, 'room_update', { room });
             return NextResponse.json({ state });
         }
 
@@ -168,6 +169,7 @@ export async function POST(request: NextRequest) {
             await updateRoomStatus(roomCode, 'AUCTION');
 
             emitToRoom(roomCode, 'auction_update', { state: auctionState });
+            if (room) emitToRoom(roomCode, 'room_update', { room: { ...room, status: 'AUCTION' } });
             return NextResponse.json({ auctionState });
         }
 

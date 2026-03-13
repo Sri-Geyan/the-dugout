@@ -145,8 +145,11 @@ export default function AuctionPage() {
 
         socket.on('room_update', (data: { room: any }) => {
             console.log('[Socket] Room updated:', data.room);
-            if (data.room.status === 'selection') {
+            const status = data.room.status?.toLowerCase();
+            if (status === 'selection') {
                 router.push(`/selection/${code}`);
+            } else if (status === 'match' || status === 'league') {
+                router.push(`/league/${code}`);
             }
         });
 

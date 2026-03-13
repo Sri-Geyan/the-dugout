@@ -560,12 +560,14 @@ export function processNextBall(state: MatchState): { state: MatchState; ballRes
                 state.nonStriker = temp;
             }
 
+            // Always clear current bowler at the end of the over
+            state.currentBowler = null;
+
             // Set status to awaiting_bowler — user must choose the next bowler
             // But only if the innings isn't about to end
             if (battingTeam.overs < TOTAL_OVERS && battingTeam.wickets < MAX_WICKETS) {
                 if (state.status !== 'awaiting_batter') {
                     state.status = 'awaiting_bowler';
-                    state.currentBowler = null;
                 }
             }
         }
@@ -725,5 +727,23 @@ export async function saveMatchState(state: MatchState): Promise<void> {
 export async function getMatchState(matchId: string): Promise<MatchState | null> {
     const raw = await redis.get(`match:${matchId}`);
     if (!raw) return null;
-    return JSON.parse(raw);
+    
+    const state: MatchState = JSON.parse(raw);
+    
+    // Re-link references that get severed during Redis JSON serialization 
+    // This connects the active tracking objects (striker, currentBowler) back to 
+    // the elements actually inside the battingOrder/bowlingOrder arrays.
+    // If we skip this, modifying striker.runs doesn't update battingOrder[i].runs
+    
+    if (state.striker) {
+        state.striker = state.battingOrder.find(b => b.player.id === state.striker?.player.id) || state.striker;
+    }
+    if (state.nonStriker) {
+        state.nonStriker = state.battingOrder.find(b => b.player.id === state.nonStriker?.player.id) || state.nonStriker;
+    }
+    if (state.currentBowler) {
+        state.currentBowler = state.bowlingOrder.find(b => b.player.id === state.currentBowler?.player.id) || state.currentBowler;
+    }
+
+    return state;
 }

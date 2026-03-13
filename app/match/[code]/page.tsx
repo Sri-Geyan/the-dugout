@@ -224,7 +224,7 @@ export default function MatchPage() {
             }, 1500);
             return () => clearTimeout(timer);
         }
-    }, [match?.status, match?.currentBall, match?.currentOver, hostId, userId]);
+    }, [match?.status, match?.currentBall, match?.currentOver, match?.homeTeam?.score, match?.awayTeam?.score, hostId, userId]);
 
     const handleToss = async () => {
         setTossPhase('flipping');
@@ -643,7 +643,7 @@ export default function MatchPage() {
                                         </span>
                                     </div>
                                     <div className="flex gap-4 text-xs" style={{ color: 'var(--color-text-muted)' }}>
-                                        <span>{match.currentBowler.overs}-{match.currentBowler.maidens}-{match.currentBowler.runs}-{match.currentBowler.wickets}</span>
+                                        <span>{match.currentBowler.overs}.{match.currentBowler.overBalls}-{match.currentBowler.maidens}-{match.currentBowler.runs}-{match.currentBowler.wickets}</span>
                                         <span>Econ: {match.currentBowler.economy}</span>
                                     </div>
                                 </div>

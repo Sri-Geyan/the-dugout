@@ -684,7 +684,7 @@ export function processNextBall(state: MatchState): { state: MatchState; ballRes
 
     // Update chase info for 2nd innings
     if (state.innings === 2 && state.target !== null) {
-        state.runsRequired = state.target - battingTeam.score;
+        state.runsRequired = Math.max(0, state.target - battingTeam.score);
         state.ballsRemaining = (TOTAL_OVERS * 6) - totalBalls;
         state.requiredRunRate = state.ballsRemaining > 0 ? Math.round((state.runsRequired / state.ballsRemaining) * 6 * 100) / 100 : 0;
     }
@@ -762,6 +762,11 @@ export function selectNextBatter(state: MatchState, batterId: string): MatchStat
 
 export function selectNextBowler(state: MatchState, bowlerId: string): MatchState {
     if (state.status !== 'awaiting_bowler') return state;
+
+    if (bowlerId === state.lastBowlerId) {
+        // A bowler cannot bowl consecutive overs
+        return state;
+    }
 
     const bowler = state.bowlingOrder.find(b => b.player.id === bowlerId && b.overs < 4);
     if (!bowler) return state;

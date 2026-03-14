@@ -116,6 +116,26 @@ export default function MatchPage() {
     const [hostId, setHostId] = useState('');
     const [activeInningsTab, setActiveInningsTab] = useState<1 | 2>(1);
 
+    const [showNoBallBuzzer, setShowNoBallBuzzer] = useState(false);
+    const prevCommentaryLength = useRef<number>(0);
+
+    useEffect(() => {
+        if (match && match.commentary.length > prevCommentaryLength.current) {
+            const latestCommentary = match.commentary[0] || '';
+            if (latestCommentary.toLowerCase().includes('no ball')) {
+                setShowNoBallBuzzer(true);
+                setTimeout(() => setShowNoBallBuzzer(false), 3500);
+                
+                try {
+                    const audio = new Audio('/buzzer.mp3');
+                    audio.volume = 0.5;
+                    audio.play().catch(() => {});
+                } catch (e) {}
+            }
+        }
+        prevCommentaryLength.current = match?.commentary.length || 0;
+    }, [match?.commentary]);
+
     const BOT_USERNAMES = [
         'Chennai Super Kings', 'Mumbai Indians', 'Royal Challengers Bengaluru', 'Kolkata Knight Riders',
         'Delhi Capitals', 'Sunrisers Hyderabad', 'Punjab Kings', 'Rajasthan Royals',
@@ -979,7 +999,7 @@ export default function MatchPage() {
                         {isUserBowlingTeam && (
                             <div className="p-4 space-y-2 max-h-96 overflow-y-auto">
                                 {match.bowlingOrder
-                                    .filter(b => b.overs < 4)
+                                    .filter(b => b.overs < 4 && b.player.id !== (match as any).lastBowlerId)
                                     .map(b => (
                                         <button
                                             key={b.player.id}
@@ -1017,6 +1037,27 @@ export default function MatchPage() {
                             </div>
                         )}
                     </div>
+                </div>
+            )}
+
+            {/* No Ball Buzzer Overlay */}
+            {showNoBallBuzzer && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center pointer-events-none" style={{
+                    background: 'radial-gradient(circle at center, rgba(239,68,68,0.2) 0%, rgba(239,68,68,0.4) 100%)',
+                    animation: 'pulse 0.5s infinite alternate'
+                }}>
+                    <div className="bg-red-600 text-white border-4 border-white px-12 py-6 rounded-3xl transform -rotate-12 animate-bounce flex items-center gap-6" style={{
+                        boxShadow: '0 0 50px rgba(220,38,38,0.8)'
+                    }}>
+                        <span className="text-6xl">🚨</span>
+                        <div>
+                            <h1 className="text-6xl font-black uppercase tracking-widest italic" style={{ textShadow: '2px 2px 0 #000' }}>NO BALL</h1>
+                            <p className="text-2xl font-bold uppercase tracking-widest mt-2" style={{ textShadow: '1px 1px 0 #000' }}>FREE HIT!</p>
+                        </div>
+                        <span className="text-6xl">🚨</span>
+                    </div>
+                    {/* Flashing borders */}
+                    <div className="absolute inset-0 border-[16px] border-red-500 animate-pulse opacity-50"></div>
                 </div>
             )}
         </div>

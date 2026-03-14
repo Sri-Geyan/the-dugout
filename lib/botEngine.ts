@@ -113,12 +113,15 @@ export function getBotMaxHighBid(
 function shouldBotBid(
     player: CricketPlayer,
     currentBid: number,
+    hasCurrentBidder: boolean,
     team: AuctionTeam,
     personality: BotPersonality
 ): { shouldBid: boolean; bidAmount: number } {
     const skillCap = getBotMaxHighBid(player, team);
 
-    const bidAmount = Math.round((currentBid + BID_INCREMENT) * 100) / 100;
+    const bidAmount = !hasCurrentBidder
+        ? currentBid
+        : Math.round((currentBid + BID_INCREMENT) * 100) / 100;
     if (bidAmount > skillCap) return { shouldBid: false, bidAmount: 0 };
 
     // Probability of bidding decreases as bid ratio to max climbs
@@ -175,6 +178,7 @@ export async function runBotBidding(roomCode: string): Promise<AuctionState | nu
             const { shouldBid, bidAmount } = shouldBotBid(
                 state.currentPlayer,
                 state.currentBid,
+                !!state.currentBidder,
                 freshTeam,
                 personality
             );

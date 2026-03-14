@@ -305,28 +305,44 @@ export default function AuctionPanel({
             {/* Bid Buttons */}
             {status === 'bidding' && (
                 <div className="space-y-3">
-                    <div className="grid grid-cols-3 gap-2">
-                        {[BID_INCREMENT, 0.5, 1].map((inc) => {
-                            const bidAmount = Math.round((currentBid + inc) * 100) / 100;
-                            const canAfford = bidAmount <= userPurse;
-                            return (
-                                <button
-                                    key={inc}
-                                    onClick={() => onBid(bidAmount)}
-                                    disabled={!canBid || !canAfford}
-                                    className="py-3 rounded-lg text-sm font-bold transition-all"
-                                    style={{
-                                        background: canBid && canAfford ? 'rgba(212, 175, 55, 0.1)' : 'rgba(255,255,255,0.03)',
-                                        color: canBid && canAfford ? 'var(--color-gold)' : 'var(--color-text-muted)',
-                                        border: `1px solid ${canBid && canAfford ? 'rgba(212, 175, 55, 0.3)' : 'var(--color-border)'}`,
-                                        cursor: canBid && canAfford ? 'pointer' : 'not-allowed',
-                                    }}
-                                >
-                                    +{inc} Cr
-                                </button>
-                            );
-                        })}
-                    </div>
+                    {!currentBidder ? (
+                        <button
+                            onClick={() => currentPlayer && onBid(currentPlayer.basePrice)}
+                            disabled={!canBid || (currentPlayer ? currentPlayer.basePrice > userPurse : false)}
+                            className="w-full py-3 rounded-lg text-sm font-bold transition-all"
+                            style={{
+                                background: canBid && (currentPlayer ? currentPlayer.basePrice <= userPurse : false) ? 'rgba(212, 175, 55, 0.1)' : 'rgba(255,255,255,0.03)',
+                                color: canBid && (currentPlayer ? currentPlayer.basePrice <= userPurse : false) ? 'var(--color-gold)' : 'var(--color-text-muted)',
+                                border: `1px solid ${canBid && (currentPlayer ? currentPlayer.basePrice <= userPurse : false) ? 'rgba(212, 175, 55, 0.3)' : 'var(--color-border)'}`,
+                                cursor: canBid && (currentPlayer ? currentPlayer.basePrice <= userPurse : false) ? 'pointer' : 'not-allowed',
+                            }}
+                        >
+                            Start Bid at Base Price (₹{currentPlayer?.basePrice} Cr)
+                        </button>
+                    ) : (
+                        <div className="grid grid-cols-3 gap-2">
+                            {[BID_INCREMENT, 0.5, 1].map((inc) => {
+                                const bidAmount = Math.round((currentBid + inc) * 100) / 100;
+                                const canAfford = bidAmount <= userPurse;
+                                return (
+                                    <button
+                                        key={inc}
+                                        onClick={() => onBid(bidAmount)}
+                                        disabled={!canBid || !canAfford}
+                                        className="py-3 rounded-lg text-sm font-bold transition-all"
+                                        style={{
+                                            background: canBid && canAfford ? 'rgba(212, 175, 55, 0.1)' : 'rgba(255,255,255,0.03)',
+                                            color: canBid && canAfford ? 'var(--color-gold)' : 'var(--color-text-muted)',
+                                            border: `1px solid ${canBid && canAfford ? 'rgba(212, 175, 55, 0.3)' : 'var(--color-border)'}`,
+                                            cursor: canBid && canAfford ? 'pointer' : 'not-allowed',
+                                        }}
+                                    >
+                                        +{inc} Cr
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    )}
                     <p className="text-xs text-center" style={{ color: 'var(--color-text-muted)' }}>
                         Your Purse: <span className="font-semibold gold-text">₹{userPurse} Cr</span>
                     </p>

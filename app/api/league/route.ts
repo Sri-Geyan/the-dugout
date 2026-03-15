@@ -64,14 +64,7 @@ export async function POST(request: NextRequest) {
                 teamName: t.teamName,
                 teamId: (t as unknown as { teamId?: string }).teamId,
                 squad: t.squad.map(s => ({
-                    player: {
-                        id: s.player.id,
-                        name: s.player.name,
-                        role: s.player.role || 'BATSMAN',
-                        battingSkill: s.player.battingSkill || 50,
-                        bowlingSkill: s.player.bowlingSkill || 30,
-                        nationality: s.player.nationality,
-                    },
+                    player: s.player,
                     soldPrice: s.soldPrice,
                 })),
             }));

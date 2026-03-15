@@ -49,6 +49,7 @@ interface LeagueState {
     orangeCap: { playerId: string; playerName: string; teamName: string; runs: number } | null;
     purpleCap: { playerId: string; playerName: string; teamName: string; wickets: number } | null;
     mvp: { playerId: string; playerName: string; teamName: string; impactScore: number } | null;
+    teams: any[];
 }
 
 interface LeaderboardData {
@@ -66,7 +67,7 @@ interface LeaderboardData {
     halfCenturies: any[];
 }
 
-type Tab = 'standings' | 'fixtures' | 'awards';
+type Tab = 'standings' | 'fixtures' | 'awards' | 'squads';
 
 function StatTable({ title, data, valueKey, label, color, limit, formatValue }: any) {
     return (
@@ -101,6 +102,46 @@ function StatTable({ title, data, valueKey, label, color, limit, formatValue }: 
     );
 }
 
+function SquadCategory({ title, players, color }: any) {
+    if (players.length === 0) return null;
+    return (
+        <div>
+            <h3 className="text-xs font-bold tracking-widest uppercase mb-4 px-2" style={{ color }}>{title}</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {players.map((s: any) => (
+                    <PlayerCard key={s.player.id} player={s.player} price={s.soldPrice} color={color} />
+                ))}
+            </div>
+        </div>
+    );
+}
+
+function PlayerCard({ player, price, color }: any) {
+    return (
+        <div className="panel group flex items-center justify-between gap-4 p-4 hover:bg-white/[0.02] transition-colors">
+            <div className="flex items-center gap-4">
+                <div className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center border border-white/10 group-hover:border-gold/30 transition-colors">
+                    <span className="text-xl opacity-80 group-hover:opacity-100">{player.role === 'BATSMAN' ? '🏏' : player.role === 'BOWLER' ? '🎯' : player.role === 'ALL_ROUNDER' ? '🌟' : '🧤'}</span>
+                </div>
+                <div>
+                    <h4 className="text-sm font-bold group-hover:text-gold transition-colors">{player.name}</h4>
+                    <div className="flex items-center gap-2 mt-1">
+                        <span className="text-[10px] opacity-40 uppercase font-bold tracking-tighter">{player.nationality || 'Indian'}</span>
+                        <span className="w-1 h-1 rounded-full bg-white/10" />
+                        <span className="text-[10px] font-mono text-white/40">₹{(price / 100).toFixed(1)}Cr</span>
+                    </div>
+                </div>
+            </div>
+            <div className="text-right">
+                <div className="text-[10px] font-black font-mono leading-none" style={{ color }}>
+                    {player.battingSkill}/{player.bowlingSkill}
+                </div>
+                <div className="text-[8px] font-bold opacity-20 uppercase tracking-tighter mt-1">S/K</div>
+            </div>
+        </div>
+    );
+}
+
 export default function LeaguePage() {
     const params = useParams();
     const code = params.code as string;
@@ -120,6 +161,7 @@ export default function LeaguePage() {
     } | null>(null);
     const [leaderboard, setLeaderboard] = useState<LeaderboardData | null>(null);
     const [fetchingLeaderboard, setFetchingLeaderboard] = useState(false);
+    const [selectedSquadTeamId, setSelectedSquadTeamId] = useState<string | null>(null);
 
     const fetchLeague = useCallback(async () => {
         try {
@@ -178,6 +220,14 @@ export default function LeaguePage() {
             fetchLeaderboard();
         }
     }, [activeTab, leaderboard, fetchLeaderboard]);
+
+    useEffect(() => {
+        if (league?.teams && !selectedSquadTeamId) {
+            setSelectedSquadTeamId(league.teams[0].userId);
+        }
+    }, [league, selectedSquadTeamId]);
+
+    const selectedTeam = league?.teams?.find(t => t.userId === selectedSquadTeamId);
 
     useEffect(() => {
         const socket = getSocket();
@@ -378,6 +428,7 @@ export default function LeaguePage() {
                             {tab === 'standings' && '📊 '}
                             {tab === 'fixtures' && '📅 '}
                             {tab === 'awards' && '🏅 '}
+                            {tab === 'squads' && '👥 '}
                             {tab}
                         </button>
                     ))}
@@ -703,7 +754,66 @@ export default function LeaguePage() {
                     </div>
                 )}
 
-                {/* League Complete Banner */}
+                {/* ─── SQUADS TAB ─── */}
+                {activeTab === 'squads' && (
+                    <div className="space-y-8">
+                        {/* Team Selector */}
+                        <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+                            {league.teams.map(team => {
+                                const iplTeam = getTeamInfo(team.teamName);
+                                const isSelected = selectedSquadTeamId === team.userId;
+                                return (
+                                    <button
+                                        key={team.userId}
+                                        onClick={() => setSelectedSquadTeamId(team.userId)}
+                                        className="panel flex-shrink-0 flex items-center gap-3 py-3 px-6 transition-all hover:scale-105"
+                                        style={{
+                                            borderColor: isSelected ? (iplTeam?.color || 'var(--color-gold)') : 'var(--color-border)',
+                                            background: isSelected ? `${iplTeam?.color}10` : 'var(--color-bg-panel)',
+                                            borderWidth: isSelected ? '2px' : '1px',
+                                        }}
+                                    >
+                                        <span className="text-xl">{iplTeam?.emoji}</span>
+                                        <div className="text-left">
+                                            <p className="text-xs font-bold leading-tight" style={{ color: isSelected ? (iplTeam?.color || 'white') : 'white' }}>
+                                                {iplTeam?.shortName || team.teamName}
+                                            </p>
+                                            <p className="text-[10px] opacity-40 uppercase tracking-tighter">
+                                                {team.squad.length} Players
+                                            </p>
+                                        </div>
+                                    </button>
+                                );
+                            })}
+                        </div>
+
+                        {/* Squad Display */}
+                        {selectedTeam && (
+                            <div className="space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                                <SquadCategory 
+                                    title="⚡ Batters" 
+                                    players={selectedTeam.squad.filter((s: any) => s.player.role === 'BATSMAN')} 
+                                    color="#FF6B00"
+                                />
+                                <SquadCategory 
+                                    title="🧤 Wicketkeepers" 
+                                    players={selectedTeam.squad.filter((s: any) => s.player.role === 'WICKETKEEPER')} 
+                                    color="#3B82F6"
+                                />
+                                <SquadCategory 
+                                    title="🌟 All-rounders" 
+                                    players={selectedTeam.squad.filter((s: any) => s.player.role === 'ALL_ROUNDER')} 
+                                    color="var(--color-gold)"
+                                />
+                                <SquadCategory 
+                                    title="🎯 Bowlers" 
+                                    players={selectedTeam.squad.filter((s: any) => s.player.role === 'BOWLER')} 
+                                    color="#8B5CF6"
+                                />
+                            </div>
+                        )}
+                    </div>
+                )}
                 {
                     league.status === 'completed' && (
                         <div className="panel-gold mt-8 text-center">

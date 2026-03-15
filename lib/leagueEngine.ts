@@ -79,6 +79,7 @@ export interface LeagueState {
     orangeCap: { playerId: string; playerName: string; teamName: string; runs: number } | null;
     purpleCap: { playerId: string; playerName: string; teamName: string; wickets: number } | null;
     mvp: { playerId: string; playerName: string; teamName: string; impactScore: number } | null;
+    teams: LeagueTeam[];
 }
 
 // ======================================================
@@ -143,6 +144,7 @@ export function initLeagueState(roomCode: string, teams: LeagueTeam[]): LeagueSt
         status: 'active',
         fixtures,
         standings,
+        teams,
         playerStats: [],
         currentMatchIndex: 0,
         totalMatches: fixtures.length,

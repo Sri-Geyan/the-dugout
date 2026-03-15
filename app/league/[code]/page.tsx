@@ -109,14 +109,14 @@ function SquadCategory({ title, players, color }: any) {
             <h3 className="text-xs font-bold tracking-widest uppercase mb-4 px-2" style={{ color }}>{title}</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {players.map((s: any) => (
-                    <PlayerCard key={s.player.id} player={s.player} price={s.soldPrice} color={color} />
+                    <PlayerCard key={s.player.id} player={s.player} color={color} />
                 ))}
             </div>
         </div>
     );
 }
 
-function PlayerCard({ player, price, color }: any) {
+function PlayerCard({ player, color }: any) {
     return (
         <div className="panel group flex items-center justify-between gap-4 p-4 hover:bg-white/[0.02] transition-colors">
             <div className="flex items-center gap-4">
@@ -127,8 +127,6 @@ function PlayerCard({ player, price, color }: any) {
                     <h4 className="text-sm font-bold group-hover:text-gold transition-colors">{player.name}</h4>
                     <div className="flex items-center gap-2 mt-1">
                         <span className="text-[10px] opacity-40 uppercase font-bold tracking-tighter">{player.nationality || 'Indian'}</span>
-                        <span className="w-1 h-1 rounded-full bg-white/10" />
-                        <span className="text-[10px] font-mono text-white/40">₹{(price / 100).toFixed(1)}Cr</span>
                     </div>
                 </div>
             </div>

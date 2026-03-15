@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
         }).slice(0, 5),
         
         economy: stats
-            .filter(ps => ps.oversBowled >= 12) // Min 2 overs
+            .filter(ps => ps.oversBowled >= 100) // Min 100 balls bowled
             .sort((a, b) => {
                 const ecoA = (a.runsConceded / a.oversBowled) * 6;
                 const ecoB = (b.runsConceded / b.oversBowled) * 6;
@@ -45,7 +45,7 @@ export async function GET(request: NextRequest) {
             }).slice(0, 5),
             
         strikeRate: stats
-            .filter(ps => ps.balls >= 20) // Min 20 balls faced
+            .filter(ps => ps.balls >= 100) // Min 100 balls faced
             .sort((a, b) => {
                 const srA = (a.runs / a.balls) * 100;
                 const srB = (b.runs / b.balls) * 100;

@@ -412,7 +412,7 @@ export default function LeaguePage() {
 
                 {/* Tab Navigation */}
                 <div className="flex gap-1 mb-6 p-1 rounded-xl" style={{ background: 'var(--color-bg-elevated)' }}>
-                    {(['standings', 'fixtures', 'awards'] as Tab[]).map(tab => (
+                    {(['standings', 'fixtures', 'awards', 'squads'] as Tab[]).map(tab => (
                         <button
                             key={tab}
                             onClick={() => setActiveTab(tab)}
@@ -445,6 +445,7 @@ export default function LeaguePage() {
                                     <th className="py-3 px-2 text-[10px] font-semibold tracking-wider uppercase text-center" style={{ color: 'var(--color-text-muted)' }}>L</th>
                                     <th className="py-3 px-2 text-[10px] font-semibold tracking-wider uppercase text-center" style={{ color: 'var(--color-text-muted)' }}>PTS</th>
                                     <th className="py-3 px-2 text-[10px] font-semibold tracking-wider uppercase text-right" style={{ color: 'var(--color-text-muted)' }}>NRR</th>
+                                    <th className="py-3 px-2 text-[10px] font-semibold tracking-wider uppercase text-right" style={{ color: 'var(--color-text-muted)' }}>Action</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -495,10 +496,26 @@ export default function LeaguePage() {
                                             </td>
                                             <td className="py-3.5 px-2 text-right">
                                                 <span className="text-xs font-mono" style={{
-                                                    color: team.nrr > 0 ? 'var(--color-success)' : team.nrr < 0 ? 'var(--color-danger)' : 'var(--color-text-muted)'
+                                                    color: team.nrr > 0 ? "var(--color-success)" : team.nrr < 0 ? "var(--color-danger)" : "var(--color-text-muted)"
                                                 }}>
-                                                    {team.nrr > 0 ? '+' : ''}{team.nrr.toFixed(3)}
+                                                    {team.nrr > 0 ? "+" : ""}{team.nrr.toFixed(3)}
                                                 </span>
+                                            </td>
+                                            <td className="py-3.5 px-2 text-right">
+                                                <button
+                                                    onClick={() => {
+                                                        setSelectedSquadTeamId(team.userId);
+                                                        setActiveTab('squads');
+                                                    }}
+                                                    className="text-[10px] font-bold py-1 px-3 rounded-md transition-all hover:scale-105"
+                                                    style={{ 
+                                                        background: `${teamColor}15`, 
+                                                        color: teamColor,
+                                                        border: `1px solid ${teamColor}30`
+                                                    }}
+                                                >
+                                                    View Squad
+                                                </button>
                                             </td>
                                         </tr>
                                     );

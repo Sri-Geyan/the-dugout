@@ -11,21 +11,7 @@ interface TeamSelectorProps {
     disabled?: boolean;
 }
 
-function TeamLogo({ team, size = 48 }: { team: IPLTeam; size?: number }) {
-    const [imgError, setImgError] = useState(false);
-    return imgError ? (
-        <span className="text-2xl">{team.emoji}</span>
-    ) : (
-        <img
-            src={team.logo}
-            alt={team.shortName}
-            width={size}
-            height={size}
-            className="object-contain"
-            onError={() => setImgError(true)}
-        />
-    );
-}
+import TeamLogo from './TeamLogo';
 
 export default function TeamSelector({ selectedTeamId, onSelect, takenTeamIds, disabled }: TeamSelectorProps) {
     return (

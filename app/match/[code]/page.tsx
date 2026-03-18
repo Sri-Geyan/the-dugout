@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useRouter, useParams, useSearchParams } from 'next/navigation';
 import { useUserStore } from '@/lib/store';
 import Navbar from '@/components/Navbar';
@@ -10,6 +10,7 @@ import { STADIUMS, getStadiumById } from '@/data/stadiums';
 import { getTeamByName } from '@/data/teams';
 import { CricketPlayer } from '@/data/players';
 import { StadiumCard } from '@/components/StadiumCard';
+import TeamLogo from '@/components/TeamLogo';
 
 interface MatchTeam {
     teamId: string;
@@ -218,7 +219,7 @@ export default function MatchPage() {
         if (socket.connected) onConnect();
         socket.on('connect', onConnect);
 
-        socket.on('match_update', (data: any) => {
+        socket.on('match_update', (data: { state?: any; toss?: any }) => {
             if (data.state) {
                 setMatch(data.state);
             }
@@ -281,14 +282,15 @@ export default function MatchPage() {
         const auction = auctionData.state;
         if (!auction) return;
 
-        let homeTeam: any, awayTeam: any;
+        let homeTeam: { teamId: string; name: string; userId: string } | null = null;
+        let awayTeam: { teamId: string; name: string; userId: string } | null = null;
         if (fixtureId) {
             const leagueRes = await fetch(`/api/league?roomCode=${code}`);
             const leagueData = await leagueRes.json();
-            const fixture = leagueData.state?.fixtures?.find((f: any) => f.id === fixtureId);
+            const fixture = leagueData.state?.fixtures?.find((f: { id: string | number }) => String(f.id) === String(fixtureId));
             if (fixture) {
-                const h = auction.teams.find((t: any) => t.userId === fixture.homeTeamUserId);
-                const a = auction.teams.find((t: any) => t.userId === fixture.awayTeamUserId);
+                const h = auction.teams.find((t: { userId: string; teamName: string }) => t.userId === fixture.homeTeamUserId);
+                const a = auction.teams.find((t: { userId: string; teamName: string }) => t.userId === fixture.awayTeamUserId);
                 homeTeam = { teamId: h?.userId, name: h?.teamName, userId: h?.userId };
                 awayTeam = { teamId: a?.userId, name: a?.teamName, userId: a?.userId };
             }
@@ -376,6 +378,19 @@ export default function MatchPage() {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ action: 'ball', matchId: match.matchId }),
+        });
+        const data = await res.json();
+        if (data.state) setMatch(data.state);
+    };
+
+    const handleSkipMatch = async () => {
+        if (!match) return;
+        if (!confirm("Are you sure you want to skip to the end of this match?")) return;
+
+        const res = await fetch('/api/match', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'skip', matchId: match.matchId }),
         });
         const data = await res.json();
         if (data.state) setMatch(data.state);
@@ -609,11 +624,14 @@ export default function MatchPage() {
                                     <div className="absolute top-0 left-0 w-full h-0.5" style={{ background: 'var(--color-gold)' }} />
                                 )}
                                 <div className="flex items-center justify-between mb-2">
-                                    <div>
-                                        <h3 className="text-sm font-bold">{team.name}</h3>
-                                        <span className="text-[10px]" style={{ color: 'var(--color-text-muted)' }}>
-                                            {isBatting ? '🏏 Batting' : '🎯 Bowling'}
-                                        </span>
+                                    <div className="flex items-center gap-2">
+                                        <TeamLogo team={getTeamByName(team.name) || { logo: '', emoji: '🏏', shortName: team.name }} size={24} />
+                                        <div>
+                                            <h3 className="text-sm font-bold">{team.name}</h3>
+                                            <span className="text-[10px]" style={{ color: 'var(--color-text-muted)' }}>
+                                                {isBatting ? '🏏 Batting' : '🎯 Bowling'}
+                                            </span>
+                                        </div>
                                     </div>
                                     <div className="text-right">
                                         <p className="text-2xl font-black">
@@ -720,9 +738,19 @@ export default function MatchPage() {
 
                         {/* Ball Button */}
                         {match.status === 'live' && isUserBowlingTeam && (
-                            <button onClick={handleBall} className="btn-primary w-full text-lg py-4" style={{ animation: 'pulse 2s infinite' }}>
-                                🏏 Bowl Next Ball
-                            </button>
+                            <div className="flex gap-3">
+                                <button onClick={handleBall} className="btn-primary flex-1 text-lg py-4" style={{ animation: 'pulse 2s infinite' }}>
+                                    🏏 Bowl Next Ball
+                                </button>
+                                <button 
+                                    onClick={handleSkipMatch}
+                                    className="px-6 rounded-2xl font-black text-[10px] tracking-widest border-2 border-dashed transition-all hover:bg-gold/10 hover:border-gold/50"
+                                    style={{ borderColor: 'rgba(212,175,55,0.2)', color: 'rgba(212,175,55,0.6)' }}
+                                    title="Complete the match instantly"
+                                >
+                                    ⏩ SKIP
+                                </button>
+                            </div>
                         )}
 
                         {match.status === 'live' && !isUserBowlingTeam && (
@@ -799,7 +827,8 @@ export default function MatchPage() {
                                 <>
                                     {/* Batting Card */}
                                     <div className="panel">
-                                        <h3 className="text-[10px] font-black tracking-widest uppercase mb-3 text-white/40">
+                                        <h3 className="text-[10px] font-black tracking-widest uppercase mb-3 text-white/40 flex items-center gap-2">
+                                            <TeamLogo team={getTeamByName(displayBattingTeam.name) || { logo: '', emoji: '🏏', shortName: displayBattingTeam.name }} size={14} />
                                             Batting — {displayBattingTeam.name}
                                         </h3>
                                         <div className="space-y-1">
@@ -864,7 +893,8 @@ export default function MatchPage() {
 
                                     {/* Bowling Card */}
                                     <div className="panel">
-                                        <h3 className="text-[10px] font-black tracking-widest uppercase mb-3 text-white/40">
+                                        <h3 className="text-[10px] font-black tracking-widest uppercase mb-3 text-white/40 flex items-center gap-2">
+                                            <TeamLogo team={getTeamByName(displayBowlingTeam.name) || { logo: '', emoji: '🏏', shortName: displayBowlingTeam.name }} size={14} />
                                             Bowling — {displayBowlingTeam.name}
                                         </h3>
                                         <div className="space-y-1">
@@ -1097,19 +1127,22 @@ function MatchSelectionUI({ team, onLock, isBattingFirst, stadiumId }: {
 
     // Pre-select top 11 by skill by default
     useEffect(() => {
-        const initial = [...team.players]
-            .sort((a, b) => (b.battingSkill + b.bowlingSkill) - (a.battingSkill + a.bowlingSkill))
-            .slice(0, 11)
-            .map(p => p.id);
-        setSelectedIds(initial);
-        
-        const cap = team.players.find(p => p.isCaptain)?.id || initial[0];
-        const wk = team.players.find(p => p.isWicketKeeper)?.id || team.players.find(p => p.role === 'WICKET_KEEPER')?.id || initial[0];
-        const bowl = team.players.find(p => p.role === 'BOWLER')?.id || initial[0];
-        
-        setCaptainId(cap);
-        setWkId(wk);
-        setOpeningBowlerId(bowl);
+        const timer = setTimeout(() => {
+            const initial = [...team.players]
+                .sort((a, b) => (b.battingSkill + b.bowlingSkill) - (a.battingSkill + a.bowlingSkill))
+                .slice(0, 11)
+                .map(p => p.id);
+            setSelectedIds(initial);
+            
+            const cap = team.players.find(p => p.isCaptain)?.id || initial[0];
+            const wk = team.players.find(p => p.isWicketKeeper)?.id || team.players.find(p => p.role === 'WICKET_KEEPER')?.id || initial[0];
+            const bowl = team.players.find(p => p.role === 'BOWLER')?.id || initial[0];
+            
+            setCaptainId(cap);
+            setWkId(wk);
+            setOpeningBowlerId(bowl);
+        }, 0);
+        return () => clearTimeout(timer);
     }, [team.players]);
 
     const togglePlayer = (id: string) => {

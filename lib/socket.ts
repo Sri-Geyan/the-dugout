@@ -6,8 +6,8 @@ let socket: Socket | null = null;
 
 export const getSocket = (): Socket => {
     if (!socket) {
-        // By passing undefined as the URL, socket.io automatically uses the current window's URL
-        socket = io(undefined as any, {
+        // By passing no URL, socket.io automatically uses the current window's URL
+        socket = io({
             path: '/api/socket/io',
             addTrailingSlash: false,
             transports: ['websocket', 'polling'], // Prefer websocket

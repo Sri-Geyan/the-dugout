@@ -6,8 +6,140 @@ import { useUserStore } from '@/lib/store';
 import Navbar from '@/components/Navbar';
 import { IPL_TEAMS } from '@/data/teams';
 import { getSocket } from '@/lib/socket';
-import PlayerAvatar from '@/components/PlayerAvatar';
+import TeamLogo from '@/components/TeamLogo';
 import Link from 'next/link';
+
+function FixtureCard({ fixture, userId, code, router }: { fixture: FixtureEntry, userId: string | null, code: string, router: any }) {
+    const getTeamInfo = (teamName: string) => IPL_TEAMS.find(t => t.name === teamName || t.shortName === teamName || t.id === teamName);
+    
+    const homeTeam = getTeamInfo(fixture.homeTeamName);
+    const awayTeam = getTeamInfo(fixture.awayTeamName);
+    const homeColor = homeTeam?.color || 'var(--color-gold)';
+    const awayColor = awayTeam?.color || 'var(--color-gold)';
+
+    const getFixtureLabel = (fixture: FixtureEntry) => {
+        if (fixture.isKnockout) {
+            if (fixture.knockoutType === 'Q1') return 'Qualifier 1';
+            if (fixture.knockoutType === 'ELIM') return 'Eliminator';
+            if (fixture.knockoutType === 'Q2') return 'Qualifier 2';
+            if (fixture.knockoutType === 'FINAL') return 'Final';
+        }
+        return `Match ${fixture.scheduledOrder}`;
+    };
+
+    return (
+        <div key={fixture.id} className="panel" style={{
+            borderColor: fixture.status === 'live' ? 'var(--color-success)' :
+                fixture.status === 'pre_match' ? 'var(--color-gold)' :
+                    fixture.status === 'completed' ? 'var(--color-border)' : 'var(--color-border)',
+            opacity: fixture.status === 'completed' ? 0.7 : 1,
+            background: fixture.isKnockout ? 'rgba(212, 175, 55, 0.03)' : 'var(--color-bg-panel)',
+        }}>
+            <div className="flex items-center justify-between">
+                {/* Match Number + Status */}
+                <div className="flex items-center gap-2 mb-3 w-full justify-between">
+                    <span className="text-[10px] font-mono font-bold uppercase tracking-wider" style={{ color: fixture.isKnockout ? 'var(--color-gold)' : 'var(--color-text-muted)' }}>
+                        {getFixtureLabel(fixture)}
+                    </span>
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${fixture.status === 'live' ? 'bg-green-500/20 text-green-400' :
+                        fixture.status === 'pre_match' ? 'bg-amber-500/20 text-amber-400' :
+                            fixture.status === 'completed' ? 'bg-white/5 text-white/40' :
+                                'bg-white/5 text-white/30'
+                        }`}>
+                        {fixture.status === 'live' ? '● LIVE' :
+                            fixture.status === 'pre_match' ? '⚡ SELECTION' :
+                                fixture.status === 'pending' && fixture.isKnockout && !fixture.homeTeamUserId ? 'TBD' :
+                                fixture.status.toUpperCase()}
+                    </span>
+                </div>
+            </div>
+
+            <div className="flex items-center justify-between">
+                {/* Home Team */}
+                <div className="flex items-center gap-2 flex-1">
+                    <div className="w-8 h-8 rounded-full flex items-center justify-center border border-white/5"
+                        style={{ background: homeTeam ? `${homeColor}15` : 'rgba(255,255,255,0.02)' }}>
+                        <TeamLogo team={homeTeam || { logo: '', emoji: '❔', shortName: '?' }} size={24} />
+                    </div>
+                    <div>
+                        <p className="text-sm font-bold" style={{ color: homeTeam ? homeColor : 'var(--color-text-muted)' }}>
+                            {homeTeam?.shortName || fixture.homeTeamName}
+                        </p>
+                        {fixture.status === 'completed' && (
+                            <p className="text-xs font-mono" style={{ color: 'var(--color-text-muted)' }}>
+                                {fixture.homeScore}/{fixture.homeWickets} ({fixture.homeOvers})
+                            </p>
+                        )}
+                    </div>
+                </div>
+
+                {/* VS */}
+                <div className="px-4">
+                    <span className="text-[10px] font-black opacity-20 tracking-tighter">VS</span>
+                </div>
+
+                {/* Away Team */}
+                <div className="flex items-center gap-2 flex-1 justify-end text-right">
+                    <div>
+                        <p className="text-sm font-bold" style={{ color: awayTeam ? awayColor : 'var(--color-text-muted)' }}>
+                            {awayTeam?.shortName || fixture.awayTeamName}
+                        </p>
+                        {fixture.status === 'completed' && (
+                            <p className="text-xs font-mono" style={{ color: 'var(--color-text-muted)' }}>
+                                {fixture.awayScore}/{fixture.awayWickets} ({fixture.awayOvers})
+                            </p>
+                        )}
+                    </div>
+                    <div className="w-8 h-8 rounded-full flex items-center justify-center border border-white/5"
+                        style={{ background: awayTeam ? `${awayColor}15` : 'rgba(255,255,255,0.02)' }}>
+                        <TeamLogo team={awayTeam || { logo: '', emoji: '❔', shortName: '?' }} size={24} />
+                    </div>
+                </div>
+            </div>
+
+            {/* Result */}
+            {fixture.result && (
+                <p className="text-[10px] text-center mt-3 pt-2 border-t" style={{
+                    color: 'var(--color-text-muted)',
+                    borderColor: 'var(--color-border)',
+                }}>
+                    {fixture.result}
+                </p>
+            )}
+
+            {/* Actions */}
+            <div className="mt-4 flex gap-2">
+                {fixture.status === 'pre_match' && (
+                    (userId === fixture.homeTeamUserId || userId === fixture.awayTeamUserId) ? (
+                        <button
+                            onClick={() => router.push(`/pre-match/${code}?fixtureId=${fixture.id}`)}
+                            className="btn-primary w-full text-[10px] py-2"
+                        >
+                            🏟️ Join Selection
+                        </button>
+                    ) : (
+                        <div className="w-full text-center py-2 text-[10px] font-medium opacity-50 border border-white/5 rounded-lg">
+                            ⏳ Teams Selecting...
+                        </div>
+                    )
+                )}
+                {fixture.status === 'live' && (
+                    <button
+                        onClick={() => router.push(`/match/${code}?fixtureId=${fixture.id}`)}
+                        className="btn-secondary w-full text-[10px] py-2 border-green-500/50 text-green-400"
+                    >
+                        ▶️ Watch Live
+                    </button>
+                )}
+                {fixture.status === 'pending' && fixture.isKnockout && !fixture.homeTeamUserId && (
+                    <div className="w-full text-center py-2 text-[10px] font-medium opacity-30 border border-white/5 rounded-lg italic">
+                        Awaiting results...
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+}
 
 interface FixtureEntry {
     id: string;
@@ -17,6 +149,8 @@ interface FixtureEntry {
     awayTeamName: string;
     scheduledOrder: number;
     status: 'pending' | 'live' | 'completed' | 'pre_match';
+    isKnockout?: boolean;
+    knockoutType?: 'Q1' | 'ELIM' | 'Q2' | 'FINAL';
     matchId?: string;
     homeScore?: number;
     homeWickets?: number;
@@ -42,6 +176,7 @@ interface TeamStanding {
 interface LeagueState {
     roomCode: string;
     status: 'active' | 'completed';
+    phase: 'league' | 'playoffs';
     fixtures: FixtureEntry[];
     standings: TeamStanding[];
     currentMatchIndex: number;
@@ -471,16 +606,7 @@ export default function LeaguePage() {
                                                     {iplTeam && (
                                                         <div className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0"
                                                             style={{ background: `${teamColor}15` }}>
-                                                            <img
-                                                                src={iplTeam.logo}
-                                                                alt={iplTeam.shortName}
-                                                                width={22} height={22}
-                                                                className="object-contain"
-                                                                onError={(e) => {
-                                                                    (e.target as HTMLImageElement).style.display = 'none';
-                                                                    (e.target as HTMLImageElement).parentElement!.textContent = iplTeam.emoji;
-                                                                }}
-                                                            />
+                                                            <TeamLogo team={iplTeam} size={22} />
                                                         </div>
                                                     )}
                                                     <span className="text-sm font-bold" style={{ color: teamColor }}>
@@ -530,126 +656,38 @@ export default function LeaguePage() {
 
                 {/* ─── FIXTURES TAB ─── */}
                 {activeTab === 'fixtures' && (
-                    <div className="space-y-3">
-                        {league.fixtures.map(fixture => {
-                            const homeTeam = getTeamInfo(fixture.homeTeamName);
-                            const awayTeam = getTeamInfo(fixture.awayTeamName);
-                            const homeColor = homeTeam?.color || 'var(--color-gold)';
-                            const awayColor = awayTeam?.color || 'var(--color-gold)';
+                    <div className="space-y-6">
+                        {/* Playoffs Section */}
+                        {league.fixtures.some(f => f.isKnockout) && (
+                            <div className="space-y-3">
+                                <h3 className="text-xs font-bold tracking-widest uppercase text-gold px-1">🏆 Playoffs</h3>
+                                {league.fixtures.filter(f => f.isKnockout).map(fixture => (
+                                    <FixtureCard 
+                                        key={fixture.id} 
+                                        fixture={fixture} 
+                                        userId={userId} 
+                                        code={code} 
+                                        router={router} 
+                                    />
+                                ))}
+                            </div>
+                        )}
 
-                            return (
-                                <div key={fixture.id} className="panel" style={{
-                                    borderColor: fixture.status === 'live' ? 'var(--color-success)' :
-                                        fixture.status === 'pre_match' ? 'var(--color-gold)' :
-                                            fixture.status === 'completed' ? 'var(--color-border)' : 'var(--color-border)',
-                                    opacity: fixture.status === 'completed' ? 0.7 : 1,
-                                }}>
-                                    <div className="flex items-center justify-between">
-                                        {/* Match Number + Status */}
-                                        <div className="flex items-center gap-2 mb-3 w-full justify-between">
-                                            <span className="text-[10px] font-mono" style={{ color: 'var(--color-text-muted)' }}>
-                                                Match {fixture.scheduledOrder}
-                                            </span>
-                                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${fixture.status === 'live' ? 'bg-green-500/20 text-green-400' :
-                                                fixture.status === 'pre_match' ? 'bg-amber-500/20 text-amber-400' :
-                                                    fixture.status === 'completed' ? 'bg-white/5 text-white/40' :
-                                                        'bg-white/5 text-white/30'
-                                                }`}>
-                                                {fixture.status === 'live' ? '● LIVE' :
-                                                    fixture.status === 'pre_match' ? '⚡ SELECTION' :
-                                                        fixture.status.toUpperCase()}
-                                            </span>
-                                        </div>
-                                    </div>
-
-                                    <div className="flex items-center justify-between">
-                                        {/* Home Team */}
-                                        <div className="flex items-center gap-2 flex-1">
-                                            {homeTeam && (
-                                                <div className="w-8 h-8 rounded-full flex items-center justify-center"
-                                                    style={{ background: `${homeColor}15` }}>
-                                                    <span className="text-sm">{homeTeam.emoji}</span>
-                                                </div>
-                                            )}
-                                            <div>
-                                                <p className="text-sm font-bold" style={{ color: homeColor }}>
-                                                    {homeTeam?.shortName || fixture.homeTeamName}
-                                                </p>
-                                                {fixture.status === 'completed' && (
-                                                    <p className="text-xs font-mono" style={{ color: 'var(--color-text-muted)' }}>
-                                                        {fixture.homeScore}/{fixture.homeWickets} ({fixture.homeOvers})
-                                                    </p>
-                                                )}
-                                            </div>
-                                        </div>
-
-                                        {/* VS */}
-                                        <div className="px-4">
-                                            <span className="text-xs font-bold" style={{ color: 'var(--color-text-muted)' }}>VS</span>
-                                        </div>
-
-                                        {/* Away Team */}
-                                        <div className="flex items-center gap-2 flex-1 justify-end text-right">
-                                            <div>
-                                                <p className="text-sm font-bold" style={{ color: awayColor }}>
-                                                    {awayTeam?.shortName || fixture.awayTeamName}
-                                                </p>
-                                                {fixture.status === 'completed' && (
-                                                    <p className="text-xs font-mono" style={{ color: 'var(--color-text-muted)' }}>
-                                                        {fixture.awayScore}/{fixture.awayWickets} ({fixture.awayOvers})
-                                                    </p>
-                                                )}
-                                            </div>
-                                            {awayTeam && (
-                                                <div className="w-8 h-8 rounded-full flex items-center justify-center"
-                                                    style={{ background: `${awayColor}15` }}>
-                                                    <span className="text-sm">{awayTeam.emoji}</span>
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-
-                                    {/* Result */}
-                                    {fixture.result && (
-                                        <p className="text-[10px] text-center mt-3 pt-2 border-t" style={{
-                                            color: 'var(--color-text-muted)',
-                                            borderColor: 'var(--color-border)',
-                                        }}>
-                                            {fixture.result}
-                                        </p>
-                                    )}
-
-                                    {/* Actions */}
-                                    <div className="mt-4 flex gap-2">
-                                        {fixture.status === 'pre_match' && (
-                                            (userId === fixture.homeTeamUserId || userId === fixture.awayTeamUserId) ? (
-                                                <button
-                                                    onClick={() => router.push(`/pre-match/${code}?fixtureId=${fixture.id}`)}
-                                                    className="btn-primary w-full text-[10px] py-2"
-                                                >
-                                                    🏟️ Join Selection
-                                                </button>
-                                            ) : (
-                                                <div className="w-full text-center py-2 text-[10px] font-medium opacity-50 border border-white/5 rounded-lg">
-                                                    ⏳ Teams Selecting...
-                                                </div>
-                                            )
-                                        )}
-                                        {fixture.status === 'live' && (
-                                            <button
-                                                onClick={() => router.push(`/match/${code}?fixtureId=${fixture.id}`)}
-                                                className="btn-secondary w-full text-[10px] py-2 border-green-500/50 text-green-400"
-                                            >
-                                                ▶️ Watch Live
-                                            </button>
-                                        )}
-                                    </div>
-                                </div>
-                            );
-                        })}
+                        {/* League Matches Section */}
+                        <div className="space-y-3">
+                            <h3 className="text-xs font-bold tracking-widest uppercase opacity-40 px-1">📅 League Matches</h3>
+                            {league.fixtures.filter(f => !f.isKnockout).map(fixture => (
+                                <FixtureCard 
+                                    key={fixture.id} 
+                                    fixture={fixture} 
+                                    userId={userId} 
+                                    code={code} 
+                                    router={router} 
+                                />
+                            ))}
+                        </div>
                     </div>
-                )
-                }
+                )}
 
                 {/* ─── AWARDS TAB ─── */}
                 {activeTab === 'awards' && (
@@ -788,7 +826,7 @@ export default function LeaguePage() {
                                             borderWidth: isSelected ? '2px' : '1px',
                                         }}
                                     >
-                                        <span className="text-xl">{iplTeam?.emoji}</span>
+                                        <TeamLogo team={iplTeam || { logo: '', emoji: '🏏', shortName: team.teamName }} size={24} />
                                         <div className="text-left">
                                             <p className="text-xs font-bold leading-tight" style={{ color: isSelected ? (iplTeam?.color || 'white') : 'white' }}>
                                                 {iplTeam?.shortName || team.teamName}

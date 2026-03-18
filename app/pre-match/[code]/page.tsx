@@ -6,6 +6,8 @@ import { useUserStore } from '@/lib/store';
 import Navbar from '@/components/Navbar';
 import PlayerAvatar from '@/components/PlayerAvatar';
 import { getPitchProfile, PITCH_TYPES, PitchProfile } from '@/lib/pitchData';
+import { getTeamByName } from '@/data/teams';
+import TeamLogo from '@/components/TeamLogo';
 
 interface SquadPlayer {
     player: {
@@ -106,17 +108,16 @@ export default function PreMatchSelectionPage() {
                 const auction = auctionData.state;
                 if (!auction) throw new Error("No auction state found");
 
-                let home: TeamData | null = null;
-                let away: TeamData | null = null;
+
 
                 if (fixtureId) {
                     const leagueRes = await fetch(`/api/league?roomCode=${code}`);
                     if (leagueRes.ok) {
                         const leagueData = await leagueRes.json();
-                        const fixture = leagueData.state?.fixtures?.find((f: any) => String(f.id) === String(fixtureId));
+                        const fixture = leagueData.state?.fixtures?.find((f: { id: string | number }) => String(f.id) === String(fixtureId));
                         if (fixture) {
-                            const h = auction.teams.find((t: any) => t.userId === fixture.homeTeamUserId) ?? null;
-                            const a = auction.teams.find((t: any) => t.userId === fixture.awayTeamUserId) ?? null;
+                            const h = auction.teams.find((t: TeamData) => t.userId === fixture.homeTeamUserId) ?? null;
+                            const a = auction.teams.find((t: TeamData) => t.userId === fixture.awayTeamUserId) ?? null;
 
                             // Spectator support: show teams even if not me
                             if (h?.userId === userId) { setMyTeam(h); setOpponentTeam(a); }
@@ -136,7 +137,7 @@ export default function PreMatchSelectionPage() {
                         throw new Error(`League API failed: ${leagueRes.status}`);
                     }
                 } else {
-                    const myT = auction.teams.find((t: any) => t.userId === userId);
+                    const myT = auction.teams.find((t: TeamData) => t.userId === userId);
                     if (!myT) throw new Error("Team not found for current user");
                     setMyTeam(myT || null);
                     setHomeTeamName(myT?.teamName ?? '');
@@ -427,9 +428,17 @@ export default function PreMatchSelectionPage() {
                     <div className="panel text-center py-12 max-w-lg mx-auto">
                         <div className="text-6xl mb-4">🪙</div>
                         <h2 className="text-2xl font-black text-white mb-2">Toss Time!</h2>
-                        <p className="text-sm mb-8" style={{ color: 'var(--color-text-muted)' }}>
-                            {myTeam?.teamName} vs {opponentTeam?.teamName || 'Opponent'} · {pitchProfile?.stadiumName}
-                        </p>
+                        <div className="flex items-center justify-center gap-4 mb-8">
+                            <div className="flex flex-col items-center gap-2">
+                                <TeamLogo team={getTeamByName(myTeam?.teamName || '') || { logo: '', emoji: '🏏', shortName: '?' }} size={48} />
+                                <span className="text-xs font-bold">{myTeam?.teamName}</span>
+                            </div>
+                            <span className="text-xl font-black text-white/20">VS</span>
+                            <div className="flex flex-col items-center gap-2">
+                                <TeamLogo team={getTeamByName(opponentTeam?.teamName || '') || { logo: '', emoji: '🏏', shortName: '?' }} size={48} />
+                                <span className="text-xs font-bold">{opponentTeam?.teamName || 'Opponent'}</span>
+                            </div>
+                        </div>
                         {iAmParticipant ? (
                             <button onClick={handleToss} disabled={tossLoading} className="btn-primary px-10 py-4 text-base font-black">
                                 {tossLoading ? '🪙 Flipping...' : '🪙 Flip The Coin'}
@@ -517,9 +526,12 @@ export default function PreMatchSelectionPage() {
                             {/* Squad Selection */}
                             <div className="lg:col-span-3">
                                 <div className="panel">
-                                    <h3 className="text-sm font-semibold tracking-wider uppercase mb-4" style={{ color: 'var(--color-text-muted)' }}>
-                                        {myTeam?.teamName} — Full Squad ({myTeam?.squad.length} players)
-                                    </h3>
+                                    <div className="flex items-center gap-3 mb-4">
+                                        <TeamLogo team={getTeamByName(myTeam?.teamName || '') || { logo: '', emoji: '🏏', shortName: '?' }} size={24} />
+                                        <h3 className="text-sm font-semibold tracking-wider uppercase" style={{ color: 'var(--color-text-muted)' }}>
+                                            {myTeam?.teamName} — Full Squad ({myTeam?.squad.length} players)
+                                        </h3>
+                                    </div>
                                     <div className="space-y-1.5">
                                         {myTeam?.squad.map(({ player, soldPrice }) => {
                                             const isSelected = selectedIds.includes(player.id);

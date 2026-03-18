@@ -11,6 +11,12 @@
   },
   "dependencies": {
     "@prisma/client": "^6.19.2",
+    "@types/cookie": "^0.6.0",
+    "@types/js-cookie": "^3.0.6",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "@types/uuid": "^10.0.0",
     "cookie": "^1.1.1",
     "dotenv": "^17.3.1",
     "ioredis": "^5.10.0",
@@ -23,13 +29,7 @@
     "tsx": "^4.21.0",
     "typescript": "^5",
     "uuid": "^13.0.0",
-    "zustand": "^5.0.11",
-    "@types/node": "^20",
-    "@types/react": "^19",
-    "@types/react-dom": "^19",
-    "@types/uuid": "^10.0.0",
-    "@types/cookie": "^0.6.0",
-    "@types/js-cookie": "^3.0.6"
+    "zustand": "^5.0.11"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

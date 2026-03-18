@@ -5,6 +5,7 @@ import { useRouter, useParams } from 'next/navigation';
 import { useUserStore } from '@/lib/store';
 import AuctionPanel from '@/components/AuctionPanel';
 import PlayerAvatar from '@/components/PlayerAvatar';
+import TeamLogo from '@/components/TeamLogo';
 import { IPL_TEAMS } from '@/data/teams';
 import { getSocket } from '@/lib/socket';
 
@@ -497,17 +498,7 @@ export default function AuctionPage() {
                                                 <div className="w-8 h-8 rounded-full overflow-hidden flex items-center justify-center flex-shrink-0" style={{
                                                     background: `${teamColor}15`,
                                                 }}>
-                                                    <img
-                                                        src={iplTeam.logo}
-                                                        alt={iplTeam.shortName}
-                                                        width={28}
-                                                        height={28}
-                                                        className="object-contain"
-                                                        onError={(e) => {
-                                                            (e.target as HTMLImageElement).style.display = 'none';
-                                                            (e.target as HTMLImageElement).parentElement!.textContent = iplTeam.emoji;
-                                                        }}
-                                                    />
+                                                <TeamLogo team={iplTeam} size={28} />
                                                 </div>
                                             )}
                                             <div>
@@ -600,9 +591,7 @@ export default function AuctionPage() {
                                         <div key={team.userId} className="p-4 rounded-xl border" style={{ borderColor: `${teamColor}30`, background: `${teamColor}05` }}>
                                             <div className="flex justify-between items-start mb-4">
                                                 <div className="flex items-center gap-3">
-                                                    {iplTeam && (
-                                                        <img src={iplTeam.logo} alt={iplTeam.shortName} className="w-10 h-10 object-contain" />
-                                                    )}
+                                                     {iplTeam && <TeamLogo team={iplTeam} size={40} />}
                                                     <div>
                                                         <h3 className="font-bold text-lg" style={{ color: teamColor }}>{iplTeam?.name || team.teamName}</h3>
                                                         <p className="text-xs opacity-70">By {team.username}</p>

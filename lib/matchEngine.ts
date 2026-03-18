@@ -1,6 +1,5 @@
 import redis from './redis';
 import { getStadiumById } from '@/data/stadiums';
-import { CricketPlayer } from '@/data/players';
 
 export interface MatchState {
     matchId: string;
@@ -89,6 +88,12 @@ export interface MatchPlayer {
     bowlingSkill: number;
     isCaptain?: boolean;
     isWicketKeeper?: boolean;
+    battingRole?: string;
+    bowlingRole?: string;
+    primaryArchetype?: string;
+    secondaryArchetype?: string;
+    battingRating?: number;
+    bowlingRating?: number;
 }
 
 export interface BatterState {
@@ -138,10 +143,26 @@ function getMatchPhase(overs: number): 'powerplay' | 'middle' | 'death' {
 
 function getPitchModifier(pitchType: string, phase: string): { batMod: number; bowlMod: number } {
     const mods: Record<string, Record<string, { batMod: number; bowlMod: number }>> = {
-        BATTING: { powerplay: { batMod: 1.2, bowlMod: 0.8 }, middle: { batMod: 1.15, bowlMod: 0.85 }, death: { batMod: 1.1, bowlMod: 0.9 } },
-        BOWLING: { powerplay: { batMod: 0.9, bowlMod: 1.15 }, middle: { batMod: 0.85, bowlMod: 1.2 }, death: { batMod: 0.95, bowlMod: 1.1 } },
-        BALANCED: { powerplay: { batMod: 1.05, bowlMod: 1.0 }, middle: { batMod: 1.0, bowlMod: 1.0 }, death: { batMod: 1.05, bowlMod: 0.95 } },
-        SPINNING: { powerplay: { batMod: 1.0, bowlMod: 1.0 }, middle: { batMod: 0.85, bowlMod: 1.2 }, death: { batMod: 0.9, bowlMod: 1.1 } },
+        BATTING: { 
+            powerplay: { batMod: 1.14, bowlMod: 0.90 }, 
+            middle: { batMod: 1.08, bowlMod: 0.94 }, 
+            death: { batMod: 1.05, bowlMod: 0.96 } 
+        },
+        BOWLING: { 
+            powerplay: { batMod: 0.92, bowlMod: 1.10 }, 
+            middle: { batMod: 0.88, bowlMod: 1.15 }, 
+            death: { batMod: 0.94, bowlMod: 1.08 } 
+        },
+        BALANCED: { 
+            powerplay: { batMod: 1.04, bowlMod: 1.0 }, 
+            middle: { batMod: 1.0, bowlMod: 1.0 }, 
+            death: { batMod: 1.03, bowlMod: 0.98 } 
+        },
+        SPINNING: { 
+            powerplay: { batMod: 1.0, bowlMod: 1.0 }, 
+            middle: { batMod: 0.86, bowlMod: 1.14 }, 
+            death: { batMod: 0.92, bowlMod: 1.08 } 
+        },
     };
     return mods[pitchType]?.[phase] || { batMod: 1.0, bowlMod: 1.0 };
 }
@@ -193,6 +214,26 @@ function simulateBall(
         // Turn impact
         if (stadium.turn >= 4 && spinner) {
             bowlSkill *= (1 + (stadium.turn - 3) * 0.08); // Significant boost for spinners on turning tracks
+        }
+
+        // Early Swing Logic
+        if (stadium.earlySwing) {
+            const currentBallCount = (TOTAL_OVERS * 6) - ballsRemaining;
+            const currentOverCount = Math.floor(currentBallCount / 6);
+
+            if (phase === 'powerplay') {
+                // Target: RR 6-8 and 2-3 wickets
+                batSkill *= 0.65; 
+                if (!spinner) bowlSkill *= 1.10; // Moderate swing help
+            } else if (spinner) {
+                // Spinners bleed runs on these tracks
+                bowlSkill *= 0.85;
+            }
+
+            if (currentOverCount >= 10) {
+                // Once ball is old, batters get upper hand
+                batSkill *= 1.15;
+            }
         }
 
         // Dew factor (affects 2nd innings bowlers, especially spinners)
@@ -261,7 +302,7 @@ function simulateBall(
 
     if (!freeHit && Math.random() < Math.min(wicketProb, 0.15)) {
         const dismissals = ['bowled', 'caught', 'lbw', 'caught behind', 'run out', 'stumped'];
-        let weights = bowler.player.role === 'BOWLER' ? [25, 35, 20, 10, 5, 5] : [20, 35, 15, 15, 10, 5];
+        const weights = bowler.player.role === 'BOWLER' ? [25, 35, 20, 10, 5, 5] : [20, 35, 15, 15, 10, 5];
 
         // Apply Stadium-Influenced Dismissal Weights
         if (stadium) {
@@ -352,46 +393,59 @@ function getRunProbabilities(
     boundarySize: number = 1.0,
     batFriendly: number = 3
 ): [number, number][] {
-    const skillRatio = batSkill / (batSkill + bowlSkill);
-    const boundaryMod = 1 / (boundarySize * 0.9 + 0.1); // Stronger impact for smaller grounds
-    const friendlyMod = 0.85 + (batFriendly / 5) * 0.3; // 0.91 to 1.15 multiplier
+    // Diminishing returns on skill: Normalize high skills
+    const effectiveBatSkill = Math.pow(batSkill, 0.95);
+    const effectiveBowlSkill = Math.pow(bowlSkill, 0.95);
+    
+    // Skill ratio determines global advantage
+    const skillRatio = effectiveBatSkill / (effectiveBatSkill + effectiveBowlSkill);
+    
+    // Boundary impact: smaller ground = more chance of boundaries
+    // We tighten the range to avoid extreme scores
+    const boundaryMod = 1 / (boundarySize * 0.7 + 0.3); // Less wide impact than before
+    const friendlyMod = 0.9 + (batFriendly / 5) * 0.2; // 0.94 to 1.1 multiplier
 
     // Base probabilities [runs, probability]
     let probs: [number, number][];
 
+    // Skill advantage impact: how much skill ratio pushes the outcomes
+    // In T20, even a bad batter gets some runs, and a good one can get out.
+    const skillPush = (skillRatio - 0.5) * 0.4; // +/- 0.2 impact
+
     if (phase === 'powerplay') {
         probs = [
-            [0, 0.30 - skillRatio * 0.1],
-            [1, 0.30 * friendlyMod],
-            [2, 0.12 * friendlyMod],
-            [3, 0.03 * friendlyMod],
-            [4, (0.15 + skillRatio * 0.05) * boundaryMod * friendlyMod],
-            [6, (0.10 + skillRatio * 0.05) * boundaryMod * friendlyMod],
+            [0, Math.max(0.15, 0.32 - skillPush)],
+            [1, 0.28 * friendlyMod],
+            [2, 0.10 * friendlyMod],
+            [3, 0.02 * friendlyMod],
+            [4, (0.16 + skillPush) * boundaryMod * friendlyMod],
+            [6, (0.10 + skillPush * 0.8) * boundaryMod * friendlyMod],
         ];
     } else if (phase === 'death') {
         probs = [
-            [0, 0.25 - skillRatio * 0.08],
-            [1, 0.25 * friendlyMod],
-            [2, 0.12 * friendlyMod],
-            [3, 0.03 * friendlyMod],
-            [4, (0.18 + skillRatio * 0.05) * boundaryMod * friendlyMod],
-            [6, (0.17 + skillRatio * 0.08) * boundaryMod * friendlyMod],
+            [0, Math.max(0.12, 0.28 - skillPush)],
+            [1, 0.22 * friendlyMod],
+            [2, 0.10 * friendlyMod],
+            [3, 0.02 * friendlyMod],
+            [4, (0.20 + skillPush) * boundaryMod * friendlyMod],
+            [6, (0.18 + skillPush * 1.2) * boundaryMod * friendlyMod],
         ];
     } else {
+        // Middle overs: focus on strike rotation
         probs = [
-            [0, 0.35 - skillRatio * 0.08],
-            [1, 0.30 * friendlyMod],
+            [0, Math.max(0.20, 0.36 - skillPush)],
+            [1, 0.32 * friendlyMod],
             [2, 0.12 * friendlyMod],
             [3, 0.03 * friendlyMod],
-            [4, (0.12 + skillRatio * 0.05) * boundaryMod * friendlyMod],
-            [6, (0.08 + skillRatio * 0.03) * boundaryMod * friendlyMod],
+            [4, (0.10 + skillPush) * boundaryMod * friendlyMod],
+            [6, (0.07 + skillPush * 0.7) * boundaryMod * friendlyMod],
         ];
     }
 
-    // Apply pressure factor
+    // Apply pressure factor (only for chasing or critical scenarios)
     if (pressureFactor < 1.0) {
         probs = probs.map(([r, p]) => {
-            if (r === 0) return [r, p * 1.2] as [number, number];
+            if (r === 0) return [r, p * (1 + (1 - pressureFactor) * 0.5)] as [number, number];
             if (r >= 4) return [r, p * pressureFactor] as [number, number];
             return [r, p] as [number, number];
         });
@@ -399,7 +453,22 @@ function getRunProbabilities(
 
     // Normalize
     const total = probs.reduce((sum, [, p]) => sum + p, 0);
-    return probs.map(([r, p]) => [r, p / total] as [number, number]);
+    const normalized = probs.map(([r, p]) => [r, p / total] as [number, number]);
+
+    // Cap boundary expectation to prevent 300+ scores (never > 2.0 runs per ball on average)
+    const expectation = normalized.reduce((ex, [r, p]) => ex + r * p, 0);
+    if (expectation > 2.0) {
+        // Subtle shift towards singles from boundaries if expectations are too extreme
+        const damper = 2.0 / expectation;
+        const FinalProbs = normalized.map(([r, p]) => {
+            if (r >= 4) return [r, p * damper];
+            if (r === 1) return [r, p + (normalized.find(n => n[0] === 4)![1] + normalized.find(n => n[0] === 6)![1]) * (1 - damper)];
+            return [r, p];
+        }) as [number, number][];
+        return FinalProbs;
+    }
+
+    return normalized;
 }
 
 // ======================================================
@@ -492,7 +561,7 @@ export function initMatchState(
     // Determine opening bowler
     const openingBowlerId = battingFirst === 'home' ? options?.awayOpeningBowlerId : options?.homeOpeningBowlerId;
 
-    let bowlingOrder = firstBowlingTeam.players
+    const bowlingOrder = firstBowlingTeam.players
         .filter(p => p.role !== 'BATSMAN' && p.role !== 'WICKET_KEEPER')
         .concat(firstBowlingTeam.players.filter(p => p.role === 'BATSMAN' || p.role === 'WICKET_KEEPER'))
         .slice(0, 11) // Take more to ensure we don't miss the selected opening bowler
@@ -814,7 +883,7 @@ export function selectNextBatter(state: MatchState, batterId: string): MatchStat
 
     // Re-order battingOrder to be chronological
     // Find the first index that is neither out nor currently batting
-    let targetIdx = state.battingOrder.findIndex(b => !b.isOut && b !== state.striker && b !== state.nonStriker);
+    const targetIdx = state.battingOrder.findIndex(b => !b.isOut && b !== state.striker && b !== state.nonStriker);
     if (targetIdx !== -1 && targetIdx !== batterIdx) {
         const [removed] = state.battingOrder.splice(batterIdx, 1);
         state.battingOrder.splice(targetIdx, 0, removed);

@@ -171,7 +171,7 @@ export async function initAuction(
     auctionSets.forEach(s => allPlayersFlat.push(...s.players));
 
     const teams: AuctionTeam[] = teamsData.map(p => {
-        const { RETENTION_POOL } = require('@/data/retentionPool');
+        const { RETENTION_POOL } = require('@/data/retentionPool'); // eslint-disable-line @typescript-eslint/no-require-imports
         // Map retained players to SoldPlayer format
         const retainedSold: SoldPlayer[] = p.retained.map(r => {
             const player = IPL_PLAYERS.find(ip => ip.id === r.playerId)!;
@@ -185,7 +185,7 @@ export async function initAuction(
         const pool = RETENTION_POOL[p.teamName] ?? [];
         const cappedRetainedCount = p.retained.filter(r => {
             const player = IPL_PLAYERS.find(ip => ip.id === r.playerId);
-            const eligible = pool.find((pl: any) => pl.name === player?.name);
+            const eligible = pool.find((pl: { name: string; capStatus?: string }) => pl.name === player?.name);
             return eligible?.capStatus === 'Capped';
         }).length;
 

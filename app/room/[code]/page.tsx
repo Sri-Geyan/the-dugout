@@ -6,6 +6,7 @@ import { useUserStore } from '@/lib/store';
 import Navbar from '@/components/Navbar';
 import TeamSelector from '@/components/TeamSelector';
 import { getSocket } from '@/lib/socket';
+import TeamLogo from '@/components/TeamLogo';
 import { IPL_TEAMS } from '@/data/teams';
 import type { IPLTeam } from '@/data/teams';
 
@@ -258,7 +259,7 @@ export default function RoomPage() {
                                             color: team ? team.color : 'var(--color-gold)',
                                             border: `2px solid ${team ? `${team.color}40` : 'transparent'}`,
                                         }}>
-                                        {team ? team.emoji : player.username.charAt(0).toUpperCase()}
+                                        {team ? <TeamLogo team={team} size={32} /> : player.username.charAt(0).toUpperCase()}
                                     </div>
                                     <p className="text-sm font-semibold truncate">{player.username}</p>
                                     <p className="text-[10px] mt-1 truncate" style={{

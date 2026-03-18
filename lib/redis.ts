@@ -62,7 +62,7 @@ class HybridDatabaseStore {
         }
     }
 
-    async set(key: string, value: string, ...args: any[]): Promise<'OK'> {
+    async set(key: string, value: string, ...args: (string | number)[]): Promise<'OK'> {
         let expiresAt: Date | null = null;
         if (args[0] === 'EX' && typeof args[1] === 'number') {
             expiresAt = new Date(Date.now() + (args[1] as number) * 1000);
@@ -197,7 +197,7 @@ class HybridDatabaseStore {
     async subscribe(): Promise<void> { }
 }
 
-function createRedisClient(): any {
+function createRedisClient(): any { // eslint-disable-line @typescript-eslint/no-explicit-any
     const url = process.env.REDIS_URL;
 
     if (!url) {
@@ -234,8 +234,8 @@ function createRedisClient(): any {
     }
 }
 
-const globalForRedis = globalThis as unknown as { redis: any };
-export const redis: any = globalForRedis.redis ?? createRedisClient();
+const globalForRedis = globalThis as unknown as { redis: any }; // eslint-disable-line @typescript-eslint/no-explicit-any
+export const redis: any = globalForRedis.redis ?? createRedisClient(); // eslint-disable-line @typescript-eslint/no-explicit-any
 if (process.env.NODE_ENV !== 'production') globalForRedis.redis = redis;
 
 export default redis;

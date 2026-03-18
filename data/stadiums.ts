@@ -19,6 +19,7 @@ export interface Stadium {
     paceTip: string;
     spinTip: string;
     battingTip: string;
+    earlySwing?: boolean;
 }
 
 export const STADIUMS: Stadium[] = [
@@ -47,7 +48,8 @@ export const STADIUMS: Stadium[] = [
         tossInsight: 'Bat first — humidity can lead to evening swings unpredictably.',
         paceTip: 'Full-pitched deliveries get swing in the sea air early on.',
         spinTip: 'Minimal turn — spinners useful only for variation, not match winners.',
-        battingTip: 'High-scoring venue — aggressive openers and hard hitters are premium picks.'
+        battingTip: 'High-scoring venue — aggressive openers and hard hitters are premium picks.',
+        earlySwing: true
     },
     {
         id: 'chepauk',
@@ -128,7 +130,8 @@ export const STADIUMS: Stadium[] = [
         tossInsight: 'Balanced choice, but chasing is slightly favorable under lights.',
         paceTip: 'Swing the new ball. The cool evening breeze helps seamers.',
         spinTip: 'Accuracy is key. Do not stray into the batters\' hitting arcs.',
-        battingTip: 'Wait for the ball to come on. Use the pace of the wicket.'
+        battingTip: 'Wait for the ball to come on. Use the pace of the wicket.',
+        earlySwing: true
     },
     {
         id: 'narendra_modi',
@@ -209,7 +212,8 @@ export const STADIUMS: Stadium[] = [
         tossInsight: 'Bowl first. Use the early morning/evening moisture for swing.',
         paceTip: 'Look for wickets early. The new ball moves a lot here.',
         spinTip: 'Hardly any turn. Target the stumps and look for LBW/Bowled.',
-        battingTip: 'Respect the first few overs. Once the shine is off, runs flow.'
+        battingTip: 'Respect the first few overs. Once the shine is off, runs flow.',
+        earlySwing: true
     },
     {
         id: 'arun_jaitley',

@@ -6,6 +6,7 @@ import { useUserStore } from '@/lib/store';
 import Navbar from '@/components/Navbar';
 import PlayerAvatar from '@/components/PlayerAvatar';
 import { getSocket } from '@/lib/socket';
+import TeamLogo from '@/components/TeamLogo';
 import { IPL_TEAMS } from '@/data/teams';
 
 // Hardcoding these constants on the client avoid importing lib/retentionEngine which requires node dependencies (redis)
@@ -315,8 +316,8 @@ export default function RetentionPage() {
                     </div>
                     <h1 className="text-2xl font-black text-white mb-3">Phase Sync Error</h1>
                     <p className="text-sm leading-relaxed mb-8" style={{ color: 'var(--color-text-muted)' }}>
-                        We couldn't retrieve the retention state for room <span className="gold-text font-mono font-bold">{code}</span>.
-                        This usually happens if the session expired or the host hasn't finished initializing the room.
+                        We couldn&apos;t retrieve the retention state for room <span className="gold-text font-mono font-bold">{code}</span>.
+                        This usually happens if the session expired or the host hasn&apos;t finished initializing the room.
                     </p>
                     <div className="flex flex-col gap-3">
                         <button
@@ -671,7 +672,7 @@ export default function RetentionPage() {
                                         }}>
                                             <div className="flex items-center justify-between mb-1">
                                                 <div className="flex items-center gap-2">
-                                                    {iplTeam && <span className="text-sm">{iplTeam.emoji}</span>}
+                                                     {iplTeam && <TeamLogo team={iplTeam} size={24} />}
                                                     <div>
                                                         <p className="text-xs font-bold" style={{ color: teamColor }}>
                                                             {iplTeam?.shortName || team.teamName}

@@ -17,7 +17,7 @@ export interface RetainedPlayer {
     playerId: string;       // matches IPL_PLAYERS id
     playerName: string;
     role: string;
-    nationality: 'Indian' | 'Overseas';
+    nationality: string;
     slot: number;           // 1..4
     cost: number;           // Cr
 }

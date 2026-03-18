@@ -1,7 +1,9 @@
-'use client';
+import TeamLogo from './TeamLogo';
 
 interface ScoreCardProps {
     teamName: string;
+    teamLogo?: string;
+    teamEmoji?: string;
     score: number;
     wickets: number;
     overs: number;
@@ -17,6 +19,8 @@ interface ScoreCardProps {
 
 export default function ScoreCard({
     teamName,
+    teamLogo,
+    teamEmoji,
     score,
     wickets,
     overs,
@@ -24,10 +28,6 @@ export default function ScoreCard({
     runRate,
     isCurrentBatting,
     target,
-    runsRequired,
-    ballsRemaining,
-    requiredRunRate,
-    showFullScorecard,
 }: ScoreCardProps) {
     const oversDisplay = `${overs}.${balls}`;
 
@@ -35,9 +35,7 @@ export default function ScoreCard({
         <div className={`rounded-xl p-5 transition-all duration-300 ${isCurrentBatting ? 'panel-gold' : 'panel'} relative`}>
             <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 rounded-full" style={{
-                        background: isCurrentBatting ? 'var(--color-success)' : 'var(--color-border)',
-                    }} />
+                    <TeamLogo team={{ logo: teamLogo || '', emoji: teamEmoji || '🏏', shortName: teamName }} size={24} />
                     <h3 className="text-sm font-bold truncate">{teamName}</h3>
                 </div>
                 {isCurrentBatting && (

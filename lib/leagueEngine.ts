@@ -1,4 +1,5 @@
 import redis from './redis';
+import { MatchState } from './matchEngine';
 
 // ======================================================
 // League State Interfaces
@@ -20,6 +21,8 @@ export interface FixtureEntry {
     awayTeamName: string;
     scheduledOrder: number;
     status: 'pending' | 'pre_match' | 'live' | 'completed';
+    isKnockout?: boolean;
+    knockoutType?: 'Q1' | 'ELIM' | 'Q2' | 'FINAL';
     matchId?: string;
     homeScore?: number;
     homeWickets?: number;
@@ -71,6 +74,7 @@ export interface PlayerStats {
 export interface LeagueState {
     roomCode: string;
     status: 'active' | 'completed';
+    phase: 'league' | 'playoffs';
     fixtures: FixtureEntry[];
     standings: TeamStanding[];
     playerStats: PlayerStats[];
@@ -91,21 +95,53 @@ export function generateFixtures(teams: LeagueTeam[]): FixtureEntry[] {
     const fixtures: FixtureEntry[] = [];
     let order = 1;
 
-    // Standard round-robin: each team plays every other team once
+    // Single round-robin: each team plays every other team once
+    // To achieve 5 home / 4 away (or 4 home / 5 away) for 10 teams:
+    // We use a simple parity-based assignment for home/away
+    const pairs: [number, number][] = [];
     for (let i = 0; i < n; i++) {
         for (let j = i + 1; j < n; j++) {
-            fixtures.push({
-                id: `fixture-${order}`,
-                homeTeamUserId: teams[i].userId,
-                homeTeamName: teams[i].teamName,
-                awayTeamUserId: teams[j].userId,
-                awayTeamName: teams[j].teamName,
-                scheduledOrder: order,
-                status: 'pending',
-            });
-            order++;
+            pairs.push([i, j]);
         }
     }
+
+    // Shuffle pairs first
+    for (let i = pairs.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [pairs[i], pairs[j]] = [pairs[j], pairs[i]];
+    }
+
+    // Track home game counts to try and stay close to 5/4 or 4/5
+    const homeCounts = new Array(n).fill(0);
+
+    pairs.forEach(([i, j]) => {
+        let homeIdx = i;
+        let awayIdx = j;
+
+        // Balance logic: if team i has more home games than j, swap them
+        if (homeCounts[i] > homeCounts[j]) {
+            homeIdx = j;
+            awayIdx = i;
+        } else if (homeCounts[i] === homeCounts[j]) {
+            // Randomize if equal
+            if (Math.random() > 0.5) {
+                homeIdx = j;
+                awayIdx = i;
+            }
+        }
+
+        fixtures.push({
+            id: `fixture-${order}`,
+            homeTeamUserId: teams[homeIdx].userId,
+            homeTeamName: teams[homeIdx].teamName,
+            awayTeamUserId: teams[awayIdx].userId,
+            awayTeamName: teams[awayIdx].teamName,
+            scheduledOrder: order,
+            status: 'pending',
+        });
+        homeCounts[homeIdx]++;
+        order++;
+    });
 
     // Shuffle fixtures for variety (Fisher-Yates)
     for (let i = fixtures.length - 1; i > 0; i--) {
@@ -142,6 +178,7 @@ export function initLeagueState(roomCode: string, teams: LeagueTeam[]): LeagueSt
     return {
         roomCode,
         status: 'active',
+        phase: 'league',
         fixtures,
         standings,
         teams,
@@ -239,6 +276,111 @@ export function updateStandings(state: LeagueState, matchResult: MatchResult): v
         if (b.points !== a.points) return b.points - a.points;
         return b.nrr - a.nrr;
     });
+
+    // Check if league phase is complete
+    if (state.phase === 'league') {
+        const allLeagueDone = state.fixtures.every(f => !f.isKnockout && f.status === 'completed');
+        if (allLeagueDone) {
+            generatePlayoffFixtures(state);
+        }
+    }
+}
+
+export function generatePlayoffFixtures(state: LeagueState): void {
+    if (state.standings.length < 4) {
+        state.status = 'completed';
+        return;
+    }
+
+    const top4 = state.standings.slice(0, 4);
+    const q1: FixtureEntry = {
+        id: `playoff-q1`,
+        homeTeamUserId: top4[0].userId,
+        homeTeamName: top4[0].teamName,
+        awayTeamUserId: top4[1].userId,
+        awayTeamName: top4[1].teamName,
+        scheduledOrder: state.fixtures.length + 1,
+        status: 'pending',
+        isKnockout: true,
+        knockoutType: 'Q1',
+    };
+
+    const elim: FixtureEntry = {
+        id: `playoff-elim`,
+        homeTeamUserId: top4[2].userId,
+        homeTeamName: top4[2].teamName,
+        awayTeamUserId: top4[3].userId,
+        awayTeamName: top4[3].teamName,
+        scheduledOrder: state.fixtures.length + 2,
+        status: 'pending',
+        isKnockout: true,
+        knockoutType: 'ELIM',
+    };
+
+    const q2: FixtureEntry = {
+        id: `playoff-q2`,
+        homeTeamUserId: '', // Loser Q1 Placeholder
+        homeTeamName: 'Loser Qualifier 1',
+        awayTeamUserId: '', // Winner Eliminator Placeholder
+        awayTeamName: 'Winner Eliminator',
+        scheduledOrder: state.fixtures.length + 3,
+        status: 'pending',
+        isKnockout: true,
+        knockoutType: 'Q2',
+    };
+
+    const final: FixtureEntry = {
+        id: `playoff-final`,
+        homeTeamUserId: '', // Winner Q1 Placeholder
+        homeTeamName: 'Winner Qualifier 1',
+        awayTeamUserId: '', // Winner Q2 Placeholder
+        awayTeamName: 'Winner Qualifier 2',
+        scheduledOrder: state.fixtures.length + 4,
+        status: 'pending',
+        isKnockout: true,
+        knockoutType: 'FINAL',
+    };
+
+    state.fixtures.push(q1, elim, q2, final);
+    state.totalMatches = state.fixtures.length;
+    state.phase = 'playoffs';
+}
+
+function handlePlayoffAdvancement(state: LeagueState, fixture: FixtureEntry, matchResult: MatchResult) {
+    const winnerId = matchResult.winnerUserId;
+    if (!winnerId) return; // In knockouts, we should eventually handle ties (Super Over)
+
+    const homeTeam = state.teams.find(t => t.userId === fixture.homeTeamUserId);
+    const awayTeam = state.teams.find(t => t.userId === fixture.awayTeamUserId);
+    const winnerTeam = winnerId === fixture.homeTeamUserId ? homeTeam : awayTeam;
+    const loserTeam = winnerId === fixture.homeTeamUserId ? awayTeam : homeTeam;
+
+    if (fixture.knockoutType === 'Q1') {
+        const final = state.fixtures.find(f => f.knockoutType === 'FINAL');
+        const q2 = state.fixtures.find(f => f.knockoutType === 'Q2');
+        if (final && winnerTeam) {
+            final.homeTeamUserId = winnerTeam.userId;
+            final.homeTeamName = winnerTeam.teamName;
+        }
+        if (q2 && loserTeam) {
+            q2.homeTeamUserId = loserTeam.userId;
+            q2.homeTeamName = loserTeam.teamName;
+        }
+    } else if (fixture.knockoutType === 'ELIM') {
+        const q2 = state.fixtures.find(f => f.knockoutType === 'Q2');
+        if (q2 && winnerTeam) {
+            q2.awayTeamUserId = winnerTeam.userId;
+            q2.awayTeamName = winnerTeam.teamName;
+        }
+    } else if (fixture.knockoutType === 'Q2') {
+        const final = state.fixtures.find(f => f.knockoutType === 'FINAL');
+        if (final && winnerTeam) {
+            final.awayTeamUserId = winnerTeam.userId;
+            final.awayTeamName = winnerTeam.teamName;
+        }
+    } else if (fixture.knockoutType === 'FINAL') {
+        state.status = 'completed';
+    }
 }
 
 function oversToBalls(overs: number, extraBalls: number): number {
@@ -328,6 +470,33 @@ export function updatePlayerStats(state: LeagueState, matchResult: MatchResult):
 
     // Update caps & MVP
     updateCaps(state);
+}
+
+export function processMatchResult(state: LeagueState, fixture: FixtureEntry, matchResult: MatchResult): void {
+    if (fixture.isKnockout) {
+        handlePlayoffAdvancement(state, fixture, matchResult);
+    } else {
+        updateStandings(state, matchResult);
+    }
+    updatePlayerStats(state, matchResult);
+
+    // Advance to next match
+    const nextPending = state.fixtures.findIndex(f => f.status === 'pending');
+    if (nextPending === -1) {
+        if (state.phase === 'league') {
+            generatePlayoffFixtures(state);
+            const nextMatch = state.fixtures.findIndex(f => f.status === 'pending');
+            if (nextMatch !== -1) {
+                state.currentMatchIndex = nextMatch;
+            } else {
+                state.status = 'completed';
+            }
+        } else {
+            state.status = 'completed';
+        }
+    } else {
+        state.currentMatchIndex = nextPending;
+    }
 }
 
 // ======================================================
@@ -436,38 +605,15 @@ export async function getLeagueState(roomCode: string): Promise<LeagueState | nu
 // Match Result Sync
 // ======================================================
 
-export async function syncMatchToLeague(roomCode: string, fixtureId: string, matchState: any) {
+export async function syncMatchToLeague(roomCode: string, fixtureId: string, matchState: MatchState) {
     const state = await getLeagueState(roomCode);
     if (!state) return null;
 
     const fixture = state.fixtures.find(f => f.id === fixtureId);
     if (!fixture || fixture.status === 'completed') return state;
 
-    // Map MatchState to MatchResult
-    const homeInningsBatting = matchState.innings === 1 && matchState.currentBatting === 'home' 
-        ? matchState.battingOrder 
-        : matchState.firstInningsBattingOrder;
-    
-    const awayInningsBatting = matchState.innings === 1 && matchState.currentBatting === 'away'
-        ? matchState.battingOrder
-        : matchState.firstInningsBattingOrder;
-
-    const homeInningsBowling = matchState.innings === 1 && matchState.currentBatting === 'away'
-        ? matchState.bowlingOrder
-        : matchState.firstInningsBowlingOrder;
-
-    const awayInningsBowling = matchState.innings === 1 && matchState.currentBatting === 'home'
-        ? matchState.bowlingOrder
-        : matchState.firstInningsBowlingOrder;
-
-    // Note: The logic above assumes first innings stats were saved in matchState
-    // If we are currently in 2nd innings, battingOrder is the 2nd innings team.
-    
     const batting2nd = matchState.currentBatting;
     const batting1st = batting2nd === 'home' ? 'away' : 'home';
-
-    const team1State = batting1st === 'home' ? matchState.homeTeam : matchState.awayTeam;
-    const team2State = batting2nd === 'home' ? matchState.homeTeam : matchState.awayTeam;
 
     const matchResult: MatchResult = {
         homeUserId: matchState.homeTeam.userId,
@@ -487,13 +633,13 @@ export async function syncMatchToLeague(roomCode: string, fixtureId: string, mat
                 ? matchState.awayTeam.userId
                 : null,
         battingStats: [
-            ...(matchState.firstInningsBattingOrder || []).map((b: any) => ({
+            ...(matchState.firstInningsBattingOrder || []).map((b: { player: { id: string, name: string, teamName?: string }, runs: number, balls: number, fours: number, sixes: number, isOut: boolean }) => ({
                 playerId: b.player.id,
                 playerName: b.player.name,
                 teamName: b.player.teamName || (batting1st === 'home' ? matchState.homeTeam.name : matchState.awayTeam.name),
                 runs: b.runs, balls: b.balls, fours: b.fours, sixes: b.sixes, isOut: b.isOut
             })),
-            ...(matchState.battingOrder || []).map((b: any) => ({
+            ...(matchState.battingOrder || []).map((b: { player: { id: string, name: string, teamName?: string }, runs: number, balls: number, fours: number, sixes: number, isOut: boolean }) => ({
                 playerId: b.player.id,
                 playerName: b.player.name,
                 teamName: b.player.teamName || (batting2nd === 'home' ? matchState.homeTeam.name : matchState.awayTeam.name),
@@ -501,21 +647,21 @@ export async function syncMatchToLeague(roomCode: string, fixtureId: string, mat
             }))
         ],
         bowlingStats: [
-            ...(matchState.firstInningsBowlingOrder || []).map((b: any) => ({
+            ...(matchState.firstInningsBowlingOrder || []).map((b: { player: { id: string, name: string, teamName?: string }, overs: number, overBalls: number, runs: number, wickets: number }) => ({
                 playerId: b.player.id,
                 playerName: b.player.name,
                 teamName: b.player.teamName || (batting2nd === 'home' ? matchState.homeTeam.name : matchState.awayTeam.name), // bowl 1st = team 2
                 overs: b.overs, balls: b.overBalls, runs: b.runs, wickets: b.wickets
             })),
-            ...(matchState.bowlingOrder || []).map((b: any) => ({
+            ...(matchState.bowlingOrder || []).map((b: { player: { id: string, name: string, teamName?: string }, overs: number, overBalls: number, runs: number, wickets: number }) => ({
                 playerId: b.player.id,
                 playerName: b.player.name,
                 teamName: b.player.teamName || (batting1st === 'home' ? matchState.homeTeam.name : matchState.awayTeam.name), // bowl 2nd = team 1
                 overs: b.overs, balls: b.overBalls, runs: b.runs, wickets: b.wickets
             }))
         ],
-        homePlayers: matchState.homeTeam.players.map((p: any) => p.id),
-        awayPlayers: matchState.awayTeam.players.map((p: any) => p.id)
+        homePlayers: matchState.homeTeam.players.map((p: { id: string }) => p.id),
+        awayPlayers: matchState.awayTeam.players.map((p: { id: string }) => p.id)
     };
 
     fixture.status = 'completed';
@@ -526,17 +672,9 @@ export async function syncMatchToLeague(roomCode: string, fixtureId: string, mat
     fixture.awayScore = matchState.awayTeam.score;
     fixture.awayWickets = matchState.awayTeam.wickets;
     fixture.awayOvers = matchState.awayTeam.overs;
-    fixture.result = matchState.result;
+    fixture.result = matchState.result || undefined;
 
-    updateStandings(state, matchResult);
-    updatePlayerStats(state, matchResult);
-
-    const nextPending = state.fixtures.findIndex(f => f.status === 'pending');
-    if (nextPending === -1) {
-        state.status = 'completed';
-    } else {
-        state.currentMatchIndex = nextPending;
-    }
+    processMatchResult(state, fixture, matchResult);
 
     await saveLeagueState(state);
     return state;

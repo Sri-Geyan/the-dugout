@@ -407,6 +407,54 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ state });
         }
 
+        if (action === 'skip') {
+            let state = await getMatchState(matchId);
+            if (!state) return NextResponse.json({ error: 'Match not found' }, { status: 404 });
+
+            while (state.status !== 'completed') {
+                if (state.status === 'innings_break') {
+                    state.status = 'awaiting_bowler';
+                }
+
+                if (state.status === 'awaiting_batter' || state.status === 'awaiting_bowler') {
+                    if (state.status === 'awaiting_batter') {
+                        const bId = botChooseNextBatter(state);
+                        if (bId) selectNextBatter(state, bId);
+                        else break; // Should not happen
+                    } else {
+                        const bId = botChooseNextBowler(state);
+                        if (bId) selectNextBowler(state, bId);
+                        else break; // Should not happen
+                    }
+                } else if (state.status === 'live') {
+                    const result = processNextBall(state);
+                    state = result.state;
+                } else {
+                    // unexpected state
+                    break;
+                }
+            }
+
+            await saveMatchState(state);
+
+            // Sync to league if completed
+            const parts = matchId.split('-');
+            if (state.status === 'completed' && parts.length >= 2 && parts[1].startsWith('fixture')) {
+                const fixtureId = parts.slice(1).join('-');
+                try {
+                    const updatedLeague = await syncMatchToLeague(state.roomCode, fixtureId, state);
+                    if (updatedLeague) {
+                        emitToRoom(state.roomCode, 'league_update', { state: updatedLeague });
+                    }
+                } catch (err) {
+                    console.error('Failed to sync match to league:', err);
+                }
+            }
+
+            emitToRoom(state.roomCode, 'match_update', { state });
+            return NextResponse.json({ state });
+        }
+
         if (action === 'status') {
             const state = await getMatchState(matchId);
             return NextResponse.json({ state });

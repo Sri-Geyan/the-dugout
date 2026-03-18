@@ -6,6 +6,7 @@ import {
     updateStandings,
     updatePlayerStats,
     validateSquads,
+    processMatchResult,
     LeagueTeam,
     MatchResult,
 } from '@/lib/leagueEngine';
@@ -208,19 +209,8 @@ export async function POST(request: NextRequest) {
             fixture.awayOvers = matchResult.awayOvers;
             fixture.result = matchResult.result;
 
-            // Update standings
-            updateStandings(state, matchResult);
-
-            // Update player stats
-            updatePlayerStats(state, matchResult);
-
-            // Advance to next match
-            const nextPending = state.fixtures.findIndex(f => f.status === 'pending');
-            if (nextPending === -1) {
-                state.status = 'completed';
-            } else {
-                state.currentMatchIndex = nextPending;
-            }
+            // Process match result (updates standings, player stats, and handles playoffs)
+            processMatchResult(state, fixture, matchResult);
 
             await saveLeagueState(state);
 

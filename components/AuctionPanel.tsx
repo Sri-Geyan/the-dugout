@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import PlayerAvatar from '@/components/PlayerAvatar';
 
 interface AuctionPanelProps {
@@ -71,33 +71,35 @@ export default function AuctionPanel({
 
     useEffect(() => {
         if (bidError) {
-            setLocalError(bidError);
+            // Use a small delay to avoid synchronous state update in effect
+            const bidTimer = setTimeout(() => setLocalError(bidError), 0);
             const timer = setTimeout(() => setLocalError(null), 4000);
-            return () => clearTimeout(timer);
+            return () => {
+                clearTimeout(bidTimer);
+                clearTimeout(timer);
+            };
         }
     }, [bidError]);
 
-    useEffect(() => {
-        setBargainAmount(currentBid);
-    }, [currentBid, rtmState]);
+    // Removed useEffect for bargainAmount to avoid cascading renders. 
+    // It will be reset via the 'key' prop on the input field.
 
     const isHighestBidder = currentUserId === currentBidder?.userId;
     const isOriginalTeam = currentUserId === rtmOriginalTeamId;
 
-    const updateTimer = useCallback(() => {
-        if (timerEnd) {
-            const remaining = Math.max(0, Math.ceil((timerEnd - Date.now()) / 1000));
-            setTimeLeft(remaining);
-        } else {
-            setTimeLeft(0);
-        }
-    }, [timerEnd]);
-
     useEffect(() => {
-        updateTimer();
-        const interval = setInterval(updateTimer, 100);
+        const update = () => {
+            if (timerEnd) {
+                const remaining = Math.max(0, Math.ceil((timerEnd - Date.now()) / 1000));
+                setTimeLeft(remaining);
+            } else {
+                setTimeLeft(0);
+            }
+        };
+        update();
+        const interval = setInterval(update, 100);
         return () => clearInterval(interval);
-    }, [updateTimer]);
+    }, [timerEnd]);
 
     // Auto-transition logic for host
     useEffect(() => {
@@ -402,11 +404,12 @@ export default function AuctionPanel({
                                             <div className="flex-1 max-w-[200px]">
                                                 <label className="text-[10px] uppercase font-bold text-white/40 block mb-1">Final Bid (₹ Cr)</label>
                                                 <input
+                                                    key={`${currentBid}-${rtmState}`}
                                                     type="number"
                                                     step={0.25}
                                                     min={currentBid}
                                                     max={userPurse}
-                                                    value={bargainAmount}
+                                                    defaultValue={currentBid}
                                                     onChange={(e) => setBargainAmount(parseFloat(e.target.value))}
                                                     className="w-full bg-black/40 border border-white/10 rounded-lg py-2 px-3 text-center gold-text font-bold"
                                                 />

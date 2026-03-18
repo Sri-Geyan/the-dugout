@@ -4,15 +4,15 @@ let ioInstance: SocketIOServer | null = null;
 
 export const setIO = (io: SocketIOServer) => {
     ioInstance = io;
-    (global as any).io = io; // Still keep global for compatibility
+    (global as any).io = io; // eslint-disable-line @typescript-eslint/no-explicit-any
     console.log('[Socket] IO instance set successfully');
 };
 
 export const getIO = (): SocketIOServer | null => {
-    return ioInstance || (global as any).io || null;
+    return ioInstance || (global as any).io || null; // eslint-disable-line @typescript-eslint/no-explicit-any
 };
 
-export const emitToRoom = (roomCode: string, event: string, data: any) => {
+export const emitToRoom = (roomCode: string, event: string, data: unknown) => {
     const io = getIO();
     if (io) {
         io.to(roomCode).emit(event, data);

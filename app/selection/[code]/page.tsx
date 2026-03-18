@@ -5,6 +5,7 @@ import { useRouter, useParams } from 'next/navigation';
 import { useUserStore } from '@/lib/store';
 import Navbar from '@/components/Navbar';
 import PlayerAvatar from '@/components/PlayerAvatar';
+import TeamLogo from '@/components/TeamLogo';
 import { IPL_TEAMS } from '@/data/teams';
 
 interface SquadPlayer {
@@ -117,7 +118,7 @@ export default function SelectionPage() {
             if (socket.connected) onConnect();
             socket.on('connect', onConnect);
 
-            socket.on('room_update', (data: { room: any }) => {
+            socket.on('room_update', (data: { room: { status?: string } }) => {
                 const status = data.room.status?.toLowerCase();
                 if (status === 'match' || status === 'league') {
                     router.push(`/league/${code}`);
@@ -360,7 +361,7 @@ export default function SelectionPage() {
 
                                             <div className="flex items-center gap-4">
                                                 <PlayerAvatar
-                                                    role={player.role as any}
+                                                    role={player.role as 'BATSMAN' | 'BOWLER' | 'ALL_ROUNDER' | 'WICKET_KEEPER'}
                                                     name={player.name}
                                                     size="lg"
                                                 />
@@ -450,7 +451,7 @@ export default function SelectionPage() {
                                     <div className="flex items-center gap-3">
                                         {iplTeam && (
                                             <div className="w-8 h-8 rounded-full overflow-hidden flex items-center justify-center" style={{ background: `${teamColor}15` }}>
-                                                <span className="text-sm">{iplTeam.emoji}</span>
+                                                <TeamLogo team={iplTeam} size={32} />
                                             </div>
                                         )}
                                         <div className="flex-1">

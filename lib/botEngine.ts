@@ -54,16 +54,7 @@ function generatePersonality(teamName: string): BotPersonality {
 }
 
 
-function evaluatePlayerValue(player: CricketPlayer, team: AuctionTeam, personality: BotPersonality): number {
-    const needs = analyzeSquadNeeds(team.squad);
-    const roleNeed = needs[player.role] || 1.0;
-    const rolePreference = personality.rolePreferences[player.role] || 1.0;
-    const skill = Math.max(player.battingSkill, player.bowlingSkill);
 
-    // Value = skill-based multiplier * need * preference * aggression
-    const skillFactor = skill / 70; // normalize around 70
-    return skillFactor * roleNeed * rolePreference * personality.aggression;
-}
 
 export function getBotMaxHighBid(
     player: CricketPlayer,
@@ -234,6 +225,16 @@ interface EnrichedPlayer {
     battingSkill: number;
     bowlingSkill: number;
     nationality?: string;
+    battingRole?: string;
+    bowlingRole?: string;
+    primaryArchetype?: string;
+    secondaryArchetype?: string;
+    battingRating?: number;
+    bowlingRating?: number;
+    // For performance tracking
+    recentRuns?: number;
+    recentWickets?: number;
+    recentAverage?: number;
 }
 
 export function botSelectPlaying11(squad: EnrichedPlayer[], pitchType: string = 'BALANCED'): {
@@ -243,95 +244,125 @@ export function botSelectPlaying11(squad: EnrichedPlayer[], pitchType: string = 
     wkId: string;
     openingBowlerId: string;
 } {
+    const isSpinFriendly = pitchType === 'SPINNING';
+    const isPaceFriendly = pitchType === 'GREEN' || pitchType === 'HARD';
+
+    // 0. Weighting logic for selection based on skill + ratings + performance
+    const getSelectionScore = (p: EnrichedPlayer, context: 'bat' | 'bowl') => {
+        let base = context === 'bat' ? (p.battingRating || p.battingSkill) : (p.bowlingRating || p.bowlingSkill);
+        
+        // Pitch adjustments
+        if (context === 'bowl') {
+            const spinner = isSpinner(p as any);
+            if (isSpinFriendly && spinner) base += 5;
+            if (isPaceFriendly && !spinner) base += 5;
+        }
+        // Performance boost (simplified: recent runs/wickets)
+        if (context === 'bat' && p.recentAverage) {
+            if (p.recentAverage > 40) base += 5;
+            else if (p.recentAverage < 15) base -= 5;
+        }
+        if (context === 'bowl' && p.recentWickets) {
+            if (p.recentWickets > 2) base += 5; // multi-wicket games
+        }
+        return base;
+    };
+
     const eligible = squad.slice(0, IPL_MAX_SQUAD);
+    const selected: EnrichedPlayer[] = [];
 
-    // Initial pool separation
-    const indian = eligible.filter(p => p.nationality === 'Indian');
-    const overseas = eligible.filter(p => p.nationality === 'Overseas');
-
-    let selected: EnrichedPlayer[] = [];
-    
-    // 1. Mandatory Wicket Keeper (Must pick 1, capped at 4 overseas total later)
-    const wks = [...eligible].filter(p => p.role === 'WICKET_KEEPER').sort((a, b) => b.battingSkill - a.battingSkill);
-    const primaryWK = wks[0];
-    if (primaryWK) {
-        selected.push(primaryWK);
-    }
-
-    // 2. Target Composition: 1 WK, 4 specialist batters, 2-3 ARs, the rest bowlers
-    // Ensure 4 overseas limit
+    // Helper for overseas count
     const getOverseasCount = (list: EnrichedPlayer[]) => list.filter(p => p.nationality === 'Overseas').length;
 
-    const batSpecialists = eligible.filter(p => p.role === 'BATSMAN' && !selected.find(s => s.id === p.id))
-        .sort((a, b) => b.battingSkill - a.battingSkill);
+    // 1. Mandatory Wicket Keeper
+    const wks = [...eligible].filter(p => p.role === 'WICKET_KEEPER')
+        .sort((a, b) => getSelectionScore(b, 'bat') - getSelectionScore(a, 'bat'));
+    const primaryWK = wks[0];
+    if (primaryWK) selected.push(primaryWK);
+
+    // 2. Identify Specialists by Archetypes/Roles
+    const openers = eligible.filter(p => (p.battingRole === 'Opener' || p.primaryArchetype?.includes('Opener')) && !selected.find(s => s.id === p.id))
+        .sort((a, b) => getSelectionScore(b, 'bat') - getSelectionScore(a, 'bat'));
     
-    const bowlSpecialists = eligible.filter(p => p.role === 'BOWLER' && !selected.find(s => s.id === p.id))
-        .sort((a, b) => b.bowlingSkill - a.bowlingSkill);
-        
-    const allRounders = eligible.filter(p => p.role === 'ALL_ROUNDER' && !selected.find(s => s.id === p.id))
-        .sort((a, b) => (b.battingSkill + b.bowlingSkill) - (a.battingSkill + a.bowlingSkill));
+    const finishers = eligible.filter(p => (p.battingRole === 'Finisher' || p.primaryArchetype?.includes('Finisher')) && !selected.find(s => s.id === p.id))
+        .sort((a, b) => getSelectionScore(b, 'bat') - getSelectionScore(a, 'bat'));
 
-    // Fill Batters (total 5 including WK if WK is a good batter)
-    for (const p of batSpecialists) {
-        if (selected.filter(s => s.role === 'BATSMAN' || s.role === 'WICKET_KEEPER').length >= 5) break;
+    const deathBowlers = eligible.filter(p => (p.bowlingRole === 'Death Bowler' || p.primaryArchetype?.includes('Death')) && !selected.find(s => s.id === p.id))
+        .sort((a, b) => getSelectionScore(b, 'bowl') - getSelectionScore(a, 'bowl'));
+
+    // 3. Selective Fill
+    // Add 2 Openers
+    for (const p of openers) {
+        if (selected.filter(s => s.battingRole === 'Opener' || s.primaryArchetype?.includes('Opener')).length >= 2) break;
         if (p.nationality === 'Overseas' && getOverseasCount(selected) >= 4) continue;
         selected.push(p);
     }
 
-    // Fill Bowlers (target at least 3-4 specialized)
-    for (const p of bowlSpecialists) {
-        if (selected.filter(s => s.role === 'BOWLER').length >= 4) break;
+    // Add 2 Death Bowlers
+    for (const p of deathBowlers) {
+        if (selected.filter(s => s.bowlingRole === 'Death Bowler' || s.primaryArchetype?.includes('Death')).length >= 2) break;
         if (p.nationality === 'Overseas' && getOverseasCount(selected) >= 4) continue;
         selected.push(p);
     }
 
-    // Fill All-Rounders (target 2)
-    for (const p of allRounders) {
-        if (selected.filter(s => s.role === 'ALL_ROUNDER').length >= 2) break;
+    // Add Finishers
+    for (const p of finishers) {
+        if (selected.filter(s => s.battingRole === 'Finisher' || s.primaryArchetype?.includes('Finisher')).length >= 1) break;
         if (p.nationality === 'Overseas' && getOverseasCount(selected) >= 4) continue;
         selected.push(p);
     }
 
-    // Fill remaining to 11 with best available
-    const remaining = eligible.filter(p => !selected.find(s => s.id === p.id))
-        .sort((a, b) => Math.max(b.battingSkill, b.bowlingSkill) - Math.max(a.battingSkill, a.bowlingSkill));
+    // 4. Fill remaining needed slots (Target: 4-5 specialist bats, 3-4 specialist bowls, 2-3 ARs)
+    const specialists = eligible.filter(p => !selected.find(s => s.id === p.id))
+        .sort((a, b) => Math.max(getSelectionScore(b, 'bat'), getSelectionScore(b, 'bowl')) - Math.max(getSelectionScore(a, 'bat'), getSelectionScore(a, 'bowl')));
 
-    for (const p of remaining) {
+    for (const p of specialists) {
         if (selected.length >= 11) break;
         if (p.nationality === 'Overseas' && getOverseasCount(selected) >= 4) continue;
         selected.push(p);
     }
 
-    // Final fallback: fill with any Indian players if still under 11
+    // 5. Fallback
     if (selected.length < 11) {
         const leftovers = eligible.filter(p => !selected.find(s => s.id === p.id));
         selected.push(...leftovers.slice(0, 11 - selected.length));
     }
 
-    // 3. Strategic Batting Order
-    // Positions:
-    // 1-2: Best pure batters / Openers
-    const openersPool = [...selected].sort((a, b) => b.battingSkill - a.battingSkill);
-    const pos1 = openersPool[0];
-    const pos2 = openersPool[1];
+    // 6. Strategic Batting Order
+    const sortedSelected = [...selected].sort((a, b) => getSelectionScore(b, 'bat') - getSelectionScore(a, 'bat'));
     
-    // 3-5: Middle order anchors
-    const middlePool = openersPool.slice(2, 5);
+    // Pick openers for top 2
+    const lineupOpeners = selected.filter(p => p.battingRole === 'Opener' || p.primaryArchetype?.includes('Opener'))
+        .sort((a, b) => getSelectionScore(b, 'bat') - getSelectionScore(a, 'bat'));
     
-    // 6-7: Finishers (All-rounders with good batting)
-    const finishers = [...selected].filter(p => p.role === 'ALL_ROUNDER' && !middlePool.includes(p) && p !== pos1 && p !== pos2)
-        .sort((a, b) => b.battingSkill - a.battingSkill);
-    
-    // 8-11: Tail
-    const tail = [...selected].filter(p => !finishers.includes(p) && !middlePool.includes(p) && p !== pos1 && p !== pos2)
-        .sort((a, b) => b.battingSkill - a.battingSkill);
+    const lineupFinishers = selected.filter(p => p.battingRole === 'Finisher' || p.primaryArchetype?.includes('Finisher'))
+        .sort((a, b) => getSelectionScore(b, 'bat') - getSelectionScore(a, 'bat'));
 
-    const battingOrder = [pos1, pos2, ...middlePool, ...finishers, ...tail].map(p => p.id);
+    const others = selected.filter(p => !lineupOpeners.includes(p) && !lineupFinishers.includes(p))
+        .sort((a, b) => getSelectionScore(b, 'bat') - getSelectionScore(a, 'bat'));
+
+    // Construct order: Openers -> Others -> Finishers -> Tail (Bowlers with low batting)
+    // Actually: Openers (2) -> Best Batsmen (3-5) -> Finishers (6-7) -> Bowlers (8-11)
+    const actualOrder: EnrichedPlayer[] = [];
+    actualOrder.push(...lineupOpeners.slice(0, 2));
+    
+    const middleOrder = others.filter(p => p.role === 'BATSMAN' || p.role === 'ALL_ROUNDER' || p.role === 'WICKET_KEEPER');
+    actualOrder.push(...middleOrder);
+    
+    actualOrder.push(...lineupFinishers);
+    
+    // Any remaining (mostly specialist bowlers)
+    const remainingLineup = selected.filter(p => !actualOrder.includes(p))
+        .sort((a, b) => getSelectionScore(b, 'bat') - getSelectionScore(a, 'bat'));
+    actualOrder.push(...remainingLineup);
+
+    const battingOrder = actualOrder.map(p => p.id).slice(0, 11);
 
     // Metadata
-    const captain = [...selected].sort((a, b) => Math.max(b.battingSkill, b.bowlingSkill) - Math.max(a.battingSkill, a.bowlingSkill))[0];
+    const captain = [...selected].sort((a, b) => Math.max(getSelectionScore(b, 'bat'), getSelectionScore(b, 'bowl')) - Math.max(getSelectionScore(a, 'bat'), getSelectionScore(a, 'bowl')))[0];
     const wk = selected.find(p => p.role === 'WICKET_KEEPER') || selected[0];
-    const openingBowler = selected.filter(p => p.role === 'BOWLER' || p.role === 'ALL_ROUNDER').sort((a, b) => b.bowlingSkill - a.bowlingSkill)[0];
+    const openingBowler = selected.filter(p => p.role === 'BOWLER' || p.role === 'ALL_ROUNDER')
+        .sort((a, b) => getSelectionScore(b, 'bowl') - getSelectionScore(a, 'bowl'))[0];
 
     return {
         selectedIds: selected.map(p => p.id),
@@ -358,21 +389,24 @@ export function botChooseNextBatter(state: MatchState): string | null {
     // Pick strategy based on state
     if (phase === 'powerplay' && wicketsDown >= 2) {
         // CRISIS: Send the most solid "anchor" batter left (Highest batting skill)
-        const sorted = [...available].sort((a, b) => b.player.battingSkill - a.player.battingSkill);
+        const sorted = [...available].sort((a, b) => (b.player.battingRating || b.player.battingSkill) - (a.player.battingRating || a.player.battingSkill));
         return sorted[0].player.id;
     }
 
     if (phase === 'death') {
-        // FINISH LINE: Send "Finishers" (All-rounders with good skills)
+        // FINISH LINE: Send "Finishers" or "Hard Hitters"
         const sorted = [...available].sort((a, b) => {
-            if (a.player.role === 'ALL_ROUNDER' && b.player.role !== 'ALL_ROUNDER') return -1;
-            if (b.player.role === 'ALL_ROUNDER' && a.player.role !== 'ALL_ROUNDER') return 1;
-            return b.player.battingSkill - a.player.battingSkill;
+            const isFinisherA = a.player.battingRole === 'Finisher' || a.player.primaryArchetype?.includes('Finisher') || a.player.primaryArchetype?.includes('Hard Hitter');
+            const isFinisherB = b.player.battingRole === 'Finisher' || b.player.primaryArchetype?.includes('Finisher') || b.player.primaryArchetype?.includes('Hard Hitter');
+            
+            if (isFinisherA && !isFinisherB) return -1;
+            if (isFinisherB && !isFinisherA) return 1;
+            return (b.player.battingRating || b.player.battingSkill) - (a.player.battingRating || a.player.battingSkill);
         });
         return sorted[0].player.id;
     }
 
-    // Default: Follow the pre-set batting order (stable accumulation)
+    // Default: Follow the pre-set batting order
     return available[0].player.id;
 }
 
@@ -388,39 +422,41 @@ export function botChooseNextBowler(state: MatchState): string | null {
 
     const phase = state.matchPhase;
 
-    // Sorting Logic based on Professional Strategy (Cricinfo Style)
+    // Sorting Logic based on Professional Strategy
     const sorted = [...pool].sort((a, b) => {
-        const skillA = a.player.bowlingSkill;
-        const skillB = b.player.bowlingSkill;
+        const skillA = a.player.bowlingRating || a.player.bowlingSkill;
+        const skillB = b.player.bowlingRating || b.player.bowlingSkill;
+        
+        const isDeathSpecialistA = a.player.bowlingRole === 'Death Bowler' || a.player.primaryArchetype?.includes('Death');
+        const isDeathSpecialistB = b.player.bowlingRole === 'Death Bowler' || b.player.primaryArchetype?.includes('Death');
+        
+        const isPowerplaySpecialistA = a.player.bowlingRole === 'Opening Bowler' || a.player.primaryArchetype?.includes('New Ball');
+        const isPowerplaySpecialistB = b.player.bowlingRole === 'Opening Bowler' || b.player.primaryArchetype?.includes('New Ball');
+
         const spinnerA = isSpinner(a.player);
         const spinnerB = isSpinner(b.player);
 
-        // 1. Phase Specialization
         if (phase === 'powerplay') {
-            // Prefer PACE (non-spinners) in powerplay
+            if (isPowerplaySpecialistA && !isPowerplaySpecialistB) return -1;
+            if (isPowerplaySpecialistB && !isPowerplaySpecialistA) return 1;
             if (!spinnerA && spinnerB) return -1;
             if (spinnerA && !spinnerB) return 1;
+        } else if (phase === 'death') {
+            if (isDeathSpecialistA && !isDeathSpecialistB) return -1;
+            if (isDeathSpecialistB && !isDeathSpecialistA) return 1;
+            return skillB - skillA;
         } else if (phase === 'middle') {
-            // Prefer SPIN in middle overs, especially on spinning tracks
             const spinTrack = state.pitchType === 'SPINNING';
             if (spinTrack) {
                 if (spinnerA && !spinnerB) return -1;
                 if (!spinnerA && spinnerB) return 1;
-            } else {
-                // Regular middle: All-rounders or spinners
-                if (a.player.role === 'ALL_ROUNDER' && b.player.role === 'BOWLER') return -1;
-                if (b.player.role === 'ALL_ROUNDER' && a.player.role === 'BOWLER') return 1;
             }
-        } else if (phase === 'death') {
-            // Death: Absolute best bowlers by skill
-            return skillB - skillA;
         }
 
-        // 2. Performance-based weight (prefer someone who hasn't been expensive)
+        // Performance-based weight
         const econA = a.overs > 0 ? (a.runs / a.overs) : 7.0;
         const econB = b.overs > 0 ? (b.runs / b.overs) : 7.0;
         
-        // Final tie-breaker: overall skill
         const scoreA = skillA - (econA * 2);
         const scoreB = skillB - (econB * 2);
 
@@ -604,7 +640,15 @@ export async function runBotFinalMatchDecisions(roomCode: string): Promise<Aucti
     return updatedState;
 }
 
-export async function ensureBotSelections(roomCode: string, fixtureId: string, teamUserId: string): Promise<any> {
+interface Playing11Selection {
+    selectedIds: string[];
+    battingOrder: string[];
+    captainId: string;
+    wkId: string;
+    openingBowlerId: string;
+}
+
+export async function ensureBotSelections(roomCode: string, fixtureId: string, teamUserId: string): Promise<Playing11Selection | null> {
     const { getAuctionState } = await import('./auctionEngine');
     const { getRoomState } = await import('./roomManager');
     const redisObj = (await import('./redis')).default;
@@ -618,17 +662,38 @@ export async function ensureBotSelections(roomCode: string, fixtureId: string, t
     if (!roomPlayer || !isBotUser(roomPlayer.username)) return null;
 
     const auction = await getAuctionState(roomCode);
+    const leagueState = await (await import('./leagueEngine')).getLeagueState(roomCode);
+    
     const teamData = auction?.teams.find(t => t.userId === teamUserId);
     if (!teamData) return null;
 
-    const squad = teamData.squad.map(s => ({
-        id: s.player.id,
-        name: s.player.name,
-        role: s.player.role,
-        battingSkill: s.player.battingSkill,
-        bowlingSkill: s.player.bowlingSkill,
-        nationality: s.player.nationality,
-    }));
+    const squad: EnrichedPlayer[] = teamData.squad.map(s => {
+        const stats = leagueState?.playerStats.find(ps => ps.playerId === s.player.id);
+        let recentAverage = 0;
+        let recentWickets = 0;
+
+        if (stats && stats.matches > 0) {
+            recentAverage = stats.runs / stats.matches;
+            recentWickets = stats.wickets / stats.matches;
+        }
+
+        return {
+            id: s.player.id,
+            name: s.player.name,
+            role: s.player.role,
+            battingSkill: s.player.battingSkill,
+            bowlingSkill: s.player.bowlingSkill,
+            nationality: s.player.nationality,
+            battingRole: s.player.battingRole,
+            bowlingRole: s.player.bowlingRole,
+            primaryArchetype: s.player.primaryArchetype,
+            secondaryArchetype: s.player.secondaryArchetype,
+            battingRating: s.player.battingRating,
+            bowlingRating: s.player.bowlingRating,
+            recentAverage,
+            recentWickets,
+        };
+    });
 
     // Pitch type could be fetched from league fixture if available, otherwise BALANCED
     const selection = botSelectPlaying11(squad);

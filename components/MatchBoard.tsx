@@ -24,6 +24,7 @@ interface MatchBoardProps {
     matchPhase: string;
     innings: number;
     result: string | null;
+    onSkip?: () => void;
 }
 
 export default function MatchBoard({
@@ -34,6 +35,7 @@ export default function MatchBoard({
     matchPhase,
     innings,
     result,
+    onSkip,
 }: MatchBoardProps) {
     const phaseColors: Record<string, string> = {
         powerplay: '#4FC3F7',
@@ -44,15 +46,26 @@ export default function MatchBoard({
     return (
         <div className="space-y-4">
             {/* Match Phase & Innings */}
-            <div className="flex items-center gap-3">
-                <span className="badge badge-gold text-[10px]">INNINGS {innings}</span>
-                <span className="text-[10px] font-semibold px-3 py-1 rounded-full" style={{
-                    background: `${phaseColors[matchPhase] || '#fff'}15`,
-                    color: phaseColors[matchPhase] || '#fff',
-                    border: `1px solid ${phaseColors[matchPhase] || '#fff'}30`,
-                }}>
-                    {matchPhase.toUpperCase()} OVERS
-                </span>
+            <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                    <span className="badge badge-gold text-[10px]">INNINGS {innings}</span>
+                    <span className="text-[10px] font-semibold px-3 py-1 rounded-full" style={{
+                        background: `${phaseColors[matchPhase] || '#fff'}15`,
+                        color: phaseColors[matchPhase] || '#fff',
+                        border: `1px solid ${phaseColors[matchPhase] || '#fff'}30`,
+                    }}>
+                        {matchPhase.toUpperCase()} OVERS
+                    </span>
+                </div>
+                
+                {!result && onSkip && (
+                    <button 
+                        onClick={onSkip}
+                        className="text-[10px] font-black gold-text px-3 py-1.5 rounded-lg border border-gold/30 hover:bg-gold/10 transition-all flex items-center gap-1.5 shadow-[0_0_10px_rgba(212,175,55,0.1)]"
+                    >
+                        ⏩ SKIP TO RESULT
+                    </button>
+                )}
             </div>
 
             {/* Result Banner */}

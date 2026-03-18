@@ -51,7 +51,8 @@ export default function Home() {
   const [activeFeature, setActiveFeature] = useState<number | null>(null);
 
   useEffect(() => {
-    setMounted(true);
+    const timer = setTimeout(() => setMounted(true), 0);
+    return () => clearTimeout(timer);
   }, []);
 
   return (

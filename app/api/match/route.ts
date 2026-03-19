@@ -97,6 +97,7 @@ export async function POST(request: NextRequest) {
                                 role: s.player.role,
                                 battingSkill: s.player.battingSkill,
                                 bowlingSkill: s.player.bowlingSkill,
+                                nationality: s.player.nationality,
                                 isCaptain: s.player.id === selection?.captainId,
                                 isWicketKeeper: s.player.id === selection?.wkId,
                             }))

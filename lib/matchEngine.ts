@@ -86,6 +86,7 @@ export interface MatchPlayer {
     role: string;
     battingSkill: number;
     bowlingSkill: number;
+    nationality?: string;
     isCaptain?: boolean;
     isWicketKeeper?: boolean;
     battingRole?: string;

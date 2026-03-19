@@ -36,7 +36,7 @@ interface MatchTeam {
         batterName: string;
     }[];
     runRate: number;
-    players: { id: string; name: string; role: string; battingSkill: number; bowlingSkill: number; isCaptain?: boolean; isWicketKeeper?: boolean }[];
+    players: { id: string; name: string; role: string; battingSkill: number; bowlingSkill: number; nationality?: string; isCaptain?: boolean; isWicketKeeper?: boolean }[];
 }
 
 interface BatterState {
@@ -1129,6 +1129,9 @@ function MatchSelectionUI({ team, onLock, isBattingFirst, stadiumId }: {
     const [wkId, setWkId] = useState('');
     const [openingBowlerId, setOpeningBowlerId] = useState('');
 
+    const selectedPlayers = team.players.filter(p => selectedIds.includes(p.id));
+    const overseasCount = selectedPlayers.filter(p => p.nationality === 'Overseas').length;
+
     // Pre-select top 11 by skill by default
     useEffect(() => {
         const timer = setTimeout(() => {
@@ -1169,7 +1172,11 @@ function MatchSelectionUI({ team, onLock, isBattingFirst, stadiumId }: {
         }
     };
 
-    const isValid = selectedIds.length === 11 && captainId && wkId && (isBattingFirst ? true : openingBowlerId);
+    const isValid = selectedIds.length === 11 && 
+                    overseasCount <= 4 &&
+                    captainId && 
+                    wkId && 
+                    (isBattingFirst ? true : openingBowlerId);
 
     return (
         <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
@@ -1180,10 +1187,23 @@ function MatchSelectionUI({ team, onLock, isBattingFirst, stadiumId }: {
                 <div className="panel p-6">
                     <div className="flex items-center justify-between mb-6">
                         <h3 className="text-lg font-bold">Pick Your 11</h3>
-                        <span className={`px-3 py-1 rounded-full text-xs font-black ${selectedIds.length === 11 ? 'bg-green-500/20 text-green-500' : 'bg-yellow-500/20 text-yellow-500'}`}>
-                            {selectedIds.length} / 11 SELECTED
-                        </span>
+                        <div className="flex gap-2">
+                            <span className={`px-3 py-1 rounded-full text-[10px] font-black ${overseasCount <= 4 ? 'bg-blue-500/20 text-blue-400' : 'bg-red-500/20 text-red-500 animate-pulse'}`}>
+                                {overseasCount} / 4 OVERSEAS
+                            </span>
+                            <span className={`px-3 py-1 rounded-full text-[10px] font-black ${selectedIds.length === 11 ? 'bg-green-500/20 text-green-500' : 'bg-yellow-500/20 text-yellow-500'}`}>
+                                {selectedIds.length} / 11 SELECTED
+                            </span>
+                        </div>
                     </div>
+
+                    {overseasCount > 4 && (
+                        <div className="mb-4 p-3 bg-red-500/10 border border-red-500/30 rounded-xl text-center">
+                            <p className="text-[10px] font-bold text-red-400 uppercase tracking-widest">
+                                ⚠️ Maximum 4 Overseas Players allowed in Playing 11
+                            </p>
+                        </div>
+                    )}
 
                     <div className="space-y-2 max-h-[500px] overflow-y-auto pr-2 custom-scrollbar">
                         {team.players.map(p => {

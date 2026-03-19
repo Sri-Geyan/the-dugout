@@ -316,31 +316,59 @@ export function botSelectPlaying11(squad: EnrichedPlayer[], pitchType: string = 
     const isAnchor = (p: EnrichedPlayer) => p.primaryArchetype?.includes('Anchor') || p.primaryArchetype?.includes('Stable') || p.battingRole?.includes('Number 3');
     const isMiddleOrder = (p: EnrichedPlayer) => p.name === 'Shivam Dube' || p.battingRole?.toLowerCase().includes('middle') || p.primaryArchetype?.includes('Middle') || p.primaryArchetype?.includes('Spin Basher');
 
+    // 1. Mandatory Picks (WK)
     const wks = [...eligible].filter(p => p.role === 'WICKET_KEEPER')
         .sort((a, b) => getSelectionScore(b, 'bat') - getSelectionScore(a, 'bat'));
-    const primaryWK = wks[0];
+    
+    // Pick best WK, but be mindful of overseas
+    let primaryWK = wks.find(p => p.nationality !== 'Overseas');
+    if (!primaryWK) primaryWK = wks[0]; // If only overseas WKs exist
     if (primaryWK) selected.push(primaryWK);
 
-    // 2. Specialized Personnel (Pick specialists first)
-    // 2b. Pick 6-7 batters/WKs/ARs (Must have at least 6 to fill #1-7 comfortably)
+    // Helper for adding players with overseas constraint
+    const tryAddWithLimit = (pool: EnrichedPlayer[], count: number) => {
+        let added = 0;
+        for (const p of pool) {
+            if (added >= count) break;
+            if (isSelected(p)) continue;
+            
+            const isOverseas = p.nationality === 'Overseas';
+            if (isOverseas && getOverseasCount(selected) >= 4) continue;
+            
+            selected.push(p);
+            added++;
+        }
+    };
+
+    // 2. Specialized Personnel
+    // 2b. Pick non-bowlers (Aim for 7 total)
     const nonBowlers = eligible.filter(p => p.role !== 'BOWLER' && !isSelected(p))
         .sort((a, b) => getSelectionScore(b, 'bat') - getSelectionScore(a, 'bat'));
-    selected.push(...nonBowlers.slice(0, Math.max(0, 7 - selected.length))); // Aim for 7 non-bowlers
+    tryAddWithLimit(nonBowlers, 7 - selected.length);
 
-    // 2c. Pick at least 4 bowlers
+    // 2c. Pick bowlers (Ensure at least 4-5)
     const bowlsPool = eligible.filter(p => p.role === 'BOWLER' && !isSelected(p))
         .sort((a, b) => getSelectionScore(b, 'bowl') - getSelectionScore(a, 'bowl'));
-    selected.push(...bowlsPool.slice(0, 4));
+    tryAddWithLimit(bowlsPool, 4);
 
-    // 2d. Fill remaining to 11 (Favor best remaining)
+    // 2d. Fill to 11 (Favor best remaining, prioritizing Indians if overseas limit reached)
     const othersPool = eligible.filter(p => !isSelected(p))
-        .sort((a, b) => Math.max(getSelectionScore(b, 'bat'), getSelectionScore(b, 'bowl')) - Math.max(getSelectionScore(a, 'bat'), getSelectionScore(a, 'bowl')));
-    selected.push(...othersPool.slice(0, 11 - selected.length));
+        .sort((a, b) => {
+            const scoreB = Math.max(getSelectionScore(b, 'bat'), getSelectionScore(b, 'bowl'));
+            const scoreA = Math.max(getSelectionScore(a, 'bat'), getSelectionScore(a, 'bowl'));
+            return scoreB - scoreA;
+        });
+    tryAddWithLimit(othersPool, 11 - selected.length);
     
-    // 3. Fallback to 11 if somehow short
+    // 3. Absolute Fallback (If still short, pick ANY available Indian first then overseas)
     if (selected.length < 11) {
-        const leftovers = eligible.filter(p => !selected.find(s => s.id === p.id));
-        selected.push(...leftovers.slice(0, 11 - selected.length));
+        const fallbacks = eligible.filter(p => !isSelected(p))
+            .sort((a, b) => (a.nationality === 'Overseas' ? 1 : -1)); // Indians first
+        for (const p of fallbacks) {
+            if (selected.length >= 11) break;
+            if (p.nationality === 'Overseas' && getOverseasCount(selected) >= 4) continue;
+            selected.push(p);
+        }
     }
 
     // Construct strictly sequenced order (#1-11)

@@ -178,7 +178,7 @@ export function isSpinner(player: MatchPlayer): boolean {
     return spinnerNames.some(s => name.includes(s)) && player.role !== 'BATSMAN';
 }
 
-function simulateBall(
+export function simulateBall(
     batter: BatterState,
     bowler: BowlerState,
     pitchType: string,
@@ -414,12 +414,12 @@ function getRunProbabilities(
 
     if (phase === 'powerplay') {
         probs = [
-            [0, Math.max(0.15, 0.32 - skillPush)],
-            [1, 0.28 * friendlyMod],
-            [2, 0.10 * friendlyMod],
+            [0, Math.max(0.12, 0.28 - skillPush)], // Reduced dot ball prob (was 0.32)
+            [1, 0.30 * friendlyMod],              // Increased single prob (was 0.28)
+            [2, 0.12 * friendlyMod],              // Increased double prob (was 0.10)
             [3, 0.02 * friendlyMod],
-            [4, (0.16 + skillPush) * boundaryMod * friendlyMod],
-            [6, (0.10 + skillPush * 0.8) * boundaryMod * friendlyMod],
+            [4, (0.18 + skillPush) * boundaryMod * friendlyMod], // Increased 4s (was 0.16)
+            [6, (0.12 + skillPush * 0.8) * boundaryMod * friendlyMod], // Increased 6s (was 0.10)
         ];
     } else if (phase === 'death') {
         probs = [

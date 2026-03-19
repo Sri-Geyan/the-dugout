@@ -262,6 +262,11 @@ function PlayerCard({ player, color }: any) {
                     <h4 className="text-sm font-bold group-hover:text-gold transition-colors">{player.name}</h4>
                     <div className="flex items-center gap-2 mt-1">
                         <span className="text-[10px] opacity-40 uppercase font-bold tracking-tighter">{player.nationality || 'Indian'}</span>
+                        {player.retained && (
+                            <span className="text-[8px] font-black bg-gold/20 text-gold px-1.5 py-0.5 rounded border border-gold/30 tracking-widest uppercase">
+                                Retained
+                            </span>
+                        )}
                     </div>
                 </div>
             </div>
@@ -850,7 +855,7 @@ export default function LeaguePage() {
                                 />
                                 <SquadCategory 
                                     title="🧤 Wicketkeepers" 
-                                    players={selectedTeam.squad.filter((s: any) => s.player.role === 'WICKETKEEPER')} 
+                                    players={selectedTeam.squad.filter((s: any) => s.player.role === 'WICKET_KEEPER')} 
                                     color="#3B82F6"
                                 />
                                 <SquadCategory 

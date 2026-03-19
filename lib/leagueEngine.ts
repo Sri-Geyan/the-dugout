@@ -10,7 +10,7 @@ export interface LeagueTeam {
     username: string;
     teamName: string;
     teamId?: string;
-    squad: { player: { id: string; name: string; role: string; battingSkill: number; bowlingSkill: number; nationality?: string }; soldPrice: number }[];
+    squad: { player: { id: string; name: string; role: string; battingSkill: number; bowlingSkill: number; nationality?: string; retained?: boolean }; soldPrice: number }[];
 }
 
 export interface FixtureEntry {

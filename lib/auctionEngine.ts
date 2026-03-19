@@ -142,6 +142,12 @@ export interface AuctionTeam {
     maxSquadSize: number;
     rtmCardsUsed: number;
     maxRtmCards: number;
+    retained?: {
+        playerId: string;
+        playerName: string;
+        role: string;
+        cost: number;
+    }[];
 }
 
 const INITIAL_PURSE = 120; // Cr

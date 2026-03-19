@@ -411,6 +411,13 @@ export async function POST(request: NextRequest) {
             let state = await getMatchState(matchId);
             if (!state) return NextResponse.json({ error: 'Match not found' }, { status: 404 });
 
+            // Permission Check
+            const isParticipant = session.userId === state.homeTeam.userId || session.userId === state.awayTeam.userId;
+            const room = await getRoomState(state.roomCode);
+            if (!isParticipant && room?.hostId !== session.userId) {
+                return NextResponse.json({ error: 'Permission denied: Only participants or host can skip' }, { status: 403 });
+            }
+
             while (state.status !== 'completed') {
                 if (state.status === 'innings_break') {
                     state.status = 'awaiting_bowler';

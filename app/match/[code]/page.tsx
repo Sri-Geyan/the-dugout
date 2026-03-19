@@ -737,23 +737,27 @@ export default function MatchPage() {
                         </div>
 
                         {/* Ball Button */}
-                        {match.status === 'live' && isUserBowlingTeam && (
+                        {match.status === 'live' && (
                             <div className="flex gap-3">
-                                <button onClick={handleBall} className="btn-primary flex-1 text-lg py-4" style={{ animation: 'pulse 2s infinite' }}>
-                                    🏏 Bowl Next Ball
-                                </button>
-                                <button 
-                                    onClick={handleSkipMatch}
-                                    className="px-6 rounded-2xl font-black text-[10px] tracking-widest border-2 border-dashed transition-all hover:bg-gold/10 hover:border-gold/50"
-                                    style={{ borderColor: 'rgba(212,175,55,0.2)', color: 'rgba(212,175,55,0.6)' }}
-                                    title="Complete the match instantly"
-                                >
-                                    ⏩ SKIP
-                                </button>
+                                {isUserBowlingTeam && (
+                                    <button onClick={handleBall} className="btn-primary flex-1 text-lg py-4" style={{ animation: 'pulse 2s infinite' }}>
+                                        🏏 Bowl Next Ball
+                                    </button>
+                                )}
+                                {(isUserBowlingTeam || isUserBattingTeam || userId === hostId) && (
+                                    <button 
+                                        onClick={handleSkipMatch}
+                                        className={`${(isUserBowlingTeam || isUserBattingTeam) ? 'px-6' : 'btn-secondary flex-1 py-4'} rounded-2xl font-black text-[10px] tracking-widest border-2 border-dashed transition-all hover:bg-gold/10 hover:border-gold/50`}
+                                        style={{ borderColor: 'rgba(212,175,55,0.2)', color: 'rgba(212,175,55,0.6)' }}
+                                        title="Complete the match instantly"
+                                    >
+                                        ⏩ SKIP
+                                    </button>
+                                )}
                             </div>
                         )}
 
-                        {match.status === 'live' && !isUserBowlingTeam && (
+                        {match.status === 'live' && !isUserBowlingTeam && userId !== hostId && (
                             <div className="panel text-center py-4 border-dashed opacity-50">
                                 <p className="text-xs font-medium" style={{ color: 'var(--color-text-muted)' }}>
                                     {isUserBattingTeam ? 'Waiting for bowler to bowl...' : 'Match in progress...'}

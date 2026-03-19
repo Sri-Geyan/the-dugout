@@ -59,16 +59,22 @@ export async function POST(request: NextRequest) {
             }
 
             // Convert auction teams to league teams
-            const teams: LeagueTeam[] = auctionState.teams.map(t => ({
-                userId: t.userId,
-                username: t.username,
-                teamName: t.teamName,
-                teamId: (t as unknown as { teamId?: string }).teamId,
-                squad: t.squad.map(s => ({
-                    player: s.player,
-                    soldPrice: s.soldPrice,
-                })),
-            }));
+            const teams: LeagueTeam[] = auctionState.teams.map(t => {
+                const retainedIds = new Set(t.retained?.map(r => r.playerId) || []);
+                return {
+                    userId: t.userId,
+                    username: t.username,
+                    teamName: t.teamName,
+                    teamId: (t as any).teamId,
+                    squad: t.squad.map(s => ({
+                        player: {
+                            ...s.player,
+                            retained: retainedIds.has(s.player.id),
+                        },
+                        soldPrice: s.soldPrice,
+                    })),
+                };
+            });
 
             // Validate squads
             const validation = validateSquads(teams);

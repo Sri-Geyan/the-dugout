@@ -106,20 +106,36 @@ export async function POST(request: NextRequest) {
                 }
             }
 
+            // Fetch league state once for stats
+            const { getLeagueState } = await import('@/lib/leagueEngine');
+            const leagueState = await getLeagueState(roomCode);
+            const playerStats = leagueState?.playerStats || [];
             const results: Record<string, SelectionData> = {};
 
             for (const team of auctionState.teams) {
                 const roomPlayer = room.players.find(p => p.userId === team.userId);
                 if (!roomPlayer || !isBotUser(roomPlayer.username)) continue;
 
-                const squad = team.squad.map(s => ({
-                    id: s.player.id,
-                    name: s.player.name,
-                    role: s.player.role,
-                    battingSkill: s.player.battingSkill,
-                    bowlingSkill: s.player.bowlingSkill,
-                    nationality: s.player.nationality,
-                }));
+                const squad = team.squad.map(s => {
+                    const stats = playerStats.find(ps => ps.playerId === s.player.id);
+                    return {
+                        id: s.player.id,
+                        name: s.player.name,
+                        role: s.player.role,
+                        battingSkill: s.player.battingSkill,
+                        bowlingSkill: s.player.bowlingSkill,
+                        nationality: s.player.nationality,
+                        battingRole: (s.player as any).battingRole,
+                        bowlingRole: (s.player as any).bowlingRole,
+                        primaryArchetype: (s.player as any).primaryArchetype,
+                        // Historical Performance Mapping
+                        recentRuns: stats?.runs || 0,
+                        recentWickets: stats?.wickets || 0,
+                        recentAverage: stats?.matches ? (stats.runs / stats.matches) : undefined,
+                        recentEconomy: stats?.oversBowled ? (stats.runsConceded / (stats.oversBowled / 6)) : undefined,
+                        recentStrikeRate: stats?.balls ? (stats.runs / stats.balls) * 100 : undefined,
+                    };
+                });
 
                 const selection = botSelectPlaying11(squad, pitchType);
 
@@ -185,23 +201,27 @@ export async function POST(request: NextRequest) {
                         const { updateRoomStatus } = await import('@/lib/roomManager');
                         
                         // Convert auction teams to league teams
-                        const teams = auctionState.teams.map(t => ({
-                            userId: t.userId,
-                            username: t.username,
-                            teamName: t.teamName,
-                            teamId: (t as any).teamId,
-                            squad: t.squad.map(s => ({
-                                player: {
-                                    id: s.player.id,
-                                    name: s.player.name,
-                                    role: s.player.role || 'BATSMAN',
-                                    battingSkill: s.player.battingSkill || 50,
-                                    bowlingSkill: s.player.bowlingSkill || 30,
-                                    nationality: s.player.nationality,
-                                },
-                                soldPrice: s.soldPrice,
-                            })),
-                        }));
+                         const teams = auctionState.teams.map(t => {
+                            const retainedIds = new Set(t.retained?.map(r => r.playerId) || []);
+                            return {
+                                userId: t.userId,
+                                username: t.username,
+                                teamName: t.teamName,
+                                teamId: (t as any).teamId,
+                                squad: t.squad.map(s => ({
+                                    player: {
+                                        id: s.player.id,
+                                        name: s.player.name,
+                                        role: s.player.role || 'BATSMAN',
+                                        battingSkill: s.player.battingSkill || 50,
+                                        bowlingSkill: s.player.bowlingSkill || 30,
+                                        nationality: s.player.nationality,
+                                        retained: retainedIds.has(s.player.id),
+                                    },
+                                    soldPrice: s.soldPrice,
+                                })),
+                            };
+                        });
 
                         const leagueState = initLeagueState(roomCode, teams);
                         await saveLeagueState(leagueState);

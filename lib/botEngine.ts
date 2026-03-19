@@ -26,6 +26,23 @@ export function isBotUserId(userId: string, teams: AuctionTeam[]): boolean {
     return team ? isBotUser(team.username) : false;
 }
 
+// Map Team Name to Home Stadium ID
+export function getTeamHomeStadiumId(teamName: string): string | undefined {
+    const mapping: Record<string, string> = {
+        'Chennai Super Kings': 'chepauk',
+        'Mumbai Indians': 'wankhede',
+        'Royal Challengers Bengaluru': 'chinnaswamy',
+        'Kolkata Knight Riders': 'eden_gardens',
+        'Delhi Capitals': 'arun_jaitley',
+        'Sunrisers Hyderabad': 'rajiv_gandhi',
+        'Punjab Kings': 'pca_is_bindra',
+        'Rajasthan Royals': 'hpca', // Dharamsala is RR's second home, using it for unique pitch dynamics
+        'Lucknow Super Giants': 'ekana',
+        'Gujarat Titans': 'narendra_modi',
+    };
+    return mapping[teamName];
+}
+
 // ======================================================
 // Bot Bidding Strategy
 // ======================================================
@@ -39,16 +56,16 @@ interface BotPersonality {
 function generatePersonality(teamName: string): BotPersonality {
     // Seed based on team name for consistency
     const hash = teamName.split('').reduce((a, c) => a + c.charCodeAt(0), 0);
-    const aggression = 0.5 + (hash % 80) / 100; // 0.5 to 1.3
+    const aggression = 0.8 + (hash % 50) / 100; // 0.8 to 1.3
 
     return {
         aggression,
         maxOverpay: 1.5 + aggression * 1.5, // 2.25x to 3.45x base price
         rolePreferences: {
-            BATSMAN: 1.0,
+            BATSMAN: 1.1,
             BOWLER: 1.0,
-            ALL_ROUNDER: 1.2,
-            WICKET_KEEPER: 0.9,
+            ALL_ROUNDER: 1.4, // Increased as requested
+            WICKET_KEEPER: 1.0,
         },
     };
 }
@@ -75,8 +92,9 @@ export function getBotMaxHighBid(
 
     if (availablePurse <= player.basePrice) return 0;
 
+    const stadiumId = getTeamHomeStadiumId(team.teamName);
     // Calculate fill score — 0 means squad is full or no need
-    const fillScore = playerFillScore(player, team.squad);
+    const fillScore = playerFillScore(player, team.squad, stadiumId);
     if (fillScore === 0) return 0;
 
     const skill = Math.max(player.battingSkill, player.bowlingSkill);
@@ -116,13 +134,18 @@ function shouldBotBid(
         : Math.round((currentBid + BID_INCREMENT) * 100) / 100;
     if (bidAmount > skillCap) return { shouldBid: false, bidAmount: 0 };
 
-    // Probability of bidding decreases as bid ratio to max climbs
-    const bidRatio = bidAmount / Math.max(skillCap, bidAmount);
     const comp = getSquadComposition(team.squad);
-    const squadsNeedFactor = comp.total < IPL_MIN_SQUAD ? 1.3 : 1.0;
-    const bidProbability = Math.max(0, (1 - bidRatio) * personality.aggression * squadsNeedFactor);
+    const squadsNeedFactor = comp.total < IPL_MIN_SQUAD ? 1.4 : 1.0;
+    const bidRatio = bidAmount / Math.max(skillCap, bidAmount);
+    
+    // Base probability: (1.2 - bidRatio) ensures even at limit (ratio=1) there's a 20% chance
+    let bidProbability = Math.max(0, (1.2 - bidRatio) * personality.aggression * squadsNeedFactor);
 
-    return { shouldBid: Math.random() < bidProbability, bidAmount };
+    if (!hasCurrentBidder) bidProbability *= 2.0;
+    
+    const willBid = Math.random() < bidProbability;
+
+    return { shouldBid: willBid, bidAmount };
 }
 
 // ======================================================

@@ -23,6 +23,29 @@ export async function GET(request: NextRequest) {
 
         // Let's directly construct the expected state and save it
         const state = initLeagueState(roomCode, dummyTeams);
+        
+        // Add some dummy player stats
+        state.playerStats = dummyTeams.flatMap(t => t.squad.map(s => ({
+            playerId: s.player.id,
+            playerName: s.player.name,
+            teamName: t.teamName,
+            matches: 1,
+            runs: Math.floor(Math.random() * 50),
+            balls: Math.floor(Math.random() * 30) + 10,
+            fours: 2,
+            sixes: 1,
+            wickets: s.player.role === 'BOWLER' || s.player.role === 'ALL_ROUNDER' ? Math.floor(Math.random() * 3) : 0,
+            oversBowled: s.player.role === 'BOWLER' || s.player.role === 'ALL_ROUNDER' ? 12 : 0,
+            runsConceded: s.player.role === 'BOWLER' || s.player.role === 'ALL_ROUNDER' ? Math.floor(Math.random() * 20) + 10 : 0,
+            catches: 0,
+            highestScore: 40,
+            centuries: 0,
+            halfCenturies: 0,
+            bestBowlingWickets: 2,
+            bestBowlingRuns: 15,
+            impactScore: 50
+        })));
+
         await saveLeagueState(state);
 
         // Mock auction state so pre-match can find squads

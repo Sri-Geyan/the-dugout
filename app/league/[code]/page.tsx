@@ -173,12 +173,35 @@ interface TeamStanding {
     nrr: number;
 }
 
+interface PlayerStats {
+    playerId: string;
+    playerName: string;
+    teamName: string;
+    teamId?: string;
+    matches: number;
+    runs: number;
+    balls: number;
+    fours: number;
+    sixes: number;
+    wickets: number;
+    oversBowled: number; // in balls
+    runsConceded: number;
+    catches: number;
+    highestScore: number;
+    centuries: number;
+    halfCenturies: number;
+    bestBowlingWickets: number;
+    bestBowlingRuns: number;
+    impactScore: number;
+}
+
 interface LeagueState {
     roomCode: string;
     status: 'active' | 'completed';
     phase: 'league' | 'playoffs';
     fixtures: FixtureEntry[];
     standings: TeamStanding[];
+    playerStats: PlayerStats[];
     currentMatchIndex: number;
     totalMatches: number;
     orangeCap: { playerId: string; playerName: string; teamName: string; runs: number } | null;
@@ -237,29 +260,86 @@ function StatTable({ title, data, valueKey, label, color, limit, formatValue }: 
     );
 }
 
-function SquadCategory({ title, players, color }: any) {
+function SquadCategory({ title, players, playerStats, color }: any) {
     if (players.length === 0) return null;
     return (
         <div>
             <h3 className="text-xs font-bold tracking-widest uppercase mb-4 px-2" style={{ color }}>{title}</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {players.map((s: any) => (
-                    <PlayerCard key={s.player.id} player={s.player} color={color} />
-                ))}
+                {players.map((s: any) => {
+                    const stats = playerStats?.find((ps: any) => ps.playerId === s.player.id);
+                    return <PlayerCard key={s.player.id} player={s.player} stats={stats} color={color} />;
+                })}
             </div>
         </div>
     );
 }
 
-function PlayerCard({ player, color }: any) {
+function PlayerCard({ player, stats, color }: any) {
+    const renderStats = () => {
+        if (!stats || stats.matches === 0) {
+            return (
+                <div className="flex flex-col items-end">
+                    <div className="text-[10px] font-black font-mono leading-none opacity-20">
+                        0 / 0.00
+                    </div>
+                    <div className="text-[8px] font-bold opacity-10 uppercase tracking-tighter mt-1">No Stats</div>
+                </div>
+            );
+        }
+
+        if (player.role === 'BATSMAN' || player.role === 'WICKET_KEEPER') {
+            const sr = stats.balls > 0 ? ((stats.runs / stats.balls) * 100).toFixed(2) : '0.00';
+            return (
+                <div className="flex flex-col items-end text-right">
+                    <div className="text-[11px] font-black font-mono leading-none text-white">
+                        {stats.runs} <span style={{ color }} className="opacity-80">R</span>
+                    </div>
+                    <div className="text-[9px] font-bold opacity-40 uppercase tracking-tighter mt-1">
+                        {sr} <span className="opacity-60">SR</span>
+                    </div>
+                </div>
+            );
+        }
+
+        if (player.role === 'BOWLER') {
+            const econ = stats.oversBowled > 0 ? ((stats.runsConceded / stats.oversBowled) * 6).toFixed(2) : '0.00';
+            return (
+                <div className="flex flex-col items-end text-right">
+                    <div className="text-[11px] font-black font-mono leading-none text-white">
+                        {stats.wickets} <span style={{ color }} className="opacity-80">W</span>
+                    </div>
+                    <div className="text-[9px] font-bold opacity-40 uppercase tracking-tighter mt-1">
+                        {econ} <span className="opacity-60">ECO</span>
+                    </div>
+                </div>
+            );
+        }
+
+        if (player.role === 'ALL_ROUNDER') {
+            return (
+                <div className="flex flex-col items-end text-right">
+                    <div className="text-[11px] font-black font-mono leading-none text-white">
+                        {stats.runs} <span className="opacity-80" style={{ color: '#FF6B00' }}>R</span>
+                    </div>
+                    <div className="text-[9px] font-bold text-white leading-none mt-1">
+                        {stats.wickets} <span className="opacity-80" style={{ color: '#8B5CF6' }}>W</span>
+                    </div>
+                </div>
+            );
+        }
+
+        return null;
+    };
+
     return (
-        <div className="panel group flex items-center justify-between gap-4 p-4 hover:bg-white/[0.02] transition-colors">
+        <div className="panel group flex items-center justify-between gap-4 p-4 hover:bg-white/[0.02] transition-colors relative overflow-hidden">
             <div className="flex items-center gap-4">
                 <div className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center border border-white/10 group-hover:border-gold/30 transition-colors">
                     <span className="text-xl opacity-80 group-hover:opacity-100">{player.role === 'BATSMAN' ? '🏏' : player.role === 'BOWLER' ? '🎯' : player.role === 'ALL_ROUNDER' ? '🌟' : '🧤'}</span>
                 </div>
-                <div>
-                    <h4 className="text-sm font-bold group-hover:text-gold transition-colors">{player.name}</h4>
+                <div className="min-w-0">
+                    <h4 className="text-sm font-bold group-hover:text-gold transition-colors truncate">{player.name}</h4>
                     <div className="flex items-center gap-2 mt-1">
                         <span className="text-[10px] opacity-40 uppercase font-bold tracking-tighter">{player.nationality || 'Indian'}</span>
                         {player.retained && (
@@ -270,11 +350,21 @@ function PlayerCard({ player, color }: any) {
                     </div>
                 </div>
             </div>
-            <div className="text-right">
-                <div className="text-[10px] font-black font-mono leading-none" style={{ color }}>
-                    {player.battingSkill}/{player.bowlingSkill}
+            
+            <div className="flex items-center gap-4">
+                {/* Performance Stats */}
+                {renderStats()}
+
+                {/* Vertical Divider */}
+                <div className="w-[1px] h-8 bg-white/5" />
+
+                {/* Base Skills */}
+                <div className="text-right flex-shrink-0">
+                    <div className="text-[10px] font-black font-mono leading-none opacity-40">
+                        {player.battingSkill}/{player.bowlingSkill}
+                    </div>
+                    <div className="text-[8px] font-bold opacity-10 uppercase tracking-tighter mt-1">S/K</div>
                 </div>
-                <div className="text-[8px] font-bold opacity-20 uppercase tracking-tighter mt-1">S/K</div>
             </div>
         </div>
     );
@@ -851,21 +941,25 @@ export default function LeaguePage() {
                                 <SquadCategory 
                                     title="⚡ Batters" 
                                     players={selectedTeam.squad.filter((s: any) => s.player.role === 'BATSMAN')} 
+                                    playerStats={league.playerStats}
                                     color="#FF6B00"
                                 />
                                 <SquadCategory 
                                     title="🧤 Wicketkeepers" 
                                     players={selectedTeam.squad.filter((s: any) => s.player.role === 'WICKET_KEEPER')} 
+                                    playerStats={league.playerStats}
                                     color="#3B82F6"
                                 />
                                 <SquadCategory 
                                     title="🌟 All-rounders" 
                                     players={selectedTeam.squad.filter((s: any) => s.player.role === 'ALL_ROUNDER')} 
+                                    playerStats={league.playerStats}
                                     color="var(--color-gold)"
                                 />
                                 <SquadCategory 
                                     title="🎯 Bowlers" 
                                     players={selectedTeam.squad.filter((s: any) => s.player.role === 'BOWLER')} 
+                                    playerStats={league.playerStats}
                                     color="#8B5CF6"
                                 />
                             </div>

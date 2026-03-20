@@ -455,10 +455,16 @@ export function botSelectPlaying11(squad: EnrichedPlayer[], pitchType: string = 
         if (isAnchor(p)) return 95;
         if (isMiddleOrder(p)) return 90; 
         if (isEliteFinisher(p)) return 85; 
+
+        // Batting All-Rounder vs Bowling All-Rounder
+        const isBattingAR = p.role === 'ALL_ROUNDER' && (p.battingSkill > p.bowlingSkill || p.primaryArchetype?.includes('Batting All-Rounder'));
+        const isBowlingAR = p.role === 'ALL_ROUNDER' && (p.bowlingSkill >= p.battingSkill || p.primaryArchetype?.includes('Bowling All-Rounder'));
+
+        if (isBattingAR) return 80; 
         if (isExplicitFinisher(p)) return 75;
+        if (isBowlingAR) return 65; 
         
         if (p.role === 'BATSMAN' || p.role === 'WICKET_KEEPER') return 60;
-        if (p.role === 'ALL_ROUNDER') return 50;
         if (p.role === 'BOWLER' || p.battingSkill < 30) return 20;
         return 10;
     };

@@ -1,4 +1,5 @@
 import redis from './redis';
+import prisma from './prisma';
 import { MatchState } from './matchEngine';
 
 // ======================================================
@@ -210,8 +211,8 @@ export interface MatchResult {
     winnerUserId: string | null; // null = tie
     homePlayers: string[]; // List of all 11 player IDs
     awayPlayers: string[]; // List of all 11 player IDs
-    battingStats: { playerId: string; playerName: string; teamName: string; teamId?: string; runs: number; balls: number; fours: number; sixes: number; isOut: boolean }[];
-    bowlingStats: { playerId: string; playerName: string; teamName: string; teamId?: string; overs: number; balls: number; runs: number; wickets: number }[];
+    battingStats: { playerId: string; playerName: string; teamName: string; teamId?: string; runs: number; balls: number; fours: number; sixes: number; isOut: boolean; dismissal?: string }[];
+    bowlingStats: { playerId: string; playerName: string; teamName: string; teamId?: string; overs: number; balls: number; runs: number; wickets: number; maidens?: number }[];
 }
 
 export function updateStandings(state: LeagueState, matchResult: MatchResult): void {
@@ -633,31 +634,35 @@ export async function syncMatchToLeague(roomCode: string, fixtureId: string, mat
                 ? matchState.awayTeam.userId
                 : null,
         battingStats: [
-            ...(matchState.firstInningsBattingOrder || []).map((b: { player: { id: string, name: string, teamName?: string }, runs: number, balls: number, fours: number, sixes: number, isOut: boolean }) => ({
+            ...(matchState.firstInningsBattingOrder || []).map((b: any) => ({
                 playerId: b.player.id,
                 playerName: b.player.name,
                 teamName: b.player.teamName || (batting1st === 'home' ? matchState.homeTeam.name : matchState.awayTeam.name),
-                runs: b.runs, balls: b.balls, fours: b.fours, sixes: b.sixes, isOut: b.isOut
+                teamId: batting1st === 'home' ? matchState.homeTeam.userId : matchState.awayTeam.userId,
+                runs: b.runs, balls: b.balls, fours: b.fours, sixes: b.sixes, isOut: b.isOut, dismissal: b.dismissal
             })),
-            ...(matchState.battingOrder || []).map((b: { player: { id: string, name: string, teamName?: string }, runs: number, balls: number, fours: number, sixes: number, isOut: boolean }) => ({
+            ...(matchState.battingOrder || []).map((b: any) => ({
                 playerId: b.player.id,
                 playerName: b.player.name,
                 teamName: b.player.teamName || (batting2nd === 'home' ? matchState.homeTeam.name : matchState.awayTeam.name),
-                runs: b.runs, balls: b.balls, fours: b.fours, sixes: b.sixes, isOut: b.isOut
+                teamId: batting2nd === 'home' ? matchState.homeTeam.userId : matchState.awayTeam.userId,
+                runs: b.runs, balls: b.balls, fours: b.fours, sixes: b.sixes, isOut: b.isOut, dismissal: b.dismissal
             }))
         ],
         bowlingStats: [
-            ...(matchState.firstInningsBowlingOrder || []).map((b: { player: { id: string, name: string, teamName?: string }, overs: number, overBalls: number, runs: number, wickets: number }) => ({
+            ...(matchState.firstInningsBowlingOrder || []).map((b: any) => ({
                 playerId: b.player.id,
                 playerName: b.player.name,
-                teamName: b.player.teamName || (batting2nd === 'home' ? matchState.homeTeam.name : matchState.awayTeam.name), // bowl 1st = team 2
-                overs: b.overs, balls: b.overBalls, runs: b.runs, wickets: b.wickets
+                teamName: b.player.teamName || (batting2nd === 'home' ? matchState.homeTeam.name : matchState.awayTeam.name),
+                teamId: batting2nd === 'home' ? matchState.homeTeam.userId : matchState.awayTeam.userId,
+                overs: b.overs, balls: b.overBalls, runs: b.runs, wickets: b.wickets, maidens: b.maidens || 0
             })),
-            ...(matchState.bowlingOrder || []).map((b: { player: { id: string, name: string, teamName?: string }, overs: number, overBalls: number, runs: number, wickets: number }) => ({
+            ...(matchState.bowlingOrder || []).map((b: any) => ({
                 playerId: b.player.id,
                 playerName: b.player.name,
-                teamName: b.player.teamName || (batting1st === 'home' ? matchState.homeTeam.name : matchState.awayTeam.name), // bowl 2nd = team 1
-                overs: b.overs, balls: b.overBalls, runs: b.runs, wickets: b.wickets
+                teamName: b.player.teamName || (batting1st === 'home' ? matchState.homeTeam.name : matchState.awayTeam.name),
+                teamId: batting1st === 'home' ? matchState.homeTeam.userId : matchState.awayTeam.userId,
+                overs: b.overs, balls: b.overBalls, runs: b.runs, wickets: b.wickets, maidens: b.maidens || 0
             }))
         ],
         homePlayers: matchState.homeTeam.players.map((p: { id: string }) => p.id),
@@ -675,6 +680,71 @@ export async function syncMatchToLeague(roomCode: string, fixtureId: string, mat
     fixture.result = matchState.result || undefined;
 
     processMatchResult(state, fixture, matchResult);
+
+    // PERSIST TO PRISMA FOR SCORECARDS
+    try {
+        const room = await prisma.room.findUnique({ where: { code: roomCode } });
+        if (room) {
+            const homePrismaTeam = await prisma.team.findUnique({ where: { userId_roomId: { userId: matchState.homeTeam.userId, roomId: room.id } } });
+            const awayPrismaTeam = await prisma.team.findUnique({ where: { userId_roomId: { userId: matchState.awayTeam.userId, roomId: room.id } } });
+
+            if (homePrismaTeam && awayPrismaTeam) {
+                const prismaMatch = await prisma.match.create({
+                    data: {
+                        id: matchState.matchId,
+                        roomId: room.id,
+                        homeTeamId: homePrismaTeam.id,
+                        awayTeamId: awayPrismaTeam.id,
+                        status: 'COMPLETED',
+                        innings: 2,
+                        pitchType: matchState.pitchType,
+                        homeScore: matchState.homeTeam.score,
+                        homeWickets: matchState.homeTeam.wickets,
+                        homeOvers: matchState.homeTeam.overs,
+                        awayScore: matchState.awayTeam.score,
+                        awayWickets: matchState.awayTeam.wickets,
+                        awayOvers: matchState.awayTeam.overs,
+                        result: matchState.result,
+                        matchNumber: fixture.scheduledOrder
+                    }
+                });
+
+                for (const bat of matchResult.battingStats) {
+                    const batTeam = bat.teamId === matchState.homeTeam.userId ? homePrismaTeam : awayPrismaTeam;
+                    await prisma.battingStats.create({
+                        data: {
+                            matchId: prismaMatch.id,
+                            playerId: bat.playerId,
+                            teamId: batTeam.id,
+                            runs: bat.runs,
+                            balls: bat.balls,
+                            fours: bat.fours,
+                            sixes: bat.sixes,
+                            isOut: bat.isOut,
+                            dismissal: bat.dismissal
+                        }
+                    });
+                }
+
+                for (const bowl of matchResult.bowlingStats) {
+                    const bowlTeam = bowl.teamId === matchState.homeTeam.userId ? homePrismaTeam : awayPrismaTeam;
+                    await prisma.bowlingStats.create({
+                        data: {
+                            matchId: prismaMatch.id,
+                            playerId: bowl.playerId,
+                            teamId: bowlTeam.id,
+                            overs: bowl.overs + (bowl.balls / 10),
+                            maidens: bowl.maidens || 0,
+                            runs: bowl.runs,
+                            wickets: bowl.wickets
+                        }
+                    });
+                }
+            }
+        }
+    } catch (err) {
+        console.error("Failed to persist match to Prisma:", err);
+    }
 
     await saveLeagueState(state);
     return state;

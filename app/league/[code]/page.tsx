@@ -9,7 +9,7 @@ import { getSocket } from '@/lib/socket';
 import TeamLogo from '@/components/TeamLogo';
 import Link from 'next/link';
 
-function FixtureCard({ fixture, userId, code, router }: { fixture: FixtureEntry, userId: string | null, code: string, router: any }) {
+function FixtureCard({ fixture, userId, code, router, onViewScorecard }: { fixture: FixtureEntry, userId: string | null, code: string, router: any, onViewScorecard: (id: string) => void }) {
     const getTeamInfo = (teamName: string) => IPL_TEAMS.find(t => t.name === teamName || t.shortName === teamName || t.id === teamName);
     
     const homeTeam = getTeamInfo(fixture.homeTeamName);
@@ -131,10 +131,13 @@ function FixtureCard({ fixture, userId, code, router }: { fixture: FixtureEntry,
                         ▶️ Watch Live
                     </button>
                 )}
-                {fixture.status === 'pending' && fixture.isKnockout && !fixture.homeTeamUserId && (
-                    <div className="w-full text-center py-2 text-[10px] font-medium opacity-30 border border-white/5 rounded-lg italic">
-                        Awaiting results...
-                    </div>
+                {fixture.status === 'completed' && (
+                    <button
+                        onClick={() => (fixture as any).onViewScorecard(fixture.matchId)}
+                        className="btn-secondary w-full text-[10px] py-2 border-amber-500/50 text-amber-400 group-hover:border-amber-400 transition-all"
+                    >
+                        📝 View Scorecard
+                    </button>
                 )}
             </div>
         </div>
@@ -370,6 +373,194 @@ function PlayerCard({ player, stats, color }: any) {
     );
 }
 
+function ScorecardModal({ matchId, onClose }: { matchId: string, onClose: () => void }) {
+    const [data, setData] = useState<any>(null);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        const fetchScorecard = async () => {
+            try {
+                const res = await fetch(`/api/match/${matchId}/scorecard`);
+                if (res.ok) {
+                    const json = await res.json();
+                    setData(json);
+                }
+            } catch (err) {
+                console.error('Failed to fetch scorecard:', err);
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchScorecard();
+    }, [matchId]);
+
+    if (loading) return (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm">
+            <div className="shimmer w-16 h-16 rounded-2xl" />
+        </div>
+    );
+
+    if (!data) return null;
+
+    const { match, scorecard } = data;
+
+    return (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 backdrop-blur-md p-4 md:p-8">
+            <div className="panel w-full max-w-4xl max-h-[90vh] overflow-y-auto relative animate-in fade-in zoom-in duration-300">
+                <button 
+                    onClick={onClose}
+                    className="absolute top-4 right-4 w-8 h-8 rounded-full bg-white/5 flex items-center justify-center hover:bg-white/10 transition-colors"
+                >
+                    ✕
+                </button>
+
+                <div className="mb-8">
+                    <h2 className="text-xl font-bold mb-2">Match Scorecard</h2>
+                    <p className="text-xs gold-text font-mono uppercase tracking-widest">{match.result}</p>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
+                    <div className="panel bg-white/[0.02]">
+                        <h3 className="text-sm font-bold mb-4 flex items-center justify-between">
+                            <span>{match.homeTeam.name}</span>
+                            <span className="font-mono">{match.homeScore}/{match.homeWickets} ({match.homeOvers})</span>
+                        </h3>
+                        <div className="space-y-4">
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-left text-[11px]">
+                                    <thead>
+                                        <tr className="border-b border-white/5 opacity-40">
+                                            <th className="pb-2">Batter</th>
+                                            <th className="pb-2 text-right">R</th>
+                                            <th className="pb-2 text-right">B</th>
+                                            <th className="pb-2 text-right">4s</th>
+                                            <th className="pb-2 text-right">6s</th>
+                                            <th className="pb-2 text-right">SR</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {scorecard.homeBatting.map((s: any) => (
+                                            <tr key={s.id} className="border-b border-white/5">
+                                                <td className="py-2">
+                                                    <p className="font-bold">{s.player.name}</p>
+                                                    <p className="opacity-40 italic text-[9px]">{s.isOut ? s.dismissal : 'not out'}</p>
+                                                </td>
+                                                <td className="py-2 text-right font-mono font-bold">{s.runs}</td>
+                                                <td className="py-2 text-right font-mono opacity-60">{s.balls}</td>
+                                                <td className="py-2 text-right font-mono opacity-60">{s.fours}</td>
+                                                <td className="py-2 text-right font-mono opacity-60">{s.sixes}</td>
+                                                <td className="py-2 text-right font-mono text-gold">
+                                                    {s.balls > 0 ? ((s.runs / s.balls) * 100).toFixed(1) : '0.0'}
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div className="overflow-x-auto mt-6">
+                                <table className="w-full text-left text-[11px]">
+                                    <thead>
+                                        <tr className="border-b border-white/5 opacity-40">
+                                            <th className="pb-2">Bowler</th>
+                                            <th className="pb-2 text-right">O</th>
+                                            <th className="pb-2 text-right">M</th>
+                                            <th className="pb-2 text-right">R</th>
+                                            <th className="pb-2 text-right">W</th>
+                                            <th className="pb-2 text-right">EC</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {scorecard.awayBowling.map((s: any) => (
+                                            <tr key={s.id} className="border-b border-white/5">
+                                                <td className="py-2 font-bold">{s.player.name}</td>
+                                                <td className="py-2 text-right font-mono">{s.overs.toFixed(1)}</td>
+                                                <td className="py-2 text-right font-mono">{s.maidens}</td>
+                                                <td className="py-2 text-right font-mono">{s.runs}</td>
+                                                <td className="py-2 text-right font-mono font-bold text-purple-400">{s.wickets}</td>
+                                                <td className="py-2 text-right font-mono text-cyan-400">
+                                                    {s.overs > 0 ? (s.runs / s.overs).toFixed(2) : '0.00'}
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="panel bg-white/[0.02]">
+                        <h3 className="text-sm font-bold mb-4 flex items-center justify-between">
+                            <span>{match.awayTeam.name}</span>
+                            <span className="font-mono">{match.awayScore}/{match.awayWickets} ({match.awayOvers})</span>
+                        </h3>
+                        <div className="space-y-4">
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-left text-[11px]">
+                                    <thead>
+                                        <tr className="border-b border-white/5 opacity-40">
+                                            <th className="pb-2">Batter</th>
+                                            <th className="pb-2 text-right">R</th>
+                                            <th className="pb-2 text-right">B</th>
+                                            <th className="pb-2 text-right">4s</th>
+                                            <th className="pb-2 text-right">6s</th>
+                                            <th className="pb-2 text-right">SR</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {scorecard.awayBatting.map((s: any) => (
+                                            <tr key={s.id} className="border-b border-white/5">
+                                                <td className="py-2">
+                                                    <p className="font-bold">{s.player.name}</p>
+                                                    <p className="opacity-40 italic text-[9px]">{s.isOut ? s.dismissal : 'not out'}</p>
+                                                </td>
+                                                <td className="py-2 text-right font-mono font-bold">{s.runs}</td>
+                                                <td className="py-2 text-right font-mono opacity-60">{s.balls}</td>
+                                                <td className="py-2 text-right font-mono opacity-60">{s.fours}</td>
+                                                <td className="py-2 text-right font-mono opacity-60">{s.sixes}</td>
+                                                <td className="py-2 text-right font-mono text-gold">
+                                                    {s.balls > 0 ? ((s.runs / s.balls) * 100).toFixed(1) : '0.0'}
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div className="overflow-x-auto mt-6">
+                                <table className="w-full text-left text-[11px]">
+                                    <thead>
+                                        <tr className="border-b border-white/5 opacity-40">
+                                            <th className="pb-2">Bowler</th>
+                                            <th className="pb-2 text-right">O</th>
+                                            <th className="pb-2 text-right">M</th>
+                                            <th className="pb-2 text-right">R</th>
+                                            <th className="pb-2 text-right">W</th>
+                                            <th className="pb-2 text-right">EC</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {scorecard.homeBowling.map((s: any) => (
+                                            <tr key={s.id} className="border-b border-white/5">
+                                                <td className="py-2 font-bold">{s.player.name}</td>
+                                                <td className="py-2 text-right font-mono">{s.overs.toFixed(1)}</td>
+                                                <td className="py-2 text-right font-mono">{s.maidens}</td>
+                                                <td className="py-2 text-right font-mono">{s.runs}</td>
+                                                <td className="py-2 text-right font-mono font-bold text-purple-400">{s.wickets}</td>
+                                                <td className="py-2 text-right font-mono text-cyan-400">
+                                                    {s.overs > 0 ? (s.runs / s.overs).toFixed(2) : '0.00'}
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+}
+
 export default function LeaguePage() {
     const params = useParams();
     const code = params.code as string;
@@ -390,6 +581,7 @@ export default function LeaguePage() {
     const [leaderboard, setLeaderboard] = useState<LeaderboardData | null>(null);
     const [fetchingLeaderboard, setFetchingLeaderboard] = useState(false);
     const [selectedSquadTeamId, setSelectedSquadTeamId] = useState<string | null>(null);
+    const [showScorecardId, setShowScorecardId] = useState<string | null>(null);
 
     const fetchLeague = useCallback(async () => {
         try {
@@ -763,6 +955,7 @@ export default function LeaguePage() {
                                         userId={userId} 
                                         code={code} 
                                         router={router} 
+                                        onViewScorecard={(id) => setShowScorecardId(id)}
                                     />
                                 ))}
                             </div>
@@ -778,6 +971,7 @@ export default function LeaguePage() {
                                     userId={userId} 
                                     code={code} 
                                     router={router} 
+                                    onViewScorecard={(id) => setShowScorecardId(id)}
                                 />
                             ))}
                         </div>

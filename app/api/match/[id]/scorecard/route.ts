@@ -3,9 +3,9 @@ import prisma from '@/lib/prisma';
 
 export async function GET(
     request: NextRequest,
-    { params }: { params: { id: string } }
+    { params }: { params: Promise<{ id: string }> }
 ) {
-    const matchId = params.id;
+    const { id: matchId } = await params;
 
     if (!matchId) {
         return NextResponse.json({ error: 'Match ID is required' }, { status: 400 });

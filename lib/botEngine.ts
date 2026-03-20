@@ -292,28 +292,32 @@ export function botSelectPlaying11(squad: EnrichedPlayer[], pitchType: string = 
         // Form-based rotation logic
         if (context === 'bat') {
             if (p.recentAverage !== undefined) {
-                if (p.recentAverage > 50) base += 20; // Purple patch
+                if (p.recentAverage > 50) base += 20;
                 else if (p.recentAverage > 35) base += 10;
-                else if (p.recentAverage < 15 && (p.recentMatches || 0) >= 2) base -= 25; // Out of form
-                else if (p.recentAverage < 10) base -= 40; // Critical failure - drop him
+                else if (p.recentAverage < 15 && (p.recentMatches || 0) >= 2) base -= 25;
+                else if (p.recentAverage < 10) base -= 40;
             }
-            // Freshness boost: Give bench players a chance if they haven't played
-            if (!p.recentMatches || p.recentMatches === 0) {
-                base += 8; 
+            if (p.recentStrikeRate !== undefined) {
+                if (p.recentStrikeRate > 160) base += 15;
+                else if (p.recentStrikeRate > 140) base += 8;
+                else if (p.recentStrikeRate < 110 && (p.recentMatches || 0) >= 2) base -= 15;
             }
+            if (!p.recentMatches || p.recentMatches === 0) base += 8; 
         } else { // context === 'bowl'
             if (p.recentWickets !== undefined) {
                 if (p.recentWickets > 5) base += 15;
                 if (p.recentWickets === 0 && (p.recentMatches || 0) >= 2) base -= 15;
             }
             if (p.recentEconomy !== undefined) {
-                if (p.recentEconomy < 6.5) base += 12;
-                if (p.recentEconomy > 11.0) base -= 30; // Bench expensive bowlers
-                else if (p.recentEconomy > 10.0) base -= 15;
+                if (p.recentEconomy < 7.0) base += 12;
+                if (p.recentEconomy > 10.5) base -= 25;
             }
-            if (!p.recentMatches || p.recentMatches === 0) {
-                base += 5; // Give bench bowlers a look
+            // Bowling Average (Runs per Wicket)
+            if (p.recentAverage !== undefined && context === 'bowl') {
+                if (p.recentAverage < 20) base += 10;
+                else if (p.recentAverage > 40) base -= 10;
             }
+            if (!p.recentMatches || p.recentMatches === 0) base += 5;
         }
         return base;
     };
@@ -411,13 +415,37 @@ export function botSelectPlaying11(squad: EnrichedPlayer[], pitchType: string = 
     tryAddWithLimit(bowlsPool, 4);
 
     // 2e. Fill to 11 (Favor best remaining, prioritizing Indians if overseas limit reached)
+    // ADD: X-Factor Rotation Logic (occasionally swap a "stable" starter for a high-skill bench player)
     const othersPool = eligible.filter(p => !isSelected(p))
         .sort((a, b) => {
             const scoreB = Math.max(getSelectionScore(b, 'bat'), getSelectionScore(b, 'bowl'));
             const scoreA = Math.max(getSelectionScore(a, 'bat'), getSelectionScore(a, 'bowl'));
             return scoreB - scoreA;
         });
-    tryAddWithLimit(othersPool, 11 - selected.length);
+
+    while (selected.length < 11 && othersPool.length > 0) {
+        const next = othersPool.shift()!;
+        const isOverseas = next.nationality === 'Overseas';
+        if (isOverseas && getOverseasCount(selected) >= 4) continue;
+        
+        // X-Factor: 15% chance to skip a "safe" pick for the next best in pool if they are high skill
+        const isSafePick = (next.recentMatches || 0) > 3 && (next.recentAverage || 0) > 25;
+        if (isSafePick && othersPool.length > 0 && Math.random() < 0.15) {
+            const xFactorIdx = othersPool.findIndex(p => 
+                (p.nationality !== 'Overseas' || getOverseasCount(selected) < 4) && 
+                Math.max(p.battingSkill, p.bowlingSkill) > 75
+            );
+            
+            if (xFactorIdx !== -1) {
+                const xFactor = othersPool.splice(xFactorIdx, 1)[0];
+                selected.push(xFactor);
+                othersPool.unshift(next); // put the safe pick back for next slot
+                continue;
+            }
+        }
+
+        selected.push(next);
+    }
     
     // 3. Absolute Fallback (If still short)
     if (selected.length < 11) {
@@ -684,31 +712,33 @@ export async function runBotRetentions(roomCode: string): Promise<void> {
         });
 
         // Retention strategy:
-        // 1. Always retain superstar players (skill > 90)
-        // 2. Retain very good players (skill > 85) if they are uncapped (cheaper)
-        // 3. Limit to max 4 total retentions to save money for auction
-
+        // - Retain superstars (92+) regardless.
+        // - Retain very good (87+) if slots < 3.
+        // - Retain uncapped assets (80+) aggressively (slots < 5).
+        
         for (const player of sorted) {
             if (!player) continue;
             const skill = Math.max(player.battingSkill || 0, player.bowlingSkill || 0);
-
             const isUncapped = player.capStatus === 'Uncapped';
-
+            
             let shouldRetain = false;
-            // Bot strategy: retain if skill is high enough
-            if (skill >= 90) shouldRetain = true;
-            else if (skill >= 86 && team.retained.length < 3) shouldRetain = true;
+            if (skill >= 92) shouldRetain = true;
+            else if (skill >= 87 && team.retained.length < 3) shouldRetain = true;
             else if (isUncapped && skill >= 80 && team.retained.length < 5) shouldRetain = true;
 
-            // Enforce overseas limit
             if (shouldRetain && player.nationality === 'Overseas') {
                 const overseasCount = team.retained.filter(r => r.nationality === 'Overseas').length;
                 if (overseasCount >= 2) shouldRetain = false;
             }
 
             if (shouldRetain) {
-                // await result of retainPlayer
                 await retainPlayer(roomCode, team.userId, player.name);
+                const updatedState = await getRetentionState(roomCode);
+                const updatedTeam = updatedState?.teams.find(t => t.userId === team.userId);
+                if (updatedTeam) {
+                    team.purse = updatedTeam.purse;
+                    team.retained = updatedTeam.retained;
+                }
             }
         }
 

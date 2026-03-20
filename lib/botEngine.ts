@@ -82,7 +82,7 @@ export function getBotMaxHighBid(
 
     // Hard blocks
     if (comp.total >= IPL_MAX_SQUAD) return 0;
-    if (player.nationality === 'Overseas' && !canAddOverseas(team.squad)) return 0;
+    if (player.nationality !== 'Indian' && !canAddOverseas(team.squad)) return 0;
 
     // Keep enough purse for filling remaining mandatory slots
     const slotsNeeded = Math.max(0, IPL_MIN_SQUAD - comp.total);
@@ -335,7 +335,7 @@ export function botSelectPlaying11(squad: EnrichedPlayer[], pitchType: string = 
     const isSelected = (p: EnrichedPlayer) => selected.some(s => s.id === p.id);
 
     // Helper for overseas count
-    const getOverseasCount = (list: EnrichedPlayer[]) => list.filter(p => p.nationality === 'Overseas').length;
+    const getOverseasCount = (list: EnrichedPlayer[]) => list.filter(p => p.nationality !== 'Indian').length;
 
     const finisherArchetypes = ['Finisher', 'Hard Hitter', 'Power Hitter', 'Lower Order'];
     const eliteFinishers = ['Nicholas Pooran', 'Heinrich Klaasen', 'Andre Russell', 'Tim David', 'Liam Livingstone', 'Tristan Stubbs'];
@@ -377,7 +377,7 @@ export function botSelectPlaying11(squad: EnrichedPlayer[], pitchType: string = 
         .sort((a, b) => getSelectionScore(b, 'bat') - getSelectionScore(a, 'bat'));
     
     // Pick best WK, but be mindful of overseas
-    let primaryWK = wks.find(p => p.nationality !== 'Overseas');
+    let primaryWK = wks.find(p => p.nationality === 'Indian');
     if (!primaryWK) primaryWK = wks[0]; // If only overseas WKs exist
     if (primaryWK) selected.push(primaryWK);
 
@@ -388,7 +388,7 @@ export function botSelectPlaying11(squad: EnrichedPlayer[], pitchType: string = 
             if (added >= count) break;
             if (isSelected(p)) continue;
             
-            const isOverseas = p.nationality === 'Overseas';
+            const isOverseas = p.nationality !== 'Indian';
             if (isOverseas && getOverseasCount(selected) >= 4) continue;
             
             selected.push(p);
@@ -432,7 +432,7 @@ export function botSelectPlaying11(squad: EnrichedPlayer[], pitchType: string = 
 
     while (selected.length < 11 && othersPool.length > 0) {
         const next = othersPool.shift()!;
-        const isOverseas = next.nationality === 'Overseas';
+        const isOverseas = next.nationality !== 'Indian';
         if (isOverseas && getOverseasCount(selected) >= 4) continue;
         
         selected.push(next);
@@ -441,10 +441,10 @@ export function botSelectPlaying11(squad: EnrichedPlayer[], pitchType: string = 
     // 3. Absolute Fallback (If still short)
     if (selected.length < 11) {
         const fallbacks = eligible.filter(p => !isSelected(p))
-            .sort((a, b) => (a.nationality === 'Overseas' ? 1 : -1));
+            .sort((a, b) => (a.nationality !== 'Indian' ? 1 : -1));
         for (const p of fallbacks) {
             if (selected.length >= 11) break;
-            if (p.nationality === 'Overseas' && getOverseasCount(selected) >= 4) continue;
+            if (p.nationality !== 'Indian' && getOverseasCount(selected) >= 4) continue;
             selected.push(p);
         }
     }
@@ -716,8 +716,8 @@ export async function runBotRetentions(roomCode: string): Promise<void> {
             else if (skill >= 87 && team.retained.length < 3) shouldRetain = true;
             else if (isUncapped && skill >= 80 && team.retained.length < 5) shouldRetain = true;
 
-            if (shouldRetain && player.nationality === 'Overseas') {
-                const overseasCount = team.retained.filter(r => r.nationality === 'Overseas').length;
+            if (shouldRetain && player.nationality !== 'Indian') {
+                const overseasCount = team.retained.filter(r => r.nationality !== 'Indian').length;
                 if (overseasCount >= 2) shouldRetain = false;
             }
 

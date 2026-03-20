@@ -23,7 +23,7 @@ export function getSquadComposition(squad: { player: CricketPlayer }[]): SquadCo
         const p = s.player;
         if (!p) return;
         counts.total++;
-        if (p.nationality === 'Overseas') counts.overseas++;
+        if (p.nationality !== 'Indian') counts.overseas++;
         else counts.indian++;
         if (p.role === 'BATSMAN') counts.batsmen++;
         else if (p.role === 'BOWLER') counts.bowlers++;
@@ -135,7 +135,7 @@ export function playerFillScore(
     // Hard block: squad full
     if (comp.total >= IPL_MAX_SQUAD) return 0;
     // Hard block: overseas quota full
-    if (player.nationality === 'Overseas' && comp.overseas >= IPL_MAX_OVERSEAS) return 0;
+    if (player.nationality !== 'Indian' && comp.overseas >= IPL_MAX_OVERSEAS) return 0;
 
     const needs = analyzeSquadNeeds(squad, homeStadiumId);
     let roleNeed = needs[player.role] ?? 1.0;

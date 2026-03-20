@@ -343,24 +343,27 @@ export function botSelectPlaying11(squad: EnrichedPlayer[], pitchType: string = 
     
     // STRICT ROLE IDENTIFIERS
     const isOpener = (p: EnrichedPlayer) => 
-        (p.battingRole?.toLowerCase().includes('opener') || p.primaryArchetype?.includes('Opener')) && 
+        (p.battingRole?.toLowerCase().includes('opener') || p.primaryArchetype?.includes('Opener') || p.secondaryArchetype?.includes('Opener')) && 
         !namedFinishers.includes(p.name) && 
         p.name !== 'Rishabh Pant' &&
-        p.name !== 'Ravindra Jadeja' && // Jadeja is middle order
-        p.name !== 'Rashid Khan'; // Rashid is lower order
+        p.name !== 'Ravindra Jadeja' && 
+        p.name !== 'Rashid Khan';
 
     const isExplicitFinisher = (p: EnrichedPlayer) => 
         (namedFinishers.includes(p.name) || 
         finisherArchetypes.includes(p.battingRole || '') || 
-        finisherArchetypes.some(a => p.primaryArchetype?.includes(a))) && 
-        p.name !== 'Shivam Dube'; // Dube is Middle Order despite dataset role
+        finisherArchetypes.some(a => p.primaryArchetype?.includes(a)) ||
+        p.secondaryArchetype?.includes('Finisher')) && 
+        p.name !== 'Shivam Dube';
 
     const isAnchor = (p: EnrichedPlayer) => 
-        (p.primaryArchetype?.includes('Anchor') || p.primaryArchetype?.includes('Stable') || p.battingRole?.includes('Number 3') || p.name === 'Rishabh Pant' || p.name === 'Ryan Rickelton') &&
+        (p.primaryArchetype?.includes('Anchor') || p.primaryArchetype?.includes('Stable') || p.battingRole?.includes('Number 3') || p.name === 'Rishabh Pant' || p.name === 'Ryan Rickelton' || p.name === 'KL Rahul') &&
         !isOpener(p);
 
     const isMiddleOrder = (p: EnrichedPlayer) => 
         p.name === 'Shivam Dube' || 
+        p.name === 'Tilak Varma' ||
+        p.name === 'Rahul Tripathi' ||
         p.battingRole?.toLowerCase().includes('middle') || 
         p.primaryArchetype?.includes('Middle') || 
         p.primaryArchetype?.includes('Spin Basher') ||
@@ -404,18 +407,22 @@ export function botSelectPlaying11(squad: EnrichedPlayer[], pitchType: string = 
         .sort((a, b) => getSelectionScore(b, 'bat') - getSelectionScore(a, 'bat'));
     tryAddWithLimit(anchorPool, 1);
 
-    // 2c. Pick remaining non-bowlers (Aim for 7 total)
-    const remainingNonBowlers = eligible.filter(p => p.role !== 'BOWLER' && !isSelected(p))
+    // 2c. Ensure 2 Middle Order
+    const midPool = eligible.filter(p => isMiddleOrder(p) && !isSelected(p))
         .sort((a, b) => getSelectionScore(b, 'bat') - getSelectionScore(a, 'bat'));
-    tryAddWithLimit(remainingNonBowlers, 7 - selected.length);
+    tryAddWithLimit(midPool, 2);
 
-    // 2d. Pick bowlers (Ensure at least 4-5)
+    // 2d. Ensure 1 Finisher
+    const finPool = eligible.filter(p => isExplicitFinisher(p) && !isSelected(p))
+        .sort((a, b) => getSelectionScore(b, 'bat') - getSelectionScore(a, 'bat'));
+    tryAddWithLimit(finPool, 1);
+
+    // 2e. Pick bowlers (Ensure at least 4 specialists)
     const bowlsPool = eligible.filter(p => p.role === 'BOWLER' && !isSelected(p))
         .sort((a, b) => getSelectionScore(b, 'bowl') - getSelectionScore(a, 'bowl'));
     tryAddWithLimit(bowlsPool, 4);
 
-    // 2e. Fill to 11 (Favor best remaining, prioritizing Indians if overseas limit reached)
-    // ADD: X-Factor Rotation Logic (occasionally swap a "stable" starter for a high-skill bench player)
+    // 2f. Fill to 11 (Favor best remaining, prioritizing Indians if overseas limit reached)
     const othersPool = eligible.filter(p => !isSelected(p))
         .sort((a, b) => {
             const scoreB = Math.max(getSelectionScore(b, 'bat'), getSelectionScore(b, 'bowl'));
@@ -428,22 +435,6 @@ export function botSelectPlaying11(squad: EnrichedPlayer[], pitchType: string = 
         const isOverseas = next.nationality === 'Overseas';
         if (isOverseas && getOverseasCount(selected) >= 4) continue;
         
-        // X-Factor: 15% chance to skip a "safe" pick for the next best in pool if they are high skill
-        const isSafePick = (next.recentMatches || 0) > 3 && (next.recentAverage || 0) > 25;
-        if (isSafePick && othersPool.length > 0 && Math.random() < 0.15) {
-            const xFactorIdx = othersPool.findIndex(p => 
-                (p.nationality !== 'Overseas' || getOverseasCount(selected) < 4) && 
-                Math.max(p.battingSkill, p.bowlingSkill) > 75
-            );
-            
-            if (xFactorIdx !== -1) {
-                const xFactor = othersPool.splice(xFactorIdx, 1)[0];
-                selected.push(xFactor);
-                othersPool.unshift(next); // put the safe pick back for next slot
-                continue;
-            }
-        }
-
         selected.push(next);
     }
     
@@ -457,26 +448,18 @@ export function botSelectPlaying11(squad: EnrichedPlayer[], pitchType: string = 
             selected.push(p);
         }
     }
-       // Construct strictly sequenced order (#1-11)
-    // 1. Assign Priority scores to all selected players
-    const isSecondaryOpener = (p: EnrichedPlayer) => 
-        p.battingRole?.toLowerCase().includes('opener') && p.battingRole?.toLowerCase().includes('middle');
 
+    // 4. Construct strictly sequenced order (#1-11)
     const getBattingPriority = (p: EnrichedPlayer) => {
-        if (isOpener(p)) {
-            // Priority 100 for all recognized top-order specialists
-            return 100;
-        }
-        if (isAnchor(p)) return 95; // High priority top-order
+        if (isOpener(p)) return 100;
+        if (isAnchor(p)) return 95;
+        if (isMiddleOrder(p)) return 90; 
         if (isEliteFinisher(p)) return 85; 
-        if (isExplicitFinisher(p)) return 70;
+        if (isExplicitFinisher(p)) return 75;
         
-        // Lower Order / All Rounders
-        if (p.role === 'ALL_ROUNDER') return 40;
-        if (p.role === 'BATSMAN' || p.role === 'WICKET_KEEPER') return 30;
-        
-        // Tail (Pure Bowlers / Low-Skill ARs)
-        if (p.role === 'BOWLER' || p.battingSkill < 30) return 10;
+        if (p.role === 'BATSMAN' || p.role === 'WICKET_KEEPER') return 60;
+        if (p.role === 'ALL_ROUNDER') return 50;
+        if (p.role === 'BOWLER' || p.battingSkill < 30) return 20;
         return 10;
     };
 
@@ -556,10 +539,17 @@ export function botChooseNextBatter(state: MatchState): string | null {
     const isElite = (p: MatchPlayer) => eliteFinishers.includes(p.name);
     const isFin = (p: MatchPlayer) => 
         finisherArchetypes.includes(p.battingRole || '') || 
-        finisherArchetypes.some((a: string) => p.primaryArchetype?.includes(a));
+        finisherArchetypes.some((a: string) => p.primaryArchetype?.includes(a) || p.secondaryArchetype?.includes(a));
     
     const isAnchorPlayer = (p: MatchPlayer) => 
-        (p.primaryArchetype?.includes('Anchor') || p.primaryArchetype?.includes('Stable') || p.battingRole?.includes('Number 3') || p.name === 'Rishabh Pant');
+        (p.primaryArchetype?.includes('Anchor') || p.primaryArchetype?.includes('Stable') || p.battingRole?.includes('Number 3') || p.name === 'Rishabh Pant' || p.name === 'KL Rahul');
+
+    const isMidOrderPlayer = (p: MatchPlayer) =>
+        p.name === 'Tilak Varma' || 
+        p.name === 'Rahul Tripathi' || 
+        p.name === 'Shivam Dube' ||
+        p.battingRole?.toLowerCase().includes('middle') || 
+        p.primaryArchetype?.includes('Middle');
 
     // SITUATIONS
     
@@ -568,10 +558,10 @@ export function botChooseNextBatter(state: MatchState): string | null {
     const isCollapse = last2Fow.length >= 2 && (overs - last2Fow[0].over) <= 2.0;
 
     if (isCollapse) {
-        // Send the best Anchor remaining, regardless of phase
-        const anchor = available.filter(b => isAnchorPlayer(b.player))
+        // Send the best Anchor or Middle Order remaining, regardless of phase
+        const stabilizer = available.filter(b => isAnchorPlayer(b.player) || isMidOrderPlayer(b.player))
             .sort((a, b) => (b.player.battingRating || b.player.battingSkill) - (a.player.battingRating || a.player.battingSkill))[0];
-        if (anchor) return anchor.player.id;
+        if (stabilizer) return stabilizer.player.id;
     }
 
     // 2. TARGET PRESSURE: High RRR in 2nd Innings

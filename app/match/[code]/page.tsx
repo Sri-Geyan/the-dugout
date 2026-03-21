@@ -187,9 +187,6 @@ export default function MatchPage() {
                 const data = await matchRes.json();
                 if (data.state) {
                     setMatch(data.state);
-                    if (data.state.status === 'awaiting_selection') {
-                        router.push(`/pre-match/${code}?fixtureId=${fixtureId || ''}`);
-                    }
                 } else {
                     // Check if toss exists
                     const tossRes = await fetch(`/api/match?action=getToss&roomCode=${code}&matchId=${id}`);

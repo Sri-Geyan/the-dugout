@@ -432,10 +432,16 @@ export function botSelectPlaying11(squad: EnrichedPlayer[], pitchType: string = 
 
     // 2e. Fill remaining slot (Focus on bowling depth if needed)
     while (selected.length < 11) {
+        const openersInSelected = selected.filter(isOpener).length;
         const bowlingOptions = selected.filter(p => (p.bowlingRating || p.bowlingSkill) > 50).length;
         const needsBowling = bowlingOptions < 6;
 
         const fillPool = eligible.filter(p => !isSelected(p))
+            .filter(p => {
+                // CAP OPENERS at 3
+                if (isOpener(p) && openersInSelected >= 3) return false;
+                return true;
+            })
             .sort((a, b) => {
                 const scoreB = needsBowling ? getSelectionScore(b, 'bowler') : Math.max(getSelectionScore(b, 'middle'), getSelectionScore(b, 'bowler'));
                 const scoreA = needsBowling ? getSelectionScore(a, 'bowler') : Math.max(getSelectionScore(a, 'middle'), getSelectionScore(a, 'bowler'));
@@ -466,8 +472,8 @@ export function botSelectPlaying11(squad: EnrichedPlayer[], pitchType: string = 
     const getBattingPriority = (p: EnrichedPlayer) => {
         if (top2Openers.includes(p.id)) return 100;
         if (isAnchor(p)) return 95;
+        if (isOpener(p)) return 92; // Excess opener should bat in top 4
         if (isMiddleOrder(p)) return 90; 
-        if (isOpener(p)) return 90; // Demoted excess opener
         if (isEliteFinisher(p)) return 85; 
 
         const isBattingAR = p.role === 'ALL_ROUNDER' && (p.battingSkill > p.bowlingSkill || p.primaryArchetype?.includes('Batting All-Rounder'));

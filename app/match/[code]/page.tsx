@@ -156,12 +156,14 @@ export default function MatchPage() {
     const [coinFlipAnim, setCoinFlipAnim] = useState(false);
     useEffect(() => {
         const init = async () => {
+            let currentAuthId = userId;
             if (!isLoggedIn) {
                 try {
                     const res = await fetch('/api/auth/me');
                     if (res.ok) {
-                        const data = await res.json();
-                        setUser(data.userId, data.username);
+                        const authData = await res.json();
+                        setUser(authData.userId, authData.username);
+                        currentAuthId = authData.userId;
                     } else {
                         router.push('/login');
                         return;
@@ -186,9 +188,9 @@ export default function MatchPage() {
 
             const matchRes = await fetch(`/api/match?action=status&matchId=${id}`);
             if (matchRes.ok) {
-                const data = await matchRes.json();
-                if (data.state) {
-                    setMatch(data.state);
+                const mData = await matchRes.json();
+                if (mData.state) {
+                    setMatch(mData.state);
                 } else {
                     // Check if toss exists
                     const tossRes = await fetch(`/api/match?action=getToss&roomCode=${code}&matchId=${id}`);
@@ -199,7 +201,7 @@ export default function MatchPage() {
                             setTossPhase(tossData.toss.decision ? 'decided' : 'result');
                             
                             // Auto-init for host if decided but no state
-                            if (tossData.toss.decision && (rHostId === data.userId || rHostId === userId)) {
+                            if (tossData.toss.decision && rHostId === currentAuthId) {
                                 initMatch(id, tossData.toss);
                             }
                         }

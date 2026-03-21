@@ -778,10 +778,14 @@ export default function PreMatchSelectionPage() {
                                                     ⏳ Waiting for {opponentTeam.teamName}...
                                                 </div>
                                             )}
-                                            {(!opponentTeam || opponentLocked) && (
+                                            {(!opponentTeam || opponentLocked) ? (
                                                 <button onClick={handleStartMatch} className="btn-primary w-full py-4 text-base font-black" style={{ animation: 'pulse 2s infinite' }}>
                                                     🏏 Start Match →
                                                 </button>
+                                            ) : (
+                                                <div className="text-center text-xs p-3 rounded-xl opacity-60" style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: 'var(--color-text-muted)' }}>
+                                                    ⏳ All teams must lock to start...
+                                                </div>
                                             )}
                                         </>
                                     )}

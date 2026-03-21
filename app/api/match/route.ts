@@ -469,7 +469,9 @@ export async function POST(request: NextRequest) {
 
         if (action === 'status') {
             const state = await getMatchState(matchId);
-            return NextResponse.json({ state });
+            const rCode = state?.roomCode || matchId.split('-')[0];
+            const room = await getRoomState(rCode);
+            return NextResponse.json({ state, hostId: room?.hostId });
         }
 
         return NextResponse.json({ error: 'Invalid action' }, { status: 400 });

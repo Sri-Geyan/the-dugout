@@ -172,10 +172,10 @@ export default function MatchPage() {
                 }
             }
 
-            const roomRes = await fetch(`/api/rooms/${code}`);
+            const roomRes = await fetch(`/api/league?roomCode=${code}`);
             if (roomRes.ok) {
                 const roomData = await roomRes.json();
-                setHostId(roomData.room.hostId);
+                setHostId(roomData.hostId);
             }
 
             // Fetch existing match or toss state
@@ -187,6 +187,9 @@ export default function MatchPage() {
                 const data = await matchRes.json();
                 if (data.state) {
                     setMatch(data.state);
+                    if (data.state.status === 'awaiting_selection') {
+                        router.push(`/pre-match/${code}?fixtureId=${fixtureId || ''}`);
+                    }
                 } else {
                     // Check if toss exists
                     const tossRes = await fetch(`/api/match?action=getToss&roomCode=${code}&matchId=${id}`);

@@ -172,10 +172,12 @@ export default function MatchPage() {
                 }
             }
 
+            let rHostId = '';
             const roomRes = await fetch(`/api/league?roomCode=${code}`);
             if (roomRes.ok) {
                 const roomData = await roomRes.json();
                 setHostId(roomData.hostId);
+                rHostId = roomData.hostId;
             }
 
             // Fetch existing match or toss state
@@ -195,6 +197,11 @@ export default function MatchPage() {
                         if (tossData.toss) {
                             setTossResult(tossData.toss);
                             setTossPhase(tossData.toss.decision ? 'decided' : 'result');
+                            
+                            // Auto-init for host if decided but no state
+                            if (tossData.toss.decision && (rHostId === data.userId || rHostId === userId)) {
+                                initMatch(id, tossData.toss);
+                            }
                         }
                     }
                 }
@@ -448,7 +455,7 @@ export default function MatchPage() {
                     <h1 className="text-3xl font-black mb-2">🪙 Toss Time!</h1>
                     {fixtureId && (
                         <p className="text-xs gold-text uppercase tracking-widest font-black mb-8 opacity-60">
-                            Match #{fixtureId.split('-')[1]} • Venue: Loading...
+                            Match #{fixtureId.split('-')[1]}
                         </p>
                     )}
 

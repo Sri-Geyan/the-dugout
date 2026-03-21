@@ -216,7 +216,7 @@ export default function PreMatchSelectionPage() {
                             if (phase !== 'selection' && phase !== 'waiting') setPhase('selection');
                         } else if (d.toss.winnerId) {
                             if (phase !== 'decision') {
-                                if (d.toss.winnerId === userId) setTossDecisionPending(true);
+                                if (d.toss.winnerId === userId || (myTeam && d.toss.winnerName === myTeam.teamName)) setTossDecisionPending(true);
                                 setPhase('decision');
                             }
                         }
@@ -257,7 +257,7 @@ export default function PreMatchSelectionPage() {
                 if (data.toss.decision) {
                     setPhase('selection');
                 } else if (data.toss.winnerId) {
-                    if (data.toss.winnerId === userId) setTossDecisionPending(true);
+                    if (data.toss.winnerId === userId || (myTeam && data.toss.winnerName === myTeam.teamName)) setTossDecisionPending(true);
                     setPhase('decision');
                 }
             }

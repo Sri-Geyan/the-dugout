@@ -92,23 +92,25 @@ export default function PreMatchSelectionPage() {
     useEffect(() => {
         const init = async () => {
             try {
+                let currentUserId = userId;
                 if (!isLoggedIn) {
                     try {
                         const res = await fetch('/api/auth/me');
                         if (res.ok) {
                             const data = await res.json();
                             setUser(data.userId, data.username);
+                            currentUserId = data.userId;
                         } else { router.push('/login'); return; }
                     } catch { router.push('/login'); return; }
                 }
+
+                if (!currentUserId) return; // Should not happen if logged in
 
                 const auctionRes = await fetch(`/api/auction?roomCode=${code}`);
                 if (!auctionRes.ok) throw new Error(`Auction API failed: ${auctionRes.status}`);
                 const auctionData = await auctionRes.json();
                 const auction = auctionData.state;
                 if (!auction) throw new Error("No auction state found");
-
-
 
                 if (fixtureId) {
                     const leagueRes = await fetch(`/api/league?roomCode=${code}`);
@@ -120,10 +122,10 @@ export default function PreMatchSelectionPage() {
                             const a = auction.teams.find((t: TeamData) => t.userId === fixture.awayTeamUserId) ?? null;
 
                             // Spectator support: show teams even if not me
-                            if (h?.userId === userId) { setMyTeam(h); setOpponentTeam(a); }
-                            else if (a?.userId === userId) { setMyTeam(a); setOpponentTeam(h); }
+                            if (h?.userId === currentUserId) { setMyTeam(h); setOpponentTeam(a); }
+                            else if (a?.userId === currentUserId) { setMyTeam(a); setOpponentTeam(h); }
                             else {
-                                // Spectator mode: "myTeam" is just h for the sake of rendering
+                                // Spectator mode
                                 setMyTeam(h);
                                 setOpponentTeam(a);
                             }
@@ -137,7 +139,7 @@ export default function PreMatchSelectionPage() {
                         throw new Error(`League API failed: ${leagueRes.status}`);
                     }
                 } else {
-                    const myT = auction.teams.find((t: TeamData) => t.userId === userId);
+                    const myT = auction.teams.find((t: TeamData) => t.userId === currentUserId);
                     if (!myT) throw new Error("Team not found for current user");
                     setMyTeam(myT || null);
                     setHomeTeamName(myT?.teamName ?? '');
@@ -154,7 +156,7 @@ export default function PreMatchSelectionPage() {
                             setMatchId(tossData.matchId || '');
                             if (tossData.toss.decision) {
                                 // Toss complete, check if my selection is done
-                                const selRes = await fetch(`/api/selection?roomCode=${code}&fixtureId=${fixtureId}&teamId=${userId}`);
+                                const selRes = await fetch(`/api/selection?roomCode=${code}&fixtureId=${fixtureId}&teamId=${currentUserId}`);
                                 if (selRes.ok) {
                                     const selData = await selRes.json();
                                     if (selData.selectedIds?.length === 11) {
@@ -171,7 +173,7 @@ export default function PreMatchSelectionPage() {
                                 } else {
                                     setPhase('selection');
                                 }
-                            } else if (tossData.toss.winnerId === userId) {
+                            } else if (tossData.toss.winnerId === currentUserId) {
                                 setTossDecisionPending(true);
                                 setPhase('decision');
                             } else {

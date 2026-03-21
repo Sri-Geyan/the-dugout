@@ -194,32 +194,103 @@ export default function PreMatchSelectionPage() {
     // Poll for toss result and opponent lock
     useEffect(() => {
         if (loading) return;
+        
+        // --- 1. Polling Logic (Fallback) ---
         const interval = setInterval(async () => {
-            if (phase === 'toss') {
-                // poll for toss
+            // A. Poll for toss/decision if not complete
+            if (!tossResult || !tossResult.decision) {
                 const res = await fetch(`/api/match?action=getToss&roomCode=${code}&fixtureId=${fixtureId}`);
                 if (res.ok) {
                     const d = await res.json();
                     if (d.toss) {
                         setTossResult(d.toss);
                         setMatchId(d.matchId || '');
-                        if (d.toss.decision) setPhase('selection');
-                        else if (d.toss.winnerId === userId) { setTossDecisionPending(true); setPhase('decision'); }
-                        else setPhase('decision');
+                        
+                        if (d.toss.decision) {
+                            if (phase !== 'selection' && phase !== 'waiting') setPhase('selection');
+                        } else if (d.toss.winnerId) {
+                            if (phase !== 'decision') {
+                                if (d.toss.winnerId === userId) setTossDecisionPending(true);
+                                setPhase('decision');
+                            }
+                        }
                     }
                 }
-            } else if (phase === 'decision' && tossResult?.decision) {
-                setPhase('selection');
-            } else if (phase === 'waiting' && opponentTeam) {
+            }
+
+            // B. Poll for opponent lock if I am waiting
+            if (phase === 'waiting' && opponentTeam) {
                 const res = await fetch(`/api/selection?roomCode=${code}${fixtureId ? `&fixtureId=${fixtureId}` : ''}&teamId=${opponentTeam.userId}`);
                 if (res.ok) {
                     const d = await res.json();
                     if (d.selectedIds?.length === 11) setOpponentLocked(true);
                 }
             }
-        }, 2000);
-        return () => clearInterval(interval);
-    }, [loading, phase, tossResult, opponentTeam, userId, code, fixtureId]);
+
+            // C. Poll for fixture status (redirection fallback)
+            const leagueRes = await fetch(`/api/league?roomCode=${code}`);
+            if (leagueRes.ok) {
+                const d = await leagueRes.json();
+                const f = d.state?.fixtures?.find((fx: any) => String(fx.id) === String(fixtureId));
+                if (f && (f.status === 'live' || f.status === 'completed')) {
+                    router.push(`/match/${code}?fixtureId=${fixtureId}`);
+                }
+            }
+        }, 2500);
+
+        // --- 2. Socket Logic (Real-time) ---
+        const { getSocket } = require('@/lib/socket');
+        const socket = getSocket();
+        
+        socket.emit('join_room', code);
+
+        const handleMatchUpdate = (data: any) => {
+            if (data.toss) {
+                setTossResult(data.toss);
+                if (data.matchId) setMatchId(data.matchId);
+                
+                if (data.toss.decision) {
+                    setPhase('selection');
+                } else if (data.toss.winnerId) {
+                    if (data.toss.winnerId === userId) setTossDecisionPending(true);
+                    setPhase('decision');
+                }
+            }
+        };
+
+        const handleLeagueUpdate = (data: any) => {
+            // Reload fixture info if league updates (e.g. status changes)
+            if (data.state?.fixtures) {
+                const f = data.state.fixtures.find((fx: any) => String(fx.id) === String(fixtureId));
+                if (f) {
+                    if (f.matchId && f.matchId !== matchId) setMatchId(f.matchId);
+                    if (f.status === 'live' || f.status === 'completed') {
+                        router.push(`/match/${code}?fixtureId=${fixtureId}`);
+                    }
+                }
+            }
+        };
+
+        socket.on('match_update', handleMatchUpdate);
+        socket.on('selection_update', () => {
+            if (phase === 'waiting' && opponentTeam) {
+                // Trigger a quick poll for opponent status
+                fetch(`/api/selection?roomCode=${code}${fixtureId ? `&fixtureId=${fixtureId}` : ''}&teamId=${opponentTeam.userId}`)
+                    .then(res => res.json())
+                    .then(d => {
+                        if (d.selectedIds?.length === 11) setOpponentLocked(true);
+                    });
+            }
+        });
+        socket.on('league_update', handleLeagueUpdate);
+
+        return () => {
+            clearInterval(interval);
+            socket.off('match_update', handleMatchUpdate);
+            socket.off('selection_update');
+            socket.off('league_update', handleLeagueUpdate);
+        };
+    }, [loading, phase, tossResult, opponentTeam, userId, code, fixtureId, matchId]);
 
     const handleToss = async () => {
         setTossLoading(true);
@@ -326,7 +397,7 @@ export default function PreMatchSelectionPage() {
             await fetch('/api/league', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'lockPreMatch', roomCode: code, fixtureId }),
+                body: JSON.stringify({ action: 'lockPreMatch', roomCode: code, fixtureId, matchId: matchId || fixtureId }),
             });
             router.push(`/match/${code}?fixtureId=${fixtureId || ''}`);
         } catch { }

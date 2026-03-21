@@ -52,12 +52,12 @@ export async function POST(request: NextRequest) {
 
                     if (!homeSelection) homeSelection = await getPreMatchSelection(fixture.homeTeamUserId);
                     if (!homeSelection && rCode && fixture.id) {
-                        homeSelection = await ensureBotSelections(rCode, fixture.id, fixture.homeTeamUserId);
+                        homeSelection = await ensureBotSelections(rCode, fixture.id, fixture.homeTeamUserId, tossResult);
                     }
 
                     if (!awaySelection) awaySelection = await getPreMatchSelection(fixture.awayTeamUserId);
                     if (!awaySelection && rCode && fixture.id) {
-                        awaySelection = await ensureBotSelections(rCode, fixture.id, fixture.awayTeamUserId);
+                        awaySelection = await ensureBotSelections(rCode, fixture.id, fixture.awayTeamUserId, tossResult);
                     }
 
                     const auctionState = await getAuctionState(rCode);

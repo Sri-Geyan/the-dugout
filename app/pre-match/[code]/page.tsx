@@ -8,6 +8,7 @@ import PlayerAvatar from '@/components/PlayerAvatar';
 import { getPitchProfile, PITCH_TYPES, PitchProfile } from '@/lib/pitchData';
 import { getTeamByName } from '@/data/teams';
 import TeamLogo from '@/components/TeamLogo';
+import { getSocket } from '@/lib/socket';
 
 interface SquadPlayer {
     player: {
@@ -113,22 +114,25 @@ export default function PreMatchSelectionPage() {
                 const auction = auctionData.state;
                 if (!auction) throw new Error("No auction state found");
 
-                const leagueRes = await fetch(`/api/league?roomCode=${code}`);
-                if (leagueRes.ok) {
-                    const leagueData = await leagueRes.json();
-                    if (leagueData.state?.hostId === currentUserId) setIsHost(true);
-                    
-                    if (fixtureId) {
+                let resolvedMyTeam = null;
+
+                if (fixtureId) {
+                    const leagueRes = await fetch(`/api/league?roomCode=${code}`);
+                    if (leagueRes.ok) {
+                        const leagueData = await leagueRes.json();
+                        if (leagueData.state?.hostId === currentUserId) setIsHost(true);
+                        
                         const fixture = leagueData.state?.fixtures?.find((f: any) => String(f.id) === String(fixtureId));
                         if (fixture) {
                             const h = auction.teams.find((t: TeamData) => t.userId === fixture.homeTeamUserId) ?? null;
                             const a = auction.teams.find((t: TeamData) => t.userId === fixture.awayTeamUserId) ?? null;
 
-                            if (h?.userId === currentUserId) { setMyTeam(h); setOpponentTeam(a); }
-                            else if (a?.userId === currentUserId) { setMyTeam(a); setOpponentTeam(h); }
+                            if (h?.userId === currentUserId) { setMyTeam(h); setOpponentTeam(a); resolvedMyTeam = h; }
+                            else if (a?.userId === currentUserId) { setMyTeam(a); setOpponentTeam(h); resolvedMyTeam = a; }
                             else {
                                 setMyTeam(h);
                                 setOpponentTeam(a);
+                                resolvedMyTeam = h;
                             }
 
                             setHomeTeamName(h?.teamName ?? '');
@@ -141,6 +145,7 @@ export default function PreMatchSelectionPage() {
                     const myT = auction.teams.find((t: TeamData) => t.userId === currentUserId);
                     if (myT) {
                         setMyTeam(myT);
+                        resolvedMyTeam = myT;
                         setHomeTeamName(myT.teamName);
                         setPitchProfile(getPitchProfile(myT.teamName));
                     }
@@ -172,7 +177,7 @@ export default function PreMatchSelectionPage() {
                                 } else {
                                     setPhase('selection');
                                 }
-                            } else if (tossData.toss.winnerId === currentUserId || (myTeam && tossData.toss.winnerName === myTeam.teamName)) {
+                            } else if (tossData.toss.winnerId === currentUserId || (resolvedMyTeam && tossData.toss.winnerName === (resolvedMyTeam as any).teamName)) {
                                 setTossDecisionPending(true);
                                 setPhase('decision');
                             } else {
@@ -240,7 +245,6 @@ export default function PreMatchSelectionPage() {
         }, 2500);
 
         // --- 2. Socket Logic (Real-time) ---
-        const { getSocket } = require('@/lib/socket');
         const socket = getSocket();
         
         socket.emit('join_room', code);

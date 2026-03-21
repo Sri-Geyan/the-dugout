@@ -680,72 +680,123 @@ export async function syncMatchToLeague(roomCode: string, fixtureId: string, mat
     fixture.result = matchState.result || undefined;
 
     processMatchResult(state, fixture, matchResult);
-
-    // PERSIST TO PRISMA FOR SCORECARDS
-    try {
-        const room = await prisma.room.findUnique({ where: { code: roomCode } });
-        if (room) {
-            const homePrismaTeam = await prisma.team.findUnique({ where: { userId_roomId: { userId: matchState.homeTeam.userId, roomId: room.id } } });
-            const awayPrismaTeam = await prisma.team.findUnique({ where: { userId_roomId: { userId: matchState.awayTeam.userId, roomId: room.id } } });
-
-            if (homePrismaTeam && awayPrismaTeam) {
-                const prismaMatch = await prisma.match.create({
-                    data: {
-                        id: matchState.matchId,
-                        roomId: room.id,
-                        homeTeamId: homePrismaTeam.id,
-                        awayTeamId: awayPrismaTeam.id,
-                        status: 'COMPLETED',
-                        innings: 2,
-                        pitchType: matchState.pitchType,
-                        homeScore: matchState.homeTeam.score,
-                        homeWickets: matchState.homeTeam.wickets,
-                        homeOvers: matchState.homeTeam.overs,
-                        awayScore: matchState.awayTeam.score,
-                        awayWickets: matchState.awayTeam.wickets,
-                        awayOvers: matchState.awayTeam.overs,
-                        result: matchState.result,
-                        matchNumber: fixture.scheduledOrder
-                    }
-                });
-
-                for (const bat of matchResult.battingStats) {
-                    const batTeam = bat.teamId === matchState.homeTeam.userId ? homePrismaTeam : awayPrismaTeam;
-                    await prisma.battingStats.create({
-                        data: {
-                            matchId: prismaMatch.id,
-                            playerId: bat.playerId,
-                            teamId: batTeam.id,
-                            runs: bat.runs,
-                            balls: bat.balls,
-                            fours: bat.fours,
-                            sixes: bat.sixes,
-                            isOut: bat.isOut,
-                            dismissal: bat.dismissal
-                        }
-                    });
-                }
-
-                for (const bowl of matchResult.bowlingStats) {
-                    const bowlTeam = bowl.teamId === matchState.homeTeam.userId ? homePrismaTeam : awayPrismaTeam;
-                    await prisma.bowlingStats.create({
-                        data: {
-                            matchId: prismaMatch.id,
-                            playerId: bowl.playerId,
-                            teamId: bowlTeam.id,
-                            overs: bowl.overs + (bowl.balls / 10),
-                            maidens: bowl.maidens || 0,
-                            runs: bowl.runs,
-                            wickets: bowl.wickets
-                        }
-                    });
-                }
-            }
-        }
-    } catch (err) {
-        console.error("Failed to persist match to Prisma:", err);
-    }
-
+    await persistMatchToPrisma(roomCode, fixture.matchId!, matchState.pitchType, fixture.scheduledOrder, matchResult);
     await saveLeagueState(state);
     return state;
+}
+
+export async function persistMatchToPrisma(roomCode: string, matchId: string, pitchType: string, matchNumber: number, result: MatchResult) {
+    try {
+        const room = await prisma.room.findUnique({ where: { code: roomCode } });
+        if (!room) return;
+
+        const homePrismaTeam = await prisma.team.findUnique({ where: { userId_roomId: { userId: result.homeUserId, roomId: room.id } } });
+        const awayPrismaTeam = await prisma.team.findUnique({ where: { userId_roomId: { userId: result.awayUserId, roomId: room.id } } });
+
+        if (homePrismaTeam && awayPrismaTeam) {
+            console.log(`[Sync] Persisting match ${matchId} for room ${roomCode}`);
+            const prismaMatch = await prisma.match.upsert({
+                where: { id: matchId },
+                update: {
+                    homeScore: result.homeScore,
+                    homeWickets: result.homeWickets,
+                    homeOvers: result.homeOvers,
+                    awayScore: result.awayScore,
+                    awayWickets: result.awayWickets,
+                    awayOvers: result.awayOvers,
+                    result: result.result
+                },
+                create: {
+                    id: matchId,
+                    roomId: room.id,
+                    homeTeamId: homePrismaTeam.id,
+                    awayTeamId: awayPrismaTeam.id,
+                    status: 'COMPLETED',
+                    innings: 2,
+                    pitchType: pitchType as any,
+                    homeScore: result.homeScore,
+                    homeWickets: result.homeWickets,
+                    homeOvers: result.homeOvers,
+                    awayScore: result.awayScore,
+                    awayWickets: result.awayWickets,
+                    awayOvers: result.awayOvers,
+                    result: result.result,
+                    matchNumber: matchNumber
+                }
+            });
+
+            // Re-create stats (delete existing first to avoid unique constraint errors during re-sync)
+            await prisma.battingStats.deleteMany({ where: { matchId: prismaMatch.id } });
+            await prisma.bowlingStats.deleteMany({ where: { matchId: prismaMatch.id } });
+
+            for (const bat of result.battingStats) {
+                const batTeamId = bat.teamId === result.homeUserId ? homePrismaTeam.id : awayPrismaTeam.id;
+                
+                // Ensure player exists
+                const player = await prisma.player.findUnique({ where: { id: bat.playerId } });
+                if (!player) {
+                    console.warn(`[Sync] Player NOT FOUND: ${bat.playerId} (${bat.playerName}). Creating placeholder.`);
+                    await prisma.player.create({
+                        data: {
+                            id: bat.playerId,
+                            name: bat.playerName,
+                            role: 'ALL_ROUNDER', // Default
+                            battingSkill: 50,
+                            bowlingSkill: 50,
+                            nationality: 'Indian'
+                        }
+                    });
+                }
+
+                await prisma.battingStats.create({
+                    data: {
+                        matchId: prismaMatch.id,
+                        playerId: bat.playerId,
+                        teamId: batTeamId,
+                        runs: bat.runs,
+                        balls: bat.balls,
+                        fours: bat.fours,
+                        sixes: bat.sixes,
+                        isOut: bat.isOut,
+                        dismissal: bat.dismissal
+                    }
+                });
+            }
+
+            for (const bowl of result.bowlingStats) {
+                const bowlTeamId = bowl.teamId === result.homeUserId ? homePrismaTeam.id : awayPrismaTeam.id;
+
+                const player = await prisma.player.findUnique({ where: { id: bowl.playerId } });
+                if (!player) {
+                    console.warn(`[Sync] Player NOT FOUND: ${bowl.playerId} (${bowl.playerName}). Creating placeholder.`);
+                    await prisma.player.create({
+                        data: {
+                            id: bowl.playerId,
+                            name: bowl.playerName,
+                            role: 'ALL_ROUNDER',
+                            battingSkill: 50,
+                            bowlingSkill: 50,
+                            nationality: 'Indian'
+                        }
+                    });
+                }
+
+                await prisma.bowlingStats.create({
+                    data: {
+                        matchId: prismaMatch.id,
+                        playerId: bowl.playerId,
+                        teamId: bowlTeamId,
+                        overs: bowl.overs + (bowl.balls / 10),
+                        maidens: bowl.maidens || 0,
+                        runs: bowl.runs,
+                        wickets: bowl.wickets
+                    }
+                });
+            }
+        } else {
+            console.warn(`[Sync] Skipping persistence for ${matchId}: Teams not found in Prisma.`);
+        }
+    } catch (err) {
+        console.error(`[Sync] Failed to persist match ${matchId}:`, err);
+    }
 }

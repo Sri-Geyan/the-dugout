@@ -8,165 +8,133 @@ datasource db {
 }
 
 model User {
-  id        String   @id @default(uuid())
-  username  String   @unique
-  pin       String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  roomPlayers    RoomPlayer[]
-  teams          Team[]
-  bids           AuctionBid[]
+  id          String       @id @default(uuid())
+  username    String       @unique
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  pin         String?
+  bids        AuctionBid[]
+  roomPlayers RoomPlayer[]
+  teams       Team[]
 }
 
 model Room {
-  id        String     @id @default(uuid())
-  code      String     @unique
-  hostId    String
-  status    RoomStatus @default(WAITING)
-  maxPlayers Int       @default(10)
-  createdAt DateTime   @default(now())
-  updatedAt DateTime   @updatedAt
-
-  players           RoomPlayer[]
+  id                String              @id @default(uuid())
+  code              String              @unique
+  hostId            String
+  status            RoomStatus          @default(WAITING)
+  maxPlayers        Int                 @default(10)
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
   auctionResults    AuctionResult[]
-  matches           Match[]
-  teams             Team[]
   fixtures          Fixture[]
+  matches           Match[]
   playerLeagueStats PlayerLeagueStats[]
-}
-
-enum RoomStatus {
-  WAITING
-  RETENTION
-  AUCTION
-  SELECTION
-  LEAGUE
-  MATCH
-  COMPLETED
+  players           RoomPlayer[]
+  teams             Team[]
 }
 
 model Fixture {
-  id              String        @id @default(uuid())
-  roomId          String
-  homeTeamId      String
-  awayTeamId      String
-  matchId         String?
-  scheduledOrder  Int
-  status          FixtureStatus @default(PENDING)
-  homeScore       Int?
-  homeWickets     Int?
-  homeOvers       Float?
-  awayScore       Int?
-  awayWickets     Int?
-  awayOvers       Float?
-  result          String?
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
-
-  room     Room @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  id             String        @id @default(uuid())
+  roomId         String
+  homeTeamId     String
+  awayTeamId     String
+  matchId        String?
+  scheduledOrder Int
+  status         FixtureStatus @default(PENDING)
+  homeScore      Int?
+  homeWickets    Int?
+  homeOvers      Float?
+  awayScore      Int?
+  awayWickets    Int?
+  awayOvers      Float?
+  result         String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  room           Room          @relation(fields: [roomId], references: [id], onDelete: Cascade)
 
   @@unique([roomId, scheduledOrder])
 }
 
-enum FixtureStatus {
-  PENDING
-  LIVE
-  COMPLETED
-}
-
 model PlayerLeagueStats {
-  id            String @id @default(uuid())
-  roomId        String
-  playerId      String
-  playerName    String
-  teamName      String
-  teamId        String
-  matches       Int    @default(0)
-  runs          Int    @default(0)
-  balls         Int    @default(0)
-  fours         Int    @default(0)
-  sixes         Int    @default(0)
-  wickets       Int    @default(0)
-  oversBowled   Float  @default(0)
-  runsConceded  Int    @default(0)
-  catches       Int    @default(0)
-  highestScore  Int    @default(0)
-  centuries     Int    @default(0)
-  halfCenturies Int    @default(0)
-  bestBowlingWickets Int @default(0)
-  bestBowlingRuns    Int @default(0)
-
-  room Room @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  id                 String @id @default(uuid())
+  roomId             String
+  playerId           String
+  playerName         String
+  teamName           String
+  teamId             String
+  matches            Int    @default(0)
+  runs               Int    @default(0)
+  balls              Int    @default(0)
+  fours              Int    @default(0)
+  sixes              Int    @default(0)
+  wickets            Int    @default(0)
+  oversBowled        Float  @default(0)
+  runsConceded       Int    @default(0)
+  catches            Int    @default(0)
+  bestBowlingRuns    Int    @default(0)
+  bestBowlingWickets Int    @default(0)
+  centuries          Int    @default(0)
+  halfCenturies      Int    @default(0)
+  highestScore       Int    @default(0)
+  room               Room   @relation(fields: [roomId], references: [id], onDelete: Cascade)
 
   @@unique([roomId, playerId])
 }
 
 model RoomPlayer {
-  id       String @id @default(uuid())
+  id       String   @id @default(uuid())
   userId   String
   roomId   String
   joinedAt DateTime @default(now())
-
-  user User @relation(fields: [userId], references: [id])
-  room Room @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  room     Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id])
 
   @@unique([userId, roomId])
 }
 
 model Team {
-  id       String @id @default(uuid())
-  name     String
-  userId   String
-  roomId   String
-  purse    Float  @default(100)
-  
-  user    User   @relation(fields: [userId], references: [id])
-  room    Room   @relation(fields: [roomId], references: [id], onDelete: Cascade)
-  
+  id             String          @id @default(uuid())
+  name           String
+  userId         String
+  roomId         String
+  purse          Float           @default(100)
   auctionResults AuctionResult[]
-  matchesHome    Match[]         @relation("HomeTeam")
-  matchesAway    Match[]         @relation("AwayTeam")
   battingStats   BattingStats[]
   bowlingStats   BowlingStats[]
+  matchesAway    Match[]         @relation("AwayTeam")
+  matchesHome    Match[]         @relation("HomeTeam")
+  room           Room            @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  user           User            @relation(fields: [userId], references: [id])
 
   @@unique([userId, roomId])
 }
 
 model Player {
-  id            String     @id @default(uuid())
-  name          String
-  role          PlayerRole
-  battingSkill  Int        @default(50)
-  bowlingSkill  Int        @default(50)
-  basePrice     Float      @default(1)
-  nationality   String     @default("Indian")
-  imageUrl      String?
-
+  id             String          @id @default(uuid())
+  name           String
+  role           PlayerRole
+  battingSkill   Int             @default(50)
+  bowlingSkill   Int             @default(50)
+  basePrice      Float           @default(1)
+  nationality    String          @default("Indian")
+  imageUrl       String?
   auctionResults AuctionResult[]
   battingStats   BattingStats[]
   bowlingStats   BowlingStats[]
 }
 
-enum PlayerRole {
-  BATSMAN
-  BOWLER
-  ALL_ROUNDER
-  WICKET_KEEPER
-}
-
 model AuctionResult {
-  id        String @id @default(uuid())
+  id        String   @id @default(uuid())
   roomId    String
   playerId  String
   teamId    String
   soldPrice Float
-  round     Int    @default(1)
+  round     Int      @default(1)
   createdAt DateTime @default(now())
-
-  room   Room   @relation(fields: [roomId], references: [id], onDelete: Cascade)
-  player Player @relation(fields: [playerId], references: [id])
-  team   Team   @relation(fields: [teamId], references: [id])
+  player    Player   @relation(fields: [playerId], references: [id])
+  room      Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  team      Team     @relation(fields: [teamId], references: [id])
 
   @@unique([roomId, playerId])
 }
@@ -178,18 +146,17 @@ model AuctionBid {
   userId    String
   amount    Float
   createdAt DateTime @default(now())
-
-  user User @relation(fields: [userId], references: [id])
+  user      User     @relation(fields: [userId], references: [id])
 }
 
 model Retention {
   id         String   @id @default(uuid())
   roomId     String
-  teamId     String   // userId of the team owner
-  playerId   String   // matched id from IPL_PLAYERS
+  teamId     String
+  playerId   String
   playerName String
-  slot       Int      // 1, 2, 3, or 4
-  cost       Float    // 16 | 12 | 8 | 6 Cr
+  slot       Int
+  cost       Float
   createdAt  DateTime @default(now())
 
   @@unique([roomId, playerId])
@@ -197,30 +164,94 @@ model Retention {
 }
 
 model Match {
-  id            String      @id @default(uuid())
-  roomId        String
-  homeTeamId    String
-  awayTeamId    String
-  status        MatchStatus @default(SCHEDULED)
-  innings       Int         @default(1)
-  pitchType     PitchType   @default(BALANCED)
-  homeScore     Int         @default(0)
-  homeWickets   Int         @default(0)
-  homeOvers     Float       @default(0)
-  awayScore     Int         @default(0)
-  awayWickets   Int         @default(0)
-  awayOvers     Float       @default(0)
-  result        String?
-  matchNumber   Int         @default(1)
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
-
-  room     Room @relation(fields: [roomId], references: [id], onDelete: Cascade)
-  homeTeam Team @relation("HomeTeam", fields: [homeTeamId], references: [id])
-  awayTeam Team @relation("AwayTeam", fields: [awayTeamId], references: [id])
-
+  id           String         @id @default(uuid())
+  roomId       String
+  homeTeamId   String
+  awayTeamId   String
+  status       MatchStatus    @default(SCHEDULED)
+  innings      Int            @default(1)
+  pitchType    PitchType      @default(BALANCED)
+  homeScore    Int            @default(0)
+  homeWickets  Int            @default(0)
+  homeOvers    Float          @default(0)
+  awayScore    Int            @default(0)
+  awayWickets  Int            @default(0)
+  awayOvers    Float          @default(0)
+  result       String?
+  matchNumber  Int            @default(1)
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
   battingStats BattingStats[]
   bowlingStats BowlingStats[]
+  awayTeam     Team           @relation("AwayTeam", fields: [awayTeamId], references: [id])
+  homeTeam     Team           @relation("HomeTeam", fields: [homeTeamId], references: [id])
+  room         Room           @relation(fields: [roomId], references: [id], onDelete: Cascade)
+}
+
+model BattingStats {
+  id        String  @id @default(uuid())
+  matchId   String
+  playerId  String
+  teamId    String
+  runs      Int     @default(0)
+  balls     Int     @default(0)
+  fours     Int     @default(0)
+  sixes     Int     @default(0)
+  isOut     Boolean @default(false)
+  dismissal String?
+  match     Match   @relation(fields: [matchId], references: [id])
+  player    Player  @relation(fields: [playerId], references: [id])
+  team      Team    @relation(fields: [teamId], references: [id])
+
+  @@unique([matchId, playerId])
+}
+
+model BowlingStats {
+  id       String @id @default(uuid())
+  matchId  String
+  playerId String
+  teamId   String
+  overs    Float  @default(0)
+  maidens  Int    @default(0)
+  runs     Int    @default(0)
+  wickets  Int    @default(0)
+  extras   Int    @default(0)
+  match    Match  @relation(fields: [matchId], references: [id])
+  player   Player @relation(fields: [playerId], references: [id])
+  team     Team   @relation(fields: [teamId], references: [id])
+
+  @@unique([matchId, playerId])
+}
+
+model KeyValue {
+  key       String    @id
+  value     String
+  expiresAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+enum RoomStatus {
+  WAITING
+  AUCTION
+  MATCH
+  COMPLETED
+  SELECTION
+  LEAGUE
+  RETENTION
+}
+
+enum FixtureStatus {
+  PENDING
+  LIVE
+  COMPLETED
+}
+
+enum PlayerRole {
+  BATSMAN
+  BOWLER
+  ALL_ROUNDER
+  WICKET_KEEPER
 }
 
 enum MatchStatus {
@@ -234,49 +265,4 @@ enum PitchType {
   BOWLING
   BALANCED
   SPINNING
-}
-
-model BattingStats {
-  id        String @id @default(uuid())
-  matchId   String
-  playerId  String
-  teamId    String
-  runs      Int    @default(0)
-  balls     Int    @default(0)
-  fours     Int    @default(0)
-  sixes     Int    @default(0)
-  isOut     Boolean @default(false)
-  dismissal String?
-
-  match  Match  @relation(fields: [matchId], references: [id])
-  player Player @relation(fields: [playerId], references: [id])
-  team   Team   @relation(fields: [teamId], references: [id])
-
-  @@unique([matchId, playerId])
-}
-
-model BowlingStats {
-  id        String @id @default(uuid())
-  matchId   String
-  playerId  String
-  teamId    String
-  overs     Float  @default(0)
-  maidens   Int    @default(0)
-  runs      Int    @default(0)
-  wickets   Int    @default(0)
-  extras    Int    @default(0)
-
-  match  Match  @relation(fields: [matchId], references: [id])
-  player Player @relation(fields: [playerId], references: [id])
-  team   Team   @relation(fields: [teamId], references: [id])
-
-  @@unique([matchId, playerId])
-}
-
-model KeyValue {
-  key       String   @id
-  value     String   @db.Text
-  expiresAt DateTime?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
 }

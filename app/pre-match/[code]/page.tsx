@@ -85,6 +85,7 @@ export default function PreMatchSelectionPage() {
     const [opponentLocked, setOpponentLocked] = useState(false);
     const [error, setError] = useState('');
     const [pitchProfile, setPitchProfile] = useState<PitchProfile | null>(null);
+    const [isHost, setIsHost] = useState(false);
 
     // Phase: 'toss' | 'decision' | 'selection' | 'waiting'
     const [phase, setPhase] = useState<'toss' | 'decision' | 'selection' | 'waiting'>('toss');
@@ -410,7 +411,6 @@ export default function PreMatchSelectionPage() {
     );
 
     const pitchType = pitchProfile ? PITCH_TYPES[pitchProfile.pitchType] : null;
-    const [isHost, setIsHost] = useState(false);
     const iAmTossWinner = tossResult?.winnerId === userId || (myTeam && tossResult?.winnerName === myTeam.teamName);
     const canMakeDecision = iAmTossWinner || isHost;
     const battingFirst = tossResult?.decision === 'bat' ? iAmTossWinner : !iAmTossWinner;

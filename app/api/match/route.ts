@@ -263,8 +263,12 @@ export async function POST(request: NextRequest) {
             if (!tossData) return NextResponse.json({ error: 'Toss not found' }, { status: 404 });
 
             const toss = JSON.parse(tossData);
-            if (toss.winnerId !== session.userId) {
-                return NextResponse.json({ error: 'Only toss winner can make decision' }, { status: 403 });
+            const isWinner = toss.winnerId === session.userId;
+            const room = await getRoomState(decRoomCode);
+            const isHost = room?.hostId === session.userId;
+
+            if (!isWinner && !isHost) {
+                return NextResponse.json({ error: 'Only toss winner or host can make decision' }, { status: 403 });
             }
 
             toss.decision = decision;

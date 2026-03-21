@@ -104,7 +104,7 @@ export default function PreMatchSelectionPage() {
                     } catch { router.push('/login'); return; }
                 }
 
-                if (!currentUserId) return; // Should not happen if logged in
+                if (!currentUserId) return;
 
                 const auctionRes = await fetch(`/api/auction?roomCode=${code}`);
                 if (!auctionRes.ok) throw new Error(`Auction API failed: ${auctionRes.status}`);
@@ -112,38 +112,37 @@ export default function PreMatchSelectionPage() {
                 const auction = auctionData.state;
                 if (!auction) throw new Error("No auction state found");
 
-                if (fixtureId) {
-                    const leagueRes = await fetch(`/api/league?roomCode=${code}`);
-                    if (leagueRes.ok) {
-                        const leagueData = await leagueRes.json();
-                        const fixture = leagueData.state?.fixtures?.find((f: { id: string | number }) => String(f.id) === String(fixtureId));
+                const leagueRes = await fetch(`/api/league?roomCode=${code}`);
+                if (leagueRes.ok) {
+                    const leagueData = await leagueRes.json();
+                    if (leagueData.state?.hostId === currentUserId) setIsHost(true);
+                    
+                    if (fixtureId) {
+                        const fixture = leagueData.state?.fixtures?.find((f: any) => String(f.id) === String(fixtureId));
                         if (fixture) {
                             const h = auction.teams.find((t: TeamData) => t.userId === fixture.homeTeamUserId) ?? null;
                             const a = auction.teams.find((t: TeamData) => t.userId === fixture.awayTeamUserId) ?? null;
 
-                            // Spectator support: show teams even if not me
                             if (h?.userId === currentUserId) { setMyTeam(h); setOpponentTeam(a); }
                             else if (a?.userId === currentUserId) { setMyTeam(a); setOpponentTeam(h); }
                             else {
-                                // Spectator mode
                                 setMyTeam(h);
                                 setOpponentTeam(a);
                             }
 
                             setHomeTeamName(h?.teamName ?? '');
                             setPitchProfile(getPitchProfile(h?.teamName ?? ''));
-                        } else {
-                            throw new Error(`Fixture ${fixtureId} not found in league state`);
                         }
-                    } else {
-                        throw new Error(`League API failed: ${leagueRes.status}`);
                     }
-                } else {
+                }
+
+                if (!fixtureId) {
                     const myT = auction.teams.find((t: TeamData) => t.userId === currentUserId);
-                    if (!myT) throw new Error("Team not found for current user");
-                    setMyTeam(myT || null);
-                    setHomeTeamName(myT?.teamName ?? '');
-                    setPitchProfile(getPitchProfile(myT?.teamName ?? ''));
+                    if (myT) {
+                        setMyTeam(myT);
+                        setHomeTeamName(myT.teamName);
+                        setPitchProfile(getPitchProfile(myT.teamName));
+                    }
                 }
 
                 // Check if toss already happened
@@ -155,7 +154,6 @@ export default function PreMatchSelectionPage() {
                             setTossResult(tossData.toss);
                             setMatchId(tossData.matchId || '');
                             if (tossData.toss.decision) {
-                                // Toss complete, check if my selection is done
                                 const selRes = await fetch(`/api/selection?roomCode=${code}&fixtureId=${fixtureId}&teamId=${currentUserId}`);
                                 if (selRes.ok) {
                                     const selData = await selRes.json();
@@ -173,11 +171,11 @@ export default function PreMatchSelectionPage() {
                                 } else {
                                     setPhase('selection');
                                 }
-                            } else if (tossData.toss.winnerId === currentUserId) {
+                            } else if (tossData.toss.winnerId === currentUserId || (myTeam && tossData.toss.winnerName === myTeam.teamName)) {
                                 setTossDecisionPending(true);
                                 setPhase('decision');
                             } else {
-                                setPhase('decision'); // wait for winner's decision
+                                setPhase('decision');
                             }
                         }
                     }
@@ -412,7 +410,9 @@ export default function PreMatchSelectionPage() {
     );
 
     const pitchType = pitchProfile ? PITCH_TYPES[pitchProfile.pitchType] : null;
-    const iAmTossWinner = tossResult?.winnerId === userId;
+    const [isHost, setIsHost] = useState(false);
+    const iAmTossWinner = tossResult?.winnerId === userId || (myTeam && tossResult?.winnerName === myTeam.teamName);
+    const canMakeDecision = iAmTossWinner || isHost;
     const battingFirst = tossResult?.decision === 'bat' ? iAmTossWinner : !iAmTossWinner;
     const iAmParticipant = myTeam?.userId === userId || opponentTeam?.userId === userId;
 
@@ -535,7 +535,7 @@ export default function PreMatchSelectionPage() {
                         <p className="text-xs mb-6" style={{ color: 'var(--color-text-muted)' }}>
                             💡 {pitchProfile?.tossInsight}
                         </p>
-                        {iAmTossWinner ? (
+                        {canMakeDecision ? (
                             <div className="flex gap-4 justify-center flex-wrap">
                                 <button onClick={() => handleTossDecision('bat')}
                                     className="px-8 py-3 rounded-xl font-bold text-white transition-all hover:scale-105"

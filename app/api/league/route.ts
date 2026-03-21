@@ -11,7 +11,7 @@ import {
     MatchResult,
 } from '@/lib/leagueEngine';
 import { getAuctionState } from '@/lib/auctionEngine';
-import { updateRoomStatus } from '@/lib/roomManager';
+import { updateRoomStatus, getRoomState } from '@/lib/roomManager';
 import { emitToRoom } from '@/lib/socket-server';
 
 function getSession(request: NextRequest) {
@@ -30,7 +30,8 @@ export async function GET(request: NextRequest) {
     if (!roomCode) return NextResponse.json({ error: 'roomCode is required' }, { status: 400 });
 
     const state = await getLeagueState(roomCode);
-    return NextResponse.json({ state });
+    const room = await getRoomState(roomCode);
+    return NextResponse.json({ state, hostId: room?.hostId });
 }
 
 // POST: League actions

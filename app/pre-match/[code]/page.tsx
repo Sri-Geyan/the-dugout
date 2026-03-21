@@ -120,7 +120,7 @@ export default function PreMatchSelectionPage() {
                     const leagueRes = await fetch(`/api/league?roomCode=${code}`);
                     if (leagueRes.ok) {
                         const leagueData = await leagueRes.json();
-                        if (leagueData.state?.hostId === currentUserId) setIsHost(true);
+                        if (leagueData.hostId === currentUserId) setIsHost(true);
                         
                         const fixture = leagueData.state?.fixtures?.find((f: any) => String(f.id) === String(fixtureId));
                         if (fixture) {
@@ -424,6 +424,19 @@ export default function PreMatchSelectionPage() {
         <div className="min-h-screen pb-24" style={{ background: 'var(--color-bg-primary)' }}>
             <Navbar />
             <main className="max-w-5xl mx-auto px-4 pt-24">
+                {/* ── Status Badges ── */}
+                <div className="flex gap-3 mb-4">
+                    {isHost && (
+                        <span className="text-[10px] px-2 py-0.5 rounded bg-yellow-900/40 text-yellow-400 border border-yellow-700/50 font-black tracking-widest uppercase animate-pulse">
+                            🛡️ Room Host (Override Mode)
+                        </span>
+                    )}
+                    {(!iAmParticipant) && (
+                        <span className="text-[10px] px-2 py-0.5 rounded bg-blue-900/40 text-blue-400 border border-blue-700/50 font-black tracking-widest uppercase">
+                            👁️ Spectator Mode
+                        </span>
+                    )}
+                </div>
 
                 {/* ── Pitch & Stadium Info Banner ── */}
                 {pitchProfile && (

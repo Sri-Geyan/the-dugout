@@ -133,7 +133,7 @@ function FixtureCard({ fixture, userId, code, router, onViewScorecard }: { fixtu
                 )}
                 {fixture.status === 'completed' && (
                     <button
-                        onClick={() => (fixture as any).onViewScorecard(fixture.matchId)}
+                        onClick={() => onViewScorecard(fixture.matchId!)}
                         className="btn-secondary w-full text-[10px] py-2 border-amber-500/50 text-amber-400 group-hover:border-amber-400 transition-all"
                     >
                         📝 View Scorecard

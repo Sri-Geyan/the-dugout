@@ -490,7 +490,7 @@ function InningsTable({ teamName, score, overs, batting, bowling }: any) {
                             {didBat.map((s: any) => (
                                 <tr key={s.id} className="border-b border-white/5">
                                     <td className="py-2">
-                                        <p className="font-bold">{s.player.name}</p>
+                                        <p className="font-bold">{s.player.name}{s.isCaptain && ' (c)'}{s.isWicketKeeper && ' (wk)'}</p>
                                         <p className="opacity-40 italic text-[9px]">{s.isOut ? s.dismissal : 'not out'}</p>
                                     </td>
                                     <td className="py-2 text-right font-mono font-bold">{s.runs}</td>
@@ -510,7 +510,7 @@ function InningsTable({ teamName, score, overs, batting, bowling }: any) {
                     <div className="mt-2 py-2 border-t border-white/5">
                         <p className="text-[10px] opacity-40 mb-1">Did not bat</p>
                         <p className="text-[10px] font-medium opacity-60">
-                            {didNotBat.map((s: any) => s.player.name).join(', ')}
+                            {didNotBat.map((s: any) => `${s.player.name}${s.isCaptain ? ' (c)' : ''}${s.isWicketKeeper ? ' (wk)' : ''}`).join(', ')}
                         </p>
                     </div>
                 )}
@@ -530,7 +530,7 @@ function InningsTable({ teamName, score, overs, batting, bowling }: any) {
                         <tbody>
                             {activeBowling.map((s: any) => (
                                 <tr key={s.id} className="border-b border-white/5">
-                                    <td className="py-2 font-bold">{s.player.name}</td>
+                                    <td className="py-2 font-bold">{s.player.name}{s.isCaptain && ' (c)'}{s.isWicketKeeper && ' (wk)'}</td>
                                     <td className="py-2 text-right font-mono">
                                         {typeof s.overs === 'number' ? s.overs.toFixed(1) : s.overs}
                                     </td>

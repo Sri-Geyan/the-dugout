@@ -200,6 +200,8 @@ model BattingStats {
   isOut     Boolean @default(false)
   dismissal String?
   position  Int     @default(0)
+  isCaptain      Boolean @default(false)
+  isWicketKeeper Boolean @default(false)
   match     Match   @relation(fields: [matchId], references: [id])
   player    Player  @relation(fields: [playerId], references: [id])
   team      Team    @relation(fields: [teamId], references: [id])
@@ -218,6 +220,8 @@ model BowlingStats {
   wickets  Int    @default(0)
   position Int    @default(0)
   extras   Int    @default(0)
+  isCaptain      Boolean @default(false)
+  isWicketKeeper Boolean @default(false)
   match    Match  @relation(fields: [matchId], references: [id])
   player   Player @relation(fields: [playerId], references: [id])
   team     Team   @relation(fields: [teamId], references: [id])

@@ -211,8 +211,8 @@ export interface MatchResult {
     winnerUserId: string | null; // null = tie
     homePlayers: string[]; // List of all 11 player IDs
     awayPlayers: string[]; // List of all 11 player IDs
-    battingStats: { playerId: string; playerName: string; teamName: string; teamId?: string; runs: number; balls: number; fours: number; sixes: number; isOut: boolean; dismissal?: string }[];
-    bowlingStats: { playerId: string; playerName: string; teamName: string; teamId?: string; overs: number; balls: number; runs: number; wickets: number; maidens?: number }[];
+    battingStats: { playerId: string; playerName: string; teamName: string; teamId?: string; runs: number; balls: number; fours: number; sixes: number; isOut: boolean; dismissal?: string; isCaptain?: boolean; isWicketKeeper?: boolean }[];
+    bowlingStats: { playerId: string; playerName: string; teamName: string; teamId?: string; overs: number; balls: number; runs: number; wickets: number; maidens?: number; isCaptain?: boolean; isWicketKeeper?: boolean }[];
 }
 
 export function updateStandings(state: LeagueState, matchResult: MatchResult): void {
@@ -639,7 +639,9 @@ export async function syncMatchToLeague(roomCode: string, fixtureId: string, mat
                 playerName: b.player.name,
                 teamName: b.player.teamName || (batting1st === 'home' ? matchState.homeTeam.name : matchState.awayTeam.name),
                 teamId: batting1st === 'home' ? matchState.homeTeam.userId : matchState.awayTeam.userId,
-                runs: b.runs, balls: b.balls, fours: b.fours, sixes: b.sixes, isOut: b.isOut, dismissal: b.dismissal
+                runs: b.runs, balls: b.balls, fours: b.fours, sixes: b.sixes, isOut: b.isOut, dismissal: b.dismissal,
+                isCaptain: b.player.isCaptain,
+                isWicketKeeper: b.player.isWicketKeeper
             })),
             ...(matchState.battingOrder || []).map((b: any) => ({
                 playerId: b.player.id,
@@ -655,7 +657,9 @@ export async function syncMatchToLeague(roomCode: string, fixtureId: string, mat
                 playerName: b.player.name,
                 teamName: b.player.teamName || (batting2nd === 'home' ? matchState.homeTeam.name : matchState.awayTeam.name),
                 teamId: batting2nd === 'home' ? matchState.homeTeam.userId : matchState.awayTeam.userId,
-                overs: b.overs, balls: b.overBalls, runs: b.runs, wickets: b.wickets, maidens: b.maidens || 0
+                overs: b.overs, balls: b.overBalls, runs: b.runs, wickets: b.wickets, maidens: b.maidens || 0,
+                isCaptain: b.player.isCaptain,
+                isWicketKeeper: b.player.isWicketKeeper
             })),
             ...(matchState.bowlingOrder || []).map((b: any) => ({
                 playerId: b.player.id,
@@ -760,7 +764,9 @@ export async function persistMatchToPrisma(roomCode: string, matchId: string, pi
                         sixes: bat.sixes,
                         isOut: bat.isOut,
                         dismissal: bat.dismissal,
-                        position: i
+                        position: i,
+                        isCaptain: bat.isCaptain || false,
+                        isWicketKeeper: bat.isWicketKeeper || false
                     }
                 });
             }
@@ -793,7 +799,9 @@ export async function persistMatchToPrisma(roomCode: string, matchId: string, pi
                         maidens: bowl.maidens || 0,
                         runs: bowl.runs,
                         wickets: bowl.wickets,
-                        position: i
+                        position: i,
+                        isCaptain: bowl.isCaptain || false,
+                        isWicketKeeper: bowl.isWicketKeeper || false
                     }
                 });
             }

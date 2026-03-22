@@ -154,6 +154,7 @@ export default function MatchPage() {
     const [tossPhase, setTossPhase] = useState<'idle' | 'flipping' | 'result' | 'decided'>('idle');
     const [tossResult, setTossResult] = useState<TossResult | null>(null);
     const [coinFlipAnim, setCoinFlipAnim] = useState(false);
+    const [tossError, setTossError] = useState<string | null>(null);
     useEffect(() => {
         const init = async () => {
             let currentAuthId = userId;
@@ -315,29 +316,47 @@ export default function MatchPage() {
 
         // Perform toss
         setTimeout(async () => {
-            const res = await fetch('/api/match', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    action: 'toss',
-                    roomCode: code,
-                    matchId: id,
-                    homeTeam,
-                    awayTeam,
-                    pitchType: 'BALANCED', // Default, but API will override based on stadium city
-                }),
-            });
-            const data = await res.json();
-            setCoinFlipAnim(false);
-            setTossResult(data.toss);
+            try {
+                const res = await fetch('/api/match', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        action: 'toss',
+                        roomCode: code,
+                        matchId: id,
+                        homeTeam,
+                        awayTeam,
+                        pitchType: 'BALANCED', // Default, but API will override based on stadium city
+                    }),
+                });
+                
+                if (!res.ok) {
+                    const errorData = await res.json();
+                    throw new Error(errorData.error || 'Failed to flip coin');
+                }
 
-            if (data.toss.decision) {
-                // Bot already decided
-                setTossPhase('decided');
-                // Auto-init match after toss
-                setTimeout(() => initMatch(id, data.toss), 2000);
-            } else {
-                setTossPhase('result');
+                const data = await res.json();
+                setCoinFlipAnim(false);
+
+                if (!data.toss) {
+                    throw new Error('Toss result not found');
+                }
+
+                setTossResult(data.toss);
+
+                if (data.toss.decision) {
+                    // Bot already decided
+                    setTossPhase('decided');
+                    // Auto-init match after toss
+                    setTimeout(() => initMatch(id, data.toss), 2000);
+                } else {
+                    setTossPhase('result');
+                }
+            } catch (err) {
+                console.error('Toss failed:', err);
+                setCoinFlipAnim(false);
+                setTossPhase('idle');
+                setTossError(err instanceof Error ? err.message : 'Toss failed. Please try again.');
             }
         }, 2000);
     };
@@ -469,6 +488,11 @@ export default function MatchPage() {
                             <button onClick={handleToss} className="btn-primary text-xl px-12 py-4">
                                 🪙 Flip the Coin
                             </button>
+                            {tossError && (
+                                <p className="text-red-500 text-sm mt-4 animate-pulse">
+                                    ❌ {tossError}
+                                </p>
+                            )}
                         </div>
                     )}
 

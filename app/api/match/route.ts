@@ -235,27 +235,47 @@ export async function POST(request: NextRequest) {
 
         if (action === 'toss') {
             const { roomCode: tossRoomCode, matchId: tossMatchId, fixtureId, homeTeam: tH, awayTeam: tA } = body;
+            console.log(`[Toss] Start for ${tossRoomCode}, matchId: ${tossMatchId}, fixtureId: ${fixtureId}`);
+            
             if (!tH || !tA) {
+                console.error('[Toss] Missing team info');
                 return NextResponse.json({ error: 'Home and away team info required for toss' }, { status: 400 });
             }
             if (!tH.userId || !tA.userId) {
+                console.error('[Toss] Missing user IDs');
                 return NextResponse.json({ error: 'Team user IDs required for toss' }, { status: 400 });
             }
+            
             const id = tossMatchId || fixtureId;
+            console.log('[Toss] Performing toss...');
             const toss = performToss(tH, tA);
             const tossKey = `toss:${tossRoomCode}:${id}`;
+            
+            console.log('[Toss] Saving to Redis:', tossKey);
             await redis.set(tossKey, JSON.stringify(toss), 'EX', 86400);
 
             // If toss winner is a bot, auto-decide
+            console.log('[Toss] Checking for bot...');
             const room = await getRoomState(tossRoomCode);
             const winnerPlayer = room?.players.find(p => p.userId === toss.winnerId);
             if (winnerPlayer && isBotUser(winnerPlayer.username)) {
+                console.log('[Toss] Bot detected, auto-deciding');
                 toss.decision = botTossDecision(body.pitchType || 'BALANCED');
                 await redis.set(tossKey, JSON.stringify(toss), 'EX', 86400);
             }
 
+            console.log('[Toss] Emitting update');
             emitToRoom(tossRoomCode, 'match_update', { toss, matchId: id });
+            console.log('[Toss] Success');
             return NextResponse.json({ toss, matchId: id });
+        }
+
+        if (action === 'syncToss') {
+            const { roomCode, matchId, toss } = body;
+            const tossKey = `toss:${roomCode}:${matchId}`;
+            await redis.set(tossKey, JSON.stringify(toss), 'EX', 86400);
+            emitToRoom(roomCode, 'match_update', { toss, matchId });
+            return NextResponse.json({ success: true, toss });
         }
 
         if (action === 'tossDecision') {

@@ -155,6 +155,8 @@ export default function MatchPage() {
     const [tossResult, setTossResult] = useState<TossResult | null>(null);
     const [coinFlipAnim, setCoinFlipAnim] = useState(false);
     const [tossError, setTossError] = useState<string | null>(null);
+    const [homeTeam, setHomeTeam] = useState<{ teamId: string; name: string; userId: string } | null>(null);
+    const [awayTeam, setAwayTeam] = useState<{ teamId: string; name: string; userId: string } | null>(null);
     useEffect(() => {
         const init = async () => {
             let currentAuthId = userId;
@@ -224,12 +226,17 @@ export default function MatchPage() {
                     console.log('[Watchdog] Toss stuck in flipping, resetting to idle');
                     setCoinFlipAnim(false);
                     setTossPhase('idle');
-                    setTossError('Toss timed out. Please try again.');
+                    setTossError('Toss timed out. Trying to recover...');
+                    
+                    // NEW: If we have team info, try to force a client-side toss as a last resort
+                    if (homeTeam && awayTeam) {
+                        doClientSideToss(homeTeam, awayTeam);
+                    }
                 }
             }, 6000);
             return () => clearTimeout(timeout);
         }
-    }, [tossPhase]);
+    }, [tossPhase, homeTeam, awayTeam]);
 
     // Socket.IO for real-time updates
     useEffect(() => {
@@ -307,8 +314,9 @@ export default function MatchPage() {
         const auction = auctionData.state;
         if (!auction) return;
 
-        let homeTeam: { teamId: string; name: string; userId: string } | null = null;
-        let awayTeam: { teamId: string; name: string; userId: string } | null = null;
+        let hTeam: { teamId: string; name: string; userId: string } | null = null;
+        let aTeam: { teamId: string; name: string; userId: string } | null = null;
+        
         if (fixtureId) {
             const leagueRes = await fetch(`/api/league?roomCode=${code}`);
             const leagueData = await leagueRes.json();
@@ -316,15 +324,18 @@ export default function MatchPage() {
             if (fixture) {
                 const h = auction.teams.find((t: { userId: string; teamName: string }) => t.userId === fixture.homeTeamUserId);
                 const a = auction.teams.find((t: { userId: string; teamName: string }) => t.userId === fixture.awayTeamUserId);
-                homeTeam = { teamId: h?.userId, name: h?.teamName, userId: h?.userId };
-                awayTeam = { teamId: a?.userId, name: a?.teamName, userId: a?.userId };
+                hTeam = { teamId: h?.userId, name: h?.teamName, userId: h?.userId };
+                aTeam = { teamId: a?.userId, name: a?.teamName, userId: a?.userId };
             }
         }
 
-        if (!homeTeam || !awayTeam) {
-            homeTeam = { teamId: auction.teams[0]?.userId, name: auction.teams[0]?.teamName, userId: auction.teams[0]?.userId };
-            awayTeam = { teamId: auction.teams[1]?.userId, name: auction.teams[1]?.teamName, userId: auction.teams[1]?.userId };
+        if (!hTeam || !aTeam) {
+            hTeam = { teamId: auction.teams[0]?.userId, name: auction.teams[0]?.teamName, userId: auction.teams[0]?.userId };
+            aTeam = { teamId: auction.teams[1]?.userId, name: auction.teams[1]?.teamName, userId: auction.teams[1]?.userId };
         }
+        
+        setHomeTeam(hTeam);
+        setAwayTeam(aTeam);
 
         const id = `${code}-${fixtureId || 'match'}`;
         setMatchId(id);
@@ -340,8 +351,8 @@ export default function MatchPage() {
                     action: 'toss',
                     roomCode: code,
                     matchId: id,
-                    homeTeam,
-                    awayTeam,
+                    homeTeam: hTeam,
+                    awayTeam: aTeam,
                     pitchType: 'BALANCED',
                 }),
             });
@@ -376,6 +387,42 @@ export default function MatchPage() {
             setCoinFlipAnim(false);
             setTossPhase('idle');
             setTossError(err instanceof Error ? err.message : 'Toss failed. Please try again.');
+        }
+    };
+
+    const doClientSideToss = async (h: any, a: any) => {
+        console.log('[Toss] Triggering client-side fallback toss');
+        const coinFlip = Math.random() < 0.5;
+        const winner = coinFlip ? h : a;
+        const loser = coinFlip ? a : h;
+        
+        const toss = {
+            winnerId: winner.userId,
+            winnerName: winner.name,
+            loserId: loser.userId,
+            loserName: loser.name,
+            decision: null,
+        };
+
+        try {
+            const res = await fetch('/api/match', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: 'syncToss',
+                    roomCode: code,
+                    matchId: matchId || `${code}-${fixtureId || 'match'}`,
+                    toss
+                }),
+            });
+            
+            if (res.ok) {
+                setTossResult(toss);
+                setTossPhase('result');
+                setTossError(null);
+            }
+        } catch (err) {
+            console.error('Client-side toss sync failed:', err);
         }
     };
 
@@ -1049,9 +1096,9 @@ export default function MatchPage() {
                         >
                             🛑 Force Reset Match (Emergency Only)
                         </button>
-                        <p className="text-[8px] text-white/10 mt-2">
-                            v1.0.1 - {new Date().toISOString()}
-                        </p>
+                        <div className="text-[10px] text-white/20 mt-2 font-mono">
+                            v1.0.2 • Build: {new Date().toLocaleTimeString()}
+                        </div>
                     </div>
                 )}
             </main>

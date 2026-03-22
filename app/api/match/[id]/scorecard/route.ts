@@ -23,7 +23,7 @@ export async function GET(
                             select: { name: true }
                         }
                     },
-                    orderBy: { id: 'asc' }
+                    orderBy: { position: 'asc' }
                 },
                 bowlingStats: {
                     include: {
@@ -31,7 +31,7 @@ export async function GET(
                             select: { name: true }
                         }
                     },
-                    orderBy: { id: 'asc' }
+                    orderBy: { position: 'asc' }
                 }
             }
         });
@@ -41,16 +41,17 @@ export async function GET(
         }
 
         // Organize stats by team
-        const homeBatting = match.battingStats.filter(s => s.teamId === match.homeTeamId);
-        const awayBatting = match.battingStats.filter(s => s.teamId === match.awayTeamId);
-        const homeBowling = match.bowlingStats.filter(s => s.teamId === match.homeTeamId);
-        const awayBowling = match.bowlingStats.filter(s => s.teamId === match.awayTeamId);
+        const m = match as any;
+        const homeBatting = m.battingStats.filter((s: any) => s.teamId === match.homeTeamId);
+        const awayBatting = m.battingStats.filter((s: any) => s.teamId === match.awayTeamId);
+        const homeBowling = m.bowlingStats.filter((s: any) => s.teamId === match.homeTeamId);
+        const awayBowling = m.bowlingStats.filter((s: any) => s.teamId === match.awayTeamId);
 
         return NextResponse.json({
             match: {
                 id: match.id,
-                homeTeam: match.homeTeam,
-                awayTeam: match.awayTeam,
+                homeTeam: m.homeTeam,
+                awayTeam: m.awayTeam,
                 homeScore: match.homeScore,
                 homeWickets: match.homeWickets,
                 homeOvers: match.homeOvers,

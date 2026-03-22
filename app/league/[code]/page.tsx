@@ -441,141 +441,109 @@ function ScorecardModal({ matchId, onClose }: { matchId: string, onClose: () => 
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
-                    <div className="panel bg-white/[0.02]">
-                        <h3 className="text-sm font-bold mb-4 flex items-center justify-between">
-                            <span>{match.homeTeam.name}</span>
-                            <span className="font-mono">{match.homeScore}/{match.homeWickets} ({match.homeOvers})</span>
-                        </h3>
-                        <div className="space-y-4">
-                            <div className="overflow-x-auto">
-                                <table className="w-full text-left text-[11px]">
-                                    <thead>
-                                        <tr className="border-b border-white/5 opacity-40">
-                                            <th className="pb-2">Batter</th>
-                                            <th className="pb-2 text-right">R</th>
-                                            <th className="pb-2 text-right">B</th>
-                                            <th className="pb-2 text-right">4s</th>
-                                            <th className="pb-2 text-right">6s</th>
-                                            <th className="pb-2 text-right">SR</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {scorecard.homeBatting.map((s: any) => (
-                                            <tr key={s.id} className="border-b border-white/5">
-                                                <td className="py-2">
-                                                    <p className="font-bold">{s.player.name}</p>
-                                                    <p className="opacity-40 italic text-[9px]">{s.isOut ? s.dismissal : 'not out'}</p>
-                                                </td>
-                                                <td className="py-2 text-right font-mono font-bold">{s.runs}</td>
-                                                <td className="py-2 text-right font-mono opacity-60">{s.balls}</td>
-                                                <td className="py-2 text-right font-mono opacity-60">{s.fours}</td>
-                                                <td className="py-2 text-right font-mono opacity-60">{s.sixes}</td>
-                                                <td className="py-2 text-right font-mono text-gold">
-                                                    {s.balls > 0 ? ((s.runs / s.balls) * 100).toFixed(1) : '0.0'}
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-                            <div className="overflow-x-auto mt-6">
-                                <table className="w-full text-left text-[11px]">
-                                    <thead>
-                                        <tr className="border-b border-white/5 opacity-40">
-                                            <th className="pb-2">Bowler</th>
-                                            <th className="pb-2 text-right">O</th>
-                                            <th className="pb-2 text-right">M</th>
-                                            <th className="pb-2 text-right">R</th>
-                                            <th className="pb-2 text-right">W</th>
-                                            <th className="pb-2 text-right">EC</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {scorecard.awayBowling.map((s: any) => (
-                                            <tr key={s.id} className="border-b border-white/5">
-                                                <td className="py-2 font-bold">{s.player.name}</td>
-                                                <td className="py-2 text-right font-mono">{s.overs.toFixed(1)}</td>
-                                                <td className="py-2 text-right font-mono">{s.maidens}</td>
-                                                <td className="py-2 text-right font-mono">{s.runs}</td>
-                                                <td className="py-2 text-right font-mono font-bold text-purple-400">{s.wickets}</td>
-                                                <td className="py-2 text-right font-mono text-cyan-400">
-                                                    {s.overs > 0 ? (s.runs / s.overs).toFixed(2) : '0.00'}
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-                    </div>
+                    <InningsTable 
+                        teamName={match.homeTeam.name}
+                        score={`${match.homeScore}/${match.homeWickets}`}
+                        overs={match.homeOvers}
+                        batting={scorecard.homeBatting}
+                        bowling={scorecard.awayBowling}
+                    />
+                    <InningsTable 
+                        teamName={match.awayTeam.name}
+                        score={`${match.awayScore}/${match.awayWickets}`}
+                        overs={match.awayOvers}
+                        batting={scorecard.awayBatting}
+                        bowling={scorecard.homeBowling}
+                    />
+                </div>
+            </div>
+        </div>
+    );
+}
 
-                    <div className="panel bg-white/[0.02]">
-                        <h3 className="text-sm font-bold mb-4 flex items-center justify-between">
-                            <span>{match.awayTeam.name}</span>
-                            <span className="font-mono">{match.awayScore}/{match.awayWickets} ({match.awayOvers})</span>
-                        </h3>
-                        <div className="space-y-4">
-                            <div className="overflow-x-auto">
-                                <table className="w-full text-left text-[11px]">
-                                    <thead>
-                                        <tr className="border-b border-white/5 opacity-40">
-                                            <th className="pb-2">Batter</th>
-                                            <th className="pb-2 text-right">R</th>
-                                            <th className="pb-2 text-right">B</th>
-                                            <th className="pb-2 text-right">4s</th>
-                                            <th className="pb-2 text-right">6s</th>
-                                            <th className="pb-2 text-right">SR</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {scorecard.awayBatting.map((s: any) => (
-                                            <tr key={s.id} className="border-b border-white/5">
-                                                <td className="py-2">
-                                                    <p className="font-bold">{s.player.name}</p>
-                                                    <p className="opacity-40 italic text-[9px]">{s.isOut ? s.dismissal : 'not out'}</p>
-                                                </td>
-                                                <td className="py-2 text-right font-mono font-bold">{s.runs}</td>
-                                                <td className="py-2 text-right font-mono opacity-60">{s.balls}</td>
-                                                <td className="py-2 text-right font-mono opacity-60">{s.fours}</td>
-                                                <td className="py-2 text-right font-mono opacity-60">{s.sixes}</td>
-                                                <td className="py-2 text-right font-mono text-gold">
-                                                    {s.balls > 0 ? ((s.runs / s.balls) * 100).toFixed(1) : '0.0'}
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-                            <div className="overflow-x-auto mt-6">
-                                <table className="w-full text-left text-[11px]">
-                                    <thead>
-                                        <tr className="border-b border-white/5 opacity-40">
-                                            <th className="pb-2">Bowler</th>
-                                            <th className="pb-2 text-right">O</th>
-                                            <th className="pb-2 text-right">M</th>
-                                            <th className="pb-2 text-right">R</th>
-                                            <th className="pb-2 text-right">W</th>
-                                            <th className="pb-2 text-right">EC</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {scorecard.homeBowling.map((s: any) => (
-                                            <tr key={s.id} className="border-b border-white/5">
-                                                <td className="py-2 font-bold">{s.player.name}</td>
-                                                <td className="py-2 text-right font-mono">{s.overs.toFixed(1)}</td>
-                                                <td className="py-2 text-right font-mono">{s.maidens}</td>
-                                                <td className="py-2 text-right font-mono">{s.runs}</td>
-                                                <td className="py-2 text-right font-mono font-bold text-purple-400">{s.wickets}</td>
-                                                <td className="py-2 text-right font-mono text-cyan-400">
-                                                    {s.overs > 0 ? (s.runs / s.overs).toFixed(2) : '0.00'}
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
+function InningsTable({ teamName, score, overs, batting, bowling }: any) {
+    const didBat = batting.filter((s: any) => s.balls > 0 || s.isOut);
+    const didNotBat = batting.filter((s: any) => s.balls === 0 && !s.isOut);
+    const activeBowling = bowling.filter((s: any) => s.overs > 0 || (s.balls && s.balls > 0));
+
+    return (
+        <div className="panel bg-white/[0.02]">
+            <h3 className="text-sm font-bold mb-4 flex items-center justify-between">
+                <span>{teamName}</span>
+                <span className="font-mono">{score} ({overs})</span>
+            </h3>
+            
+            <div className="space-y-4">
+                <div className="overflow-x-auto">
+                    <table className="w-full text-left text-[11px]">
+                        <thead>
+                            <tr className="border-b border-white/5 opacity-40">
+                                <th className="pb-2">Batter</th>
+                                <th className="pb-2 text-right">R</th>
+                                <th className="pb-2 text-right">B</th>
+                                <th className="pb-2 text-right">4s</th>
+                                <th className="pb-2 text-right">6s</th>
+                                <th className="pb-2 text-right">SR</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {didBat.map((s: any) => (
+                                <tr key={s.id} className="border-b border-white/5">
+                                    <td className="py-2">
+                                        <p className="font-bold">{s.player.name}</p>
+                                        <p className="opacity-40 italic text-[9px]">{s.isOut ? s.dismissal : 'not out'}</p>
+                                    </td>
+                                    <td className="py-2 text-right font-mono font-bold">{s.runs}</td>
+                                    <td className="py-2 text-right font-mono opacity-60">{s.balls}</td>
+                                    <td className="py-2 text-right font-mono opacity-60">{s.fours}</td>
+                                    <td className="py-2 text-right font-mono opacity-60">{s.sixes}</td>
+                                    <td className="py-2 text-right font-mono text-gold">
+                                        {s.balls > 0 ? ((s.runs / s.balls) * 100).toFixed(1) : '0.0'}
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+
+                {didNotBat.length > 0 && (
+                    <div className="mt-2 py-2 border-t border-white/5">
+                        <p className="text-[10px] opacity-40 mb-1">Did not bat</p>
+                        <p className="text-[10px] font-medium opacity-60">
+                            {didNotBat.map((s: any) => s.player.name).join(', ')}
+                        </p>
                     </div>
+                )}
+
+                <div className="overflow-x-auto mt-6">
+                    <table className="w-full text-left text-[11px]">
+                        <thead>
+                            <tr className="border-b border-white/5 opacity-40">
+                                <th className="pb-2">Bowler</th>
+                                <th className="pb-2 text-right">O</th>
+                                <th className="pb-2 text-right">M</th>
+                                <th className="pb-2 text-right">R</th>
+                                <th className="pb-2 text-right">W</th>
+                                <th className="pb-2 text-right">EC</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {activeBowling.map((s: any) => (
+                                <tr key={s.id} className="border-b border-white/5">
+                                    <td className="py-2 font-bold">{s.player.name}</td>
+                                    <td className="py-2 text-right font-mono">
+                                        {typeof s.overs === 'number' ? s.overs.toFixed(1) : s.overs}
+                                    </td>
+                                    <td className="py-2 text-right font-mono">{s.maidens}</td>
+                                    <td className="py-2 text-right font-mono">{s.runs}</td>
+                                    <td className="py-2 text-right font-mono font-bold text-purple-400">{s.wickets}</td>
+                                    <td className="py-2 text-right font-mono text-cyan-400">
+                                        {s.overs > 0 ? (s.runs / s.overs).toFixed(2) : '0.00'}
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </div>

@@ -729,7 +729,8 @@ export async function persistMatchToPrisma(roomCode: string, matchId: string, pi
             await prisma.battingStats.deleteMany({ where: { matchId: prismaMatch.id } });
             await prisma.bowlingStats.deleteMany({ where: { matchId: prismaMatch.id } });
 
-            for (const bat of result.battingStats) {
+            for (let i = 0; i < result.battingStats.length; i++) {
+                const bat = result.battingStats[i];
                 const batTeamId = bat.teamId === result.homeUserId ? homePrismaTeam.id : awayPrismaTeam.id;
                 
                 // Ensure player exists
@@ -758,12 +759,14 @@ export async function persistMatchToPrisma(roomCode: string, matchId: string, pi
                         fours: bat.fours,
                         sixes: bat.sixes,
                         isOut: bat.isOut,
-                        dismissal: bat.dismissal
+                        dismissal: bat.dismissal,
+                        position: i
                     }
                 });
             }
 
-            for (const bowl of result.bowlingStats) {
+            for (let i = 0; i < result.bowlingStats.length; i++) {
+                const bowl = result.bowlingStats[i];
                 const bowlTeamId = bowl.teamId === result.homeUserId ? homePrismaTeam.id : awayPrismaTeam.id;
 
                 const player = await prisma.player.findUnique({ where: { id: bowl.playerId } });
@@ -789,7 +792,8 @@ export async function persistMatchToPrisma(roomCode: string, matchId: string, pi
                         overs: bowl.overs + (bowl.balls / 10),
                         maidens: bowl.maidens || 0,
                         runs: bowl.runs,
-                        wickets: bowl.wickets
+                        wickets: bowl.wickets,
+                        position: i
                     }
                 });
             }

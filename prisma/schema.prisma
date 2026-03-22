@@ -199,6 +199,7 @@ model BattingStats {
   sixes     Int     @default(0)
   isOut     Boolean @default(false)
   dismissal String?
+  position  Int     @default(0)
   match     Match   @relation(fields: [matchId], references: [id])
   player    Player  @relation(fields: [playerId], references: [id])
   team      Team    @relation(fields: [teamId], references: [id])
@@ -215,6 +216,7 @@ model BowlingStats {
   maidens  Int    @default(0)
   runs     Int    @default(0)
   wickets  Int    @default(0)
+  position Int    @default(0)
   extras   Int    @default(0)
   match    Match  @relation(fields: [matchId], references: [id])
   player   Player @relation(fields: [playerId], references: [id])

@@ -473,6 +473,21 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ state });
         }
 
+        if (action === 'resetMatch') {
+            const { roomCode: rCode, matchId: mId } = body;
+            const room = await getRoomState(rCode);
+            if (room?.hostId !== session.userId) {
+                return NextResponse.json({ error: 'Only host can reset match' }, { status: 403 });
+            }
+            const id = mId;
+            const tossKey = `toss:${rCode}:${id}`;
+            const matchKey = `match:${id}`;
+            await redis.del(tossKey);
+            await redis.del(matchKey);
+            emitToRoom(rCode, 'match_update', { state: null, toss: null });
+            return NextResponse.json({ success: true });
+        }
+
         if (action === 'status') {
             const state = await getMatchState(matchId);
             const rCode = state?.roomCode || matchId.split('-')[0];

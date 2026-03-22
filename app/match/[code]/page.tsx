@@ -459,6 +459,18 @@ export default function MatchPage() {
         if (data.state) setMatch(data.state);
     };
 
+    const handleResetMatch = async () => {
+        if (!confirm("WARNING: This will completely reset the match and toss result. Are you sure?")) return;
+        const res = await fetch('/api/match', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'resetMatch', matchId, roomCode: code }),
+        });
+        if (res.ok) {
+            window.location.reload();
+        }
+    };
+
     if (loading) {
         return (
             <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--color-bg-primary)' }}>
@@ -560,6 +572,18 @@ export default function MatchPage() {
                             <p className="text-sm animate-pulse" style={{ color: 'var(--color-text-muted)' }}>
                                 Setting up the match...
                             </p>
+                        </div>
+                    )}
+
+                    {/* Host Force Reset - Emergency Only */}
+                    {userId === hostId && (
+                        <div className="mt-12 pt-8 border-t border-white/5 text-center">
+                            <button 
+                                onClick={handleResetMatch}
+                                className="text-[10px] font-black text-red-500/30 hover:text-red-500 uppercase tracking-widest transition-all"
+                            >
+                                🛑 Force Reset Match (Emergency Only)
+                            </button>
                         </div>
                     )}
                 </main>
@@ -989,6 +1013,18 @@ export default function MatchPage() {
                         })()}
                     </div>
                 </div>
+
+                {/* Host Force Reset - Emergency Only */}
+                {userId === hostId && (
+                    <div className="mt-12 pt-8 border-t border-white/5 text-center">
+                        <button 
+                            onClick={handleResetMatch}
+                            className="text-[10px] font-black text-red-500/30 hover:text-red-500 uppercase tracking-widest transition-all"
+                        >
+                            🛑 Force Reset Match (Emergency Only)
+                        </button>
+                    </div>
+                )}
             </main>
 
             {/* SELECT BATTER MODAL */}

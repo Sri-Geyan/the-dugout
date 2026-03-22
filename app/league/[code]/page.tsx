@@ -1288,6 +1288,12 @@ export default function LeaguePage() {
                     </div>
                 </div>
             )}
+            {showScorecardId && (
+                <ScorecardModal 
+                    matchId={showScorecardId} 
+                    onClose={() => setShowScorecardId(null)} 
+                />
+            )}
         </div >
     );
 }

@@ -32,6 +32,9 @@ export interface FixtureEntry {
     awayWickets?: number;
     awayOvers?: number;
     result?: string;
+    tossWinnerId?: string;
+    tossWinnerName?: string;
+    tossDecision?: string;
 }
 
 export interface TeamStanding {

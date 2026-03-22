@@ -49,6 +49,9 @@ model Fixture {
   awayWickets    Int?
   awayOvers      Float?
   result         String?
+  tossWinnerId   String?
+  tossWinnerName String?
+  tossDecision   String?
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
   room           Room          @relation(fields: [roomId], references: [id], onDelete: Cascade)
@@ -178,6 +181,8 @@ model Match {
   awayWickets  Int            @default(0)
   awayOvers    Float          @default(0)
   result       String?
+  tossWinnerId String?
+  tossDecision String?
   matchNumber  Int            @default(1)
   createdAt    DateTime       @default(now())
   updatedAt    DateTime       @updatedAt

@@ -216,6 +216,21 @@ export default function MatchPage() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
+    // Watchdog for "Flipping" state
+    useEffect(() => {
+        if (tossPhase === 'flipping') {
+            const timeout = setTimeout(() => {
+                if (tossPhase === 'flipping') {
+                    console.log('[Watchdog] Toss stuck in flipping, resetting to idle');
+                    setCoinFlipAnim(false);
+                    setTossPhase('idle');
+                    setTossError('Toss timed out. Please try again.');
+                }
+            }, 6000);
+            return () => clearTimeout(timeout);
+        }
+    }, [tossPhase]);
+
     // Socket.IO for real-time updates
     useEffect(() => {
         const socket = getSocket();
@@ -313,52 +328,55 @@ export default function MatchPage() {
 
         const id = `${code}-${fixtureId || 'match'}`;
         setMatchId(id);
+        setCoinFlipAnim(true);
+        setTossError(null);
 
-        // Perform toss
-        setTimeout(async () => {
-            try {
-                const res = await fetch('/api/match', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        action: 'toss',
-                        roomCode: code,
-                        matchId: id,
-                        homeTeam,
-                        awayTeam,
-                        pitchType: 'BALANCED', // Default, but API will override based on stadium city
-                    }),
-                });
-                
-                if (!res.ok) {
-                    const errorData = await res.json();
-                    throw new Error(errorData.error || 'Failed to flip coin');
-                }
+        // Perform toss IMMEDIATELY
+        try {
+            const res = await fetch('/api/match', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: 'toss',
+                    roomCode: code,
+                    matchId: id,
+                    homeTeam,
+                    awayTeam,
+                    pitchType: 'BALANCED',
+                }),
+            });
+            
+            if (!res.ok) {
+                const errorData = await res.json();
+                throw new Error(errorData.error || 'Failed to flip coin');
+            }
 
-                const data = await res.json();
+            const data = await res.json();
+            
+            // Wait for partial animation then show result
+            setTimeout(() => {
                 setCoinFlipAnim(false);
-
                 if (!data.toss) {
-                    throw new Error('Toss result not found');
+                    setTossPhase('idle');
+                    setTossError('Toss result not found');
+                    return;
                 }
 
                 setTossResult(data.toss);
 
                 if (data.toss.decision) {
-                    // Bot already decided
                     setTossPhase('decided');
-                    // Auto-init match after toss
-                    setTimeout(() => initMatch(id, data.toss), 2000);
+                    setTimeout(() => initMatch(id, data.toss), 1000);
                 } else {
                     setTossPhase('result');
                 }
-            } catch (err) {
-                console.error('Toss failed:', err);
-                setCoinFlipAnim(false);
-                setTossPhase('idle');
-                setTossError(err instanceof Error ? err.message : 'Toss failed. Please try again.');
-            }
-        }, 2000);
+            }, 1500);
+        } catch (err) {
+            console.error('Toss failed:', err);
+            setCoinFlipAnim(false);
+            setTossPhase('idle');
+            setTossError(err instanceof Error ? err.message : 'Toss failed. Please try again.');
+        }
     };
 
     const handleTossDecision = async (decision: 'bat' | 'bowl') => {

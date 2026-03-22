@@ -9,7 +9,16 @@ import { getSocket } from '@/lib/socket';
 import TeamLogo from '@/components/TeamLogo';
 import Link from 'next/link';
 
-function FixtureCard({ fixture, userId, code, router, onViewScorecard }: { fixture: FixtureEntry, userId: string | null, code: string, router: any, onViewScorecard: (id: string) => void }) {
+function FixtureCard({ fixture, userId, code, router, isHost, onSkip, onViewScorecard }: { fixture: FixtureEntry, userId: string | null, code: string, router: any, isHost: boolean, onSkip: (id: string) => void, onViewScorecard: (id: string) => void }) {
+    const [skipping, setSkipping] = useState(false);
+
+    const handleSkip = async () => {
+        if (skipping) return;
+        setSkipping(true);
+        await onSkip(fixture.id);
+        setSkipping(false);
+    };
+
     const getTeamInfo = (teamName: string) => IPL_TEAMS.find(t => t.name === teamName || t.shortName === teamName || t.id === teamName);
     
     const homeTeam = getTeamInfo(fixture.homeTeamName);
@@ -137,6 +146,18 @@ function FixtureCard({ fixture, userId, code, router, onViewScorecard }: { fixtu
                         className="btn-secondary w-full text-[10px] py-2 border-amber-500/50 text-amber-400 group-hover:border-amber-400 transition-all"
                     >
                         📝 View Scorecard
+                    </button>
+                )}
+
+                {/* Host Skip Button */}
+                {isHost && fixture.status !== 'completed' && (
+                    <button
+                        onClick={handleSkip}
+                        disabled={skipping}
+                        className="btn-secondary px-3 text-[10px] py-2 border-white/10 text-white/60 hover:text-white hover:border-white/30 transition-all flex items-center gap-1"
+                        title="Simulate Match to Completion"
+                    >
+                        {skipping ? '⏳...' : '⏭️ Skip'}
                     </button>
                 )}
             </div>
@@ -716,6 +737,26 @@ export default function LeaguePage() {
         }
     };
 
+    const handleSkipMatch = async (fixtureId: string) => {
+        try {
+            const res = await fetch('/api/league', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: 'simulateMatch',
+                    roomCode: code,
+                    fixtureId,
+                }),
+            });
+            if (res.ok) {
+                const data = await res.json();
+                if (data.state) setLeague(data.state);
+            }
+        } catch (err) {
+            console.error('Skip match failed:', err);
+        }
+    };
+
     const isHost = hostId === userId;
     const nextFixture = league?.fixtures.find(f => f.status === 'pending');
     const completedMatches = league?.fixtures.filter(f => f.status === 'completed').length || 0;
@@ -955,6 +996,8 @@ export default function LeaguePage() {
                                         userId={userId} 
                                         code={code} 
                                         router={router} 
+                                        isHost={isHost}
+                                        onSkip={handleSkipMatch}
                                         onViewScorecard={(id) => setShowScorecardId(id)}
                                     />
                                 ))}
@@ -971,6 +1014,8 @@ export default function LeaguePage() {
                                     userId={userId} 
                                     code={code} 
                                     router={router} 
+                                    isHost={isHost}
+                                    onSkip={handleSkipMatch}
                                     onViewScorecard={(id) => setShowScorecardId(id)}
                                 />
                             ))}

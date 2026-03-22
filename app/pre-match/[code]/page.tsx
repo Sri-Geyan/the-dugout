@@ -224,12 +224,19 @@ export default function PreMatchSelectionPage() {
                 }
             }
 
-            // B. Poll for opponent lock if I am waiting
-            if (phase === 'waiting' && opponentTeam) {
+            // B. Poll for team lock status
+            if (opponentTeam) {
                 const res = await fetch(`/api/selection?roomCode=${code}${fixtureId ? `&fixtureId=${fixtureId}` : ''}&teamId=${opponentTeam.userId}`);
                 if (res.ok) {
                     const d = await res.json();
                     if (d.selectedIds?.length === 11) setOpponentLocked(true);
+                }
+            }
+            if (isHost && myTeam && !iAmParticipant) {
+                const res = await fetch(`/api/selection?roomCode=${code}${fixtureId ? `&fixtureId=${fixtureId}` : ''}&teamId=${myTeam.userId}`);
+                if (res.ok) {
+                    const d = await res.json();
+                    if (d.selectedIds?.length === 11) setLocked(true);
                 }
             }
 
@@ -529,7 +536,7 @@ export default function PreMatchSelectionPage() {
                                 <span className="text-xs font-bold">{opponentTeam?.teamName || 'Opponent'}</span>
                             </div>
                         </div>
-                        {iAmParticipant ? (
+                        {(iAmParticipant || isHost) ? (
                             <button onClick={handleToss} disabled={tossLoading} className="btn-primary px-10 py-4 text-base font-black">
                                 {tossLoading ? '🪙 Flipping...' : '🪙 Flip The Coin'}
                             </button>
@@ -768,7 +775,7 @@ export default function PreMatchSelectionPage() {
                                             🔒 Lock Playing 11
                                         </button>
                                     )}
-                                    {phase === 'waiting' && locked && (
+                                    {(phase === 'waiting' || (isHost && !iAmParticipant && phase === 'selection')) && (locked || (isHost && !iAmParticipant)) && (
                                         <>
                                             <div className="text-center text-sm p-3 rounded-xl" style={{ background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.3)', color: 'var(--color-success)' }}>
                                                 ✅ Playing 11 Locked

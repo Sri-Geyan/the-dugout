@@ -189,7 +189,8 @@ export function simulateBall(
     currentScore: number,
     ballsRemaining: number,
     stadiumId?: string,
-    innings?: number
+    innings?: number,
+    fieldingTeam?: MatchTeam
 ): BallResult {
     const stadium = stadiumId ? getStadiumById(stadiumId) : null;
     const { batMod, bowlMod } = getPitchModifier(pitchType, phase);
@@ -330,10 +331,29 @@ export function simulateBall(
             if (rand <= 0) { dismissalType = dismissals[i]; break; }
         }
 
+        let descriptiveDismissal = dismissalType;
+        const bowlerName = bowler.player.name;
+        const wk = fieldingTeam?.players.find(p => p.isWicketKeeper);
+        const fielder = fieldingTeam?.players.filter(p => p.id !== bowler.player.id && !p.isWicketKeeper)[Math.floor(Math.random() * 9)] || fieldingTeam?.players[0];
+
+        if (dismissalType === 'bowled') {
+            descriptiveDismissal = `b ${bowlerName}`;
+        } else if (dismissalType === 'lbw') {
+            descriptiveDismissal = `lbw b ${bowlerName}`;
+        } else if (dismissalType === 'caught') {
+            descriptiveDismissal = `c ${fielder?.name || 'fielder'} b ${bowlerName}`;
+        } else if (dismissalType === 'caught behind') {
+            descriptiveDismissal = `c ${wk ? `†${wk.name}` : 'keeper'} b ${bowlerName}`;
+        } else if (dismissalType === 'stumped') {
+            descriptiveDismissal = `st †${wk?.name || 'keeper'} b ${bowlerName}`;
+        } else if (dismissalType === 'run out') {
+            descriptiveDismissal = `run out (${fielder?.name || 'fielder'})`;
+        }
+
         return {
             runs: 0, isWicket: true, isBoundary: false, isSix: false,
-            isExtra: false, extraType: null, extraRuns: 0, dismissalType,
-            commentary: `OUT! ${batter.player.name} ${dismissalType} by ${bowler.player.name}!`,
+            isExtra: false, extraType: null, extraRuns: 0, dismissalType: descriptiveDismissal,
+            commentary: `OUT! ${batter.player.name} ${descriptiveDismissal}!`,
         };
     }
 
@@ -655,7 +675,8 @@ export function processNextBall(state: MatchState): { state: MatchState; ballRes
         state.striker, state.currentBowler, state.pitchType, state.matchPhase,
         state.freeHit, state.target, battingTeam.score,
         (TOTAL_OVERS * 6) - (battingTeam.overs * 6 + battingTeam.balls),
-        state.stadiumId, state.innings
+        state.stadiumId, state.innings,
+        state.currentBatting === 'home' ? state.awayTeam : state.homeTeam
     );
 
     // Process result

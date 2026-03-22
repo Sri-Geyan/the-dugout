@@ -132,42 +132,40 @@ export async function POST(request: NextRequest) {
             state.currentMatchIndex = fixtureIndex;
             await saveLeagueState(state);
 
-            // Auto-select playing 11 for bot teams
-            try {
-                const { getAuctionState } = await import('@/lib/auctionEngine');
-                const { isBotUser, botSelectPlaying11 } = await import('@/lib/botEngine');
-                const { getRoomState } = await import('@/lib/roomManager');
-                const redisObj = (await import('@/lib/redis')).default;
+                // Auto-select playing 11 for bot teams
+                try {
+                    const { isBotUser, botSelectPlaying11 } = await import('@/lib/botEngine');
+                    const { getRoomState } = await import('@/lib/roomManager');
+                    const redisObj = (await import('@/lib/redis')).default;
 
-                const auction = await getAuctionState(roomCode);
-                const room = await getRoomState(roomCode);
+                    const room = await getRoomState(roomCode);
 
-                if (auction && room) {
-                    const teamsToCheck = [fixture.homeTeamUserId, fixture.awayTeamUserId];
+                    if (room) {
+                        const teamsToCheck = [fixture.homeTeamUserId, fixture.awayTeamUserId];
 
-                    for (const uId of teamsToCheck) {
-                        const roomPlayer = room.players.find(p => p.userId === uId);
-                        if (roomPlayer && isBotUser(roomPlayer.username)) {
-                            const teamData = auction.teams.find(t => t.userId === uId);
-                            if (teamData) {
-                                const squad = teamData.squad.map(s => ({
-                                    id: s.player.id,
-                                    name: s.player.name,
-                                    role: s.player.role,
-                                    battingSkill: s.player.battingSkill,
-                                    bowlingSkill: s.player.bowlingSkill,
-                                    nationality: s.player.nationality,
-                                }));
-                                const selection = botSelectPlaying11(squad);
-                                const key = `selection:${roomCode}:${fixture.id}:${uId}`;
-                                await redisObj.set(key, JSON.stringify(selection), 'EX', 86400);
+                        for (const uId of teamsToCheck) {
+                            const roomPlayer = room.players.find(p => p.userId === uId);
+                            if (roomPlayer && isBotUser(roomPlayer.username)) {
+                                const teamData = state.teams.find(t => t.userId === uId);
+                                if (teamData) {
+                                    const squad = teamData.squad.map(s => ({
+                                        id: s.player.id,
+                                        name: s.player.name,
+                                        role: s.player.role,
+                                        battingSkill: s.player.battingSkill,
+                                        bowlingSkill: s.player.bowlingSkill,
+                                        nationality: s.player.nationality,
+                                    }));
+                                    const selection = botSelectPlaying11(squad);
+                                    const key = `selection:${roomCode}:${fixture.id}:${uId}`;
+                                    await redisObj.set(key, JSON.stringify(selection), 'EX', 86400);
+                                }
                             }
                         }
                     }
+                } catch (err) {
+                    console.error("Failed auto-selecting bots:", err);
                 }
-            } catch (err) {
-                console.error("Failed auto-selecting bots:", err);
-            }
 
             emitToRoom(roomCode, 'league_update', { state });
             emitToRoom(roomCode, 'match_started', { 
@@ -263,15 +261,14 @@ export async function POST(request: NextRequest) {
                 league.currentMatchIndex = league.fixtures.indexOf(fixture);
                 
                 // Auto-select bots if needed
-                const auction = await getAuctionState(roomCode);
                 const room = await getRoomState(roomCode);
-                if (auction && room) {
+                if (room) {
                     const teamsToSelect = [fixture.homeTeamUserId, fixture.awayTeamUserId];
                     for (const uId of teamsToSelect) {
                         const selKey = `selection:${roomCode}:${fixtureId}:${uId}`;
                         const existingSel = await redis.get(selKey);
                         if (!existingSel) {
-                            const teamData = auction.teams.find(t => t.userId === uId);
+                            const teamData = league.teams.find(t => t.userId === uId);
                             if (teamData) {
                                 const squad = teamData.squad.map(s => ({
                                     id: s.player.id, name: s.player.name, role: s.player.role,
@@ -289,11 +286,8 @@ export async function POST(request: NextRequest) {
             if (fixture.status === 'pre_match' || !fixture.matchId) {
                 // Initialize MatchState
                 const matchId = fixture.matchId || fixtureId;
-                const auction = await getAuctionState(roomCode);
-                if (!auction) return NextResponse.json({ error: 'Auction data missing' }, { status: 404 });
-
-                const hUser = auction.teams.find(t => t.userId === fixture.homeTeamUserId);
-                const aUser = auction.teams.find(t => t.userId === fixture.awayTeamUserId);
+                const hUser = league.teams.find(t => t.userId === fixture.homeTeamUserId);
+                const aUser = league.teams.find(t => t.userId === fixture.awayTeamUserId);
                 if (!hUser || !aUser) return NextResponse.json({ error: 'Teams missing' }, { status: 404 });
 
                 const hSelKey = `selection:${roomCode}:${fixtureId}:${fixture.homeTeamUserId}`;
@@ -347,8 +341,7 @@ export async function POST(request: NextRequest) {
             while (matchState.status !== 'completed' && iterations < maxIterations) {
                 iterations++;
                 
-                // Use type assertion to avoid TS narrowing issues in simulation loop
-                const currentStatus = matchState.status as string;
+                const currentStatus = matchState.status as any;
 
                 if (currentStatus === 'awaiting_batter') {
                     const nextBat = botChooseNextBatter(matchState);
@@ -371,13 +364,24 @@ export async function POST(request: NextRequest) {
                 } else if (currentStatus === 'toss_decision') {
                     matchState.toss!.decision = botTossDecision(matchState.pitchType);
                     matchState.status = 'awaiting_selection';
-                } else if (currentStatus === 'awaiting_selection') {
+                } else if (currentStatus === 'innings_break' || currentStatus === 'toss') {
+                    // Force progress through these intermediate states
+                    // The matchEngine should ideally handle these, but safety first
                     matchState.status = 'live';
-                } else if (currentStatus === 'innings_break') {
+                } else if (currentStatus === 'awaiting_selection' || currentStatus === 'scheduled') {
                     matchState.status = 'live';
                 }
 
                 if (matchState.status === 'live') {
+                    // Safety: if we are live but missing actors, try to find them
+                    if (!matchState.currentBowler) {
+                        matchState.status = 'awaiting_bowler';
+                        continue;
+                    }
+                    if (!matchState.striker) {
+                        matchState.status = 'awaiting_batter';
+                        continue;
+                    }
                     processNextBall(matchState);
                 }
             }

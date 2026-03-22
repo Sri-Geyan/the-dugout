@@ -704,7 +704,7 @@ export async function getAuctionState(roomCode: string): Promise<AuctionState | 
 }
 
 export async function saveAuctionState(roomCode: string, state: AuctionState): Promise<void> {
-    await redis.set(`auction:${roomCode}`, JSON.stringify(state), 'EX', 86400);
+    await redis.set(`auction:${roomCode}`, JSON.stringify(state), 'EX', 604800);
 }
 
 export { BID_INCREMENT, BID_TIMER_SECONDS, INITIAL_PURSE, MAX_SQUAD_SIZE };

@@ -235,6 +235,12 @@ export async function POST(request: NextRequest) {
 
         if (action === 'toss') {
             const { roomCode: tossRoomCode, matchId: tossMatchId, fixtureId, homeTeam: tH, awayTeam: tA } = body;
+            if (!tH || !tA) {
+                return NextResponse.json({ error: 'Home and away team info required for toss' }, { status: 400 });
+            }
+            if (!tH.userId || !tA.userId) {
+                return NextResponse.json({ error: 'Team user IDs required for toss' }, { status: 400 });
+            }
             const id = tossMatchId || fixtureId;
             const toss = performToss(tH, tA);
             const tossKey = `toss:${tossRoomCode}:${id}`;

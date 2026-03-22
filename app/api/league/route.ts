@@ -347,7 +347,10 @@ export async function POST(request: NextRequest) {
             while (matchState.status !== 'completed' && iterations < maxIterations) {
                 iterations++;
                 
-                if (matchState.status === 'awaiting_batter') {
+                // Use type assertion to avoid TS narrowing issues in simulation loop
+                const currentStatus = matchState.status as string;
+
+                if (currentStatus === 'awaiting_batter') {
                     const nextBat = botChooseNextBatter(matchState);
                     if (nextBat) {
                         const available = matchState.battingOrder.find(b => b.player.id === nextBat);
@@ -356,7 +359,7 @@ export async function POST(request: NextRequest) {
                             matchState.status = 'live';
                         }
                     } else { matchState.status = 'completed'; }
-                } else if (matchState.status === 'awaiting_bowler') {
+                } else if (currentStatus === 'awaiting_bowler') {
                     const nextBowl = botChooseNextBowler(matchState);
                     if (nextBowl) {
                         const available = matchState.bowlingOrder.find(b => b.player.id === nextBowl);
@@ -365,12 +368,12 @@ export async function POST(request: NextRequest) {
                             matchState.status = 'live';
                         }
                     } else { matchState.status = 'completed'; }
-                } else if (matchState.status === 'toss_decision') {
+                } else if (currentStatus === 'toss_decision') {
                     matchState.toss!.decision = botTossDecision(matchState.pitchType);
                     matchState.status = 'awaiting_selection';
-                } else if (matchState.status === 'awaiting_selection') {
+                } else if (currentStatus === 'awaiting_selection') {
                     matchState.status = 'live';
-                } else if (matchState.status === 'innings_break') {
+                } else if (currentStatus === 'innings_break') {
                     matchState.status = 'live';
                 }
 

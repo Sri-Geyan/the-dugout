@@ -105,10 +105,10 @@ export function analyzeSquadNeeds(
     else if (pacers < 5) paceMultiplier = Math.max(paceMultiplier, 1.25);
 
     // Sub-role multipliers
-    let openerMultiplier = (openers < 2 ? 1.5 : openers < 3 ? 1.2 : 0.7) * (batMultiplier > 1.1 ? 1.15 : 1.0);
-    let anchorMultiplier = (anchors < 2 ? 1.3 : anchors < 3 ? 1.1 : 0.8) * (spinMultiplier > 1.1 ? 1.1 : 1.0);
-    let finisherMultiplier = (finishers < 2 ? 1.4 : finishers < 3 ? 1.2 : 0.7) * (batMultiplier > 1.1 ? 1.2 : 1.0);
-    let spinBasherMultiplier = (spinBashers < 3 ? 1.3 : spinBashers < 5 ? 1.1 : 0.8);
+    const openerMultiplier = (openers < 2 ? 1.5 : openers < 3 ? 1.2 : 0.7) * (batMultiplier > 1.1 ? 1.15 : 1.0);
+    const anchorMultiplier = (anchors < 2 ? 1.3 : anchors < 3 ? 1.1 : 0.8) * (spinMultiplier > 1.1 ? 1.1 : 1.0);
+    const finisherMultiplier = (finishers < 2 ? 1.4 : finishers < 3 ? 1.2 : 0.7) * (batMultiplier > 1.1 ? 1.2 : 1.0);
+    const spinBasherMultiplier = (spinBashers < 3 ? 1.3 : spinBashers < 5 ? 1.1 : 0.8);
 
     return { 
         ...needs, 

@@ -634,39 +634,43 @@ export async function syncMatchToLeague(roomCode: string, fixtureId: string, mat
                 ? matchState.awayTeam.userId
                 : null,
         battingStats: [
-            ...(matchState.firstInningsBattingOrder || []).map((b: any) => ({
+            ...(matchState.firstInningsBattingOrder || []).map((b) => ({
                 playerId: b.player.id,
                 playerName: b.player.name,
-                teamName: b.player.teamName || (batting1st === 'home' ? matchState.homeTeam.name : matchState.awayTeam.name),
+                teamName: (b.player as any).teamName || (batting1st === 'home' ? matchState.homeTeam.name : matchState.awayTeam.name),
                 teamId: batting1st === 'home' ? matchState.homeTeam.userId : matchState.awayTeam.userId,
                 runs: b.runs, balls: b.balls, fours: b.fours, sixes: b.sixes, isOut: b.isOut, dismissal: b.dismissal,
                 isCaptain: b.player.isCaptain,
                 isWicketKeeper: b.player.isWicketKeeper
             })),
-            ...(matchState.battingOrder || []).map((b: any) => ({
+            ...(matchState.battingOrder || []).map((b) => ({
                 playerId: b.player.id,
                 playerName: b.player.name,
-                teamName: b.player.teamName || (batting2nd === 'home' ? matchState.homeTeam.name : matchState.awayTeam.name),
+                teamName: (b.player as any).teamName || (batting2nd === 'home' ? matchState.homeTeam.name : matchState.awayTeam.name),
                 teamId: batting2nd === 'home' ? matchState.homeTeam.userId : matchState.awayTeam.userId,
-                runs: b.runs, balls: b.balls, fours: b.fours, sixes: b.sixes, isOut: b.isOut, dismissal: b.dismissal
+                runs: b.runs, balls: b.balls, fours: b.fours, sixes: b.sixes, isOut: b.isOut, dismissal: b.dismissal,
+                isCaptain: b.player.isCaptain,
+                isWicketKeeper: b.player.isWicketKeeper
             }))
         ],
         bowlingStats: [
-            ...(matchState.firstInningsBowlingOrder || []).map((b: any) => ({
+            ...(matchState.firstInningsBowlingOrder || []).map((b) => ({
                 playerId: b.player.id,
                 playerName: b.player.name,
-                teamName: b.player.teamName || (batting2nd === 'home' ? matchState.homeTeam.name : matchState.awayTeam.name),
+                teamName: (b.player as any).teamName || (batting2nd === 'home' ? matchState.homeTeam.name : matchState.awayTeam.name),
                 teamId: batting2nd === 'home' ? matchState.homeTeam.userId : matchState.awayTeam.userId,
                 overs: b.overs, balls: b.overBalls, runs: b.runs, wickets: b.wickets, maidens: b.maidens || 0,
                 isCaptain: b.player.isCaptain,
                 isWicketKeeper: b.player.isWicketKeeper
             })),
-            ...(matchState.bowlingOrder || []).map((b: any) => ({
+            ...(matchState.bowlingOrder || []).map((b) => ({
                 playerId: b.player.id,
                 playerName: b.player.name,
-                teamName: b.player.teamName || (batting1st === 'home' ? matchState.homeTeam.name : matchState.awayTeam.name),
+                teamName: (b.player as any).teamName || (batting1st === 'home' ? matchState.homeTeam.name : matchState.awayTeam.name),
                 teamId: batting1st === 'home' ? matchState.homeTeam.userId : matchState.awayTeam.userId,
-                overs: b.overs, balls: b.overBalls, runs: b.runs, wickets: b.wickets, maidens: b.maidens || 0
+                overs: b.overs, balls: b.overBalls, runs: b.runs, wickets: b.wickets, maidens: b.maidens || 0,
+                isCaptain: b.player.isCaptain,
+                isWicketKeeper: b.player.isWicketKeeper
             }))
         ],
         homePlayers: matchState.homeTeam.players.map((p: { id: string }) => p.id),

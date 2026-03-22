@@ -197,7 +197,7 @@ class HybridDatabaseStore {
     async subscribe(): Promise<void> { }
 }
 
-function createRedisClient(): any { // eslint-disable-line @typescript-eslint/no-explicit-any
+function createRedisClient(): any {  
     const url = process.env.REDIS_URL;
 
     if (!url) {
@@ -234,8 +234,8 @@ function createRedisClient(): any { // eslint-disable-line @typescript-eslint/no
     }
 }
 
-const globalForRedis = globalThis as unknown as { redis: any }; // eslint-disable-line @typescript-eslint/no-explicit-any
-export const redis: any = globalForRedis.redis ?? createRedisClient(); // eslint-disable-line @typescript-eslint/no-explicit-any
+const globalForRedis = globalThis as unknown as { redis: any };  
+export const redis: any = globalForRedis.redis ?? createRedisClient();  
 if (process.env.NODE_ENV !== 'production') globalForRedis.redis = redis;
 
 export default redis;

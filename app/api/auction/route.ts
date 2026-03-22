@@ -87,7 +87,7 @@ export async function POST(request: NextRequest) {
         }
 
         if (action === 'next') {
-            let state = await nextPlayer(roomCode);
+            const state = await nextPlayer(roomCode);
             if (!state) return NextResponse.json({ error: 'Auction not found' }, { status: 404 });
 
             // Run bot bidding after presenting new player (Background)
@@ -112,7 +112,7 @@ export async function POST(request: NextRequest) {
             }
 
             // Run bot bidding after human bid (Background)
-            let state = result.state;
+            const state = result.state;
             if (state.status === 'bidding') {
                 runBotBidding(roomCode).catch(e => console.error('[Bot Bidding Error]:', e));
             }
@@ -122,7 +122,7 @@ export async function POST(request: NextRequest) {
         }
 
         if (action === 'sell') {
-            let state = await sellCurrentPlayer(roomCode);
+            const state = await sellCurrentPlayer(roomCode);
             if (state?.rtmPending) {
                 runBotRtmDecisions(roomCode).catch(e => console.error('[Bot RTM Error]:', e));
             }
@@ -151,7 +151,7 @@ export async function POST(request: NextRequest) {
                 return NextResponse.json({ error: 'Only the highest bidder can bargain' }, { status: 403 });
             }
 
-            let updatedState = await handleBargain(roomCode, amount);
+            const updatedState = await handleBargain(roomCode, amount);
             if (updatedState?.rtmState === 'final_match') {
                 runBotFinalMatchDecisions(roomCode).catch(e => console.error('[Bot Final Match Error]:', e));
             }

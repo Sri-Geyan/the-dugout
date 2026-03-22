@@ -927,7 +927,7 @@ export async function ensureBotSelections(roomCode: string, fixtureId: string, t
 
     // Pitch type could be fetched from league fixture if available, otherwise BALANCED
     // Find pitch type from fixture if possible
-    let pitchType = 'BALANCED';
+    const pitchType = 'BALANCED';
     const fixture = leagueState?.fixtures.find(f => f.id === fixtureId);
     // In a real app we might store pitch in fixture, but for now default or use room settings
     

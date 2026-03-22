@@ -537,6 +537,14 @@ export default function MatchPage() {
                             <p className="text-lg animate-pulse" style={{ color: 'var(--color-gold)' }}>
                                 Flipping...
                             </p>
+                            {userId === hostId && (
+                                <button 
+                                    onClick={() => setCoinFlipAnim(false)} 
+                                    className="text-[10px] text-white/20 hover:text-white uppercase tracking-widest mt-4 underline decoration-white/10"
+                                >
+                                    Bypass Animation
+                                </button>
+                            )}
                         </div>
                     )}
 
@@ -1041,6 +1049,9 @@ export default function MatchPage() {
                         >
                             🛑 Force Reset Match (Emergency Only)
                         </button>
+                        <p className="text-[8px] text-white/10 mt-2">
+                            v1.0.1 - {new Date().toISOString()}
+                        </p>
                     </div>
                 )}
             </main>

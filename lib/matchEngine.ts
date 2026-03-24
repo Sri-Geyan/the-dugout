@@ -51,6 +51,7 @@ export interface TossResult {
     loserId: string;
     loserName: string;
     decision: 'bat' | 'bowl' | null; // null = not yet decided
+    coinSide?: 'heads' | 'tails';
 }
 
 export interface MatchTeam {
@@ -507,6 +508,7 @@ export function performToss(homeTeam: MatchTeam, awayTeam: MatchTeam): TossResul
         loserId: loser.userId,
         loserName: loser.name,
         decision: null, // to be filled by the toss winner
+        coinSide: coinFlip ? 'heads' : 'tails',
     };
 }
 

@@ -68,6 +68,7 @@ interface TossResult {
     loserId: string;
     loserName: string;
     decision: 'bat' | 'bowl' | null;
+    coinSide?: 'heads' | 'tails';
 }
 
 interface MatchState {
@@ -157,6 +158,18 @@ export default function MatchPage() {
     const [tossError, setTossError] = useState<string | null>(null);
     const [homeTeam, setHomeTeam] = useState<{ teamId: string; name: string; userId: string } | null>(null);
     const [awayTeam, setAwayTeam] = useState<{ teamId: string; name: string; userId: string } | null>(null);
+    const [adminVisible, setAdminVisible] = useState(false);
+    const [adminClicks, setAdminClicks] = useState(0);
+
+    const handleAdminTrigger = () => {
+        setAdminClicks(prev => {
+            if (prev + 1 >= 5) {
+                setAdminVisible(true);
+                return 0;
+            }
+            return prev + 1;
+        });
+    };
     useEffect(() => {
         const init = async () => {
             let currentAuthId = userId;
@@ -223,10 +236,10 @@ export default function MatchPage() {
         if (tossPhase === 'flipping') {
             const timeout = setTimeout(() => {
                 if (tossPhase === 'flipping') {
-                    console.log('[Watchdog] Toss stuck in flipping, resetting to idle');
+                    console.log('[Watchdog] Toss stuck in flipping, triggering silent recovery');
                     setCoinFlipAnim(false);
-                    setTossPhase('idle');
-                    setTossError('Toss timed out. Trying to recover...');
+                    // No longer showing the error message to user - silent recovery
+                    // setTossError('Toss timed out. Trying to recover...');
                     
                     // NEW: If we have team info, try to force a client-side toss as a last resort
                     if (homeTeam && awayTeam) {
@@ -257,8 +270,11 @@ export default function MatchPage() {
             }
             if (data.toss) {
                 setTossResult(data.toss);
-                if (data.toss.decision) setTossPhase('decided');
-                else setTossPhase('result');
+                // Only clobber the phase if we aren't currently animating locally
+                if (tossPhase !== 'flipping' || !coinFlipAnim) {
+                    if (data.toss.decision) setTossPhase('decided');
+                    else setTossPhase('result');
+                }
             }
         });
 
@@ -305,8 +321,7 @@ export default function MatchPage() {
     }, [match?.status, match?.currentBall, match?.currentOver, match?.homeTeam?.score, match?.awayTeam?.score, hostId, userId]);
 
     const handleToss = async () => {
-        setTossPhase('flipping');
-        setCoinFlipAnim(true);
+        setTossError(null);
 
         // Get team info
         const auctionRes = await fetch(`/api/auction?roomCode=${code}`);
@@ -339,6 +354,9 @@ export default function MatchPage() {
 
         const id = `${code}-${fixtureId || 'match'}`;
         setMatchId(id);
+        
+        // Start animation ONLY after we have all data ready for the API call
+        setTossPhase('flipping');
         setCoinFlipAnim(true);
         setTossError(null);
 
@@ -364,7 +382,7 @@ export default function MatchPage() {
 
             const data = await res.json();
             
-            // Wait for partial animation then show result
+            // Wait for partial animation then show result - restored 2s delay
             setTimeout(() => {
                 setCoinFlipAnim(false);
                 if (!data.toss) {
@@ -381,7 +399,7 @@ export default function MatchPage() {
                 } else {
                     setTossPhase('result');
                 }
-            }, 1500);
+            }, 2000);
         } catch (err) {
             console.error('Toss failed:', err);
             setCoinFlipAnim(false);
@@ -395,6 +413,7 @@ export default function MatchPage() {
         const coinFlip = Math.random() < 0.5;
         const winner = coinFlip ? h : a;
         const loser = coinFlip ? a : h;
+        const cSide = Math.random() < 0.5 ? 'heads' : 'tails';
         
         const toss = {
             winnerId: winner.userId,
@@ -402,6 +421,7 @@ export default function MatchPage() {
             loserId: loser.userId,
             loserName: loser.name,
             decision: null,
+            coinSide: cSide as 'heads' | 'tails'
         };
 
         try {
@@ -418,9 +438,9 @@ export default function MatchPage() {
             
             if (res.ok) {
                 setTossResult(toss);
-                setTossPhase('result');
                 setTossError(null);
             }
+            setTossPhase('result');
         } catch (err) {
             console.error('Client-side toss sync failed:', err);
         }
@@ -550,7 +570,10 @@ export default function MatchPage() {
             <div className="min-h-screen" style={{ background: 'var(--color-bg-primary)' }}>
                 <Navbar />
                 <main className="max-w-lg mx-auto px-6 pt-24 pb-12 text-center">
-                    <h1 className="text-3xl font-black mb-2">🪙 Toss Time!</h1>
+                    <h1 
+                        className="text-3xl font-black mb-2 cursor-pointer select-none"
+                        onClick={handleAdminTrigger}
+                    >🪙 Toss Time!</h1>
                     {fixtureId && (
                         <p className="text-xs gold-text uppercase tracking-widest font-black mb-8 opacity-60">
                             Match #{fixtureId.split('-')[1]}
@@ -584,7 +607,7 @@ export default function MatchPage() {
                             <p className="text-lg animate-pulse" style={{ color: 'var(--color-gold)' }}>
                                 Flipping...
                             </p>
-                            {userId === hostId && (
+                            {adminVisible && userId === hostId && (
                                 <button 
                                     onClick={() => setCoinFlipAnim(false)} 
                                     className="text-[10px] text-white/20 hover:text-white uppercase tracking-widest mt-4 underline decoration-white/10"
@@ -597,10 +620,12 @@ export default function MatchPage() {
 
                     {tossPhase === 'result' && tossResult && (
                         <div className="space-y-6">
-                            <div className="w-32 h-32 mx-auto rounded-full border-4 border-yellow-400 flex items-center justify-center text-5xl"
-                                style={{ background: 'linear-gradient(135deg, #FFD700, #FFA000)' }}>
-                                🏆
+                            <div className="text-5xl mb-3">
+                                {tossResult.coinSide === 'heads' ? '🟡' : '⚪'}
                             </div>
+                            <h2 className="font-black text-xl text-white mb-1">
+                                {tossResult.coinSide === 'heads' ? 'Heads!' : 'Tails!'} — {tossResult.winnerId === userId ? 'You Won' : `${tossResult.winnerName} Won`} the Toss
+                            </h2>
                             <div className="panel p-6">
                                 <p className="text-xl font-bold mb-2">{tossResult.winnerName}</p>
                                 <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>won the toss!</p>
@@ -649,7 +674,7 @@ export default function MatchPage() {
                     )}
 
                     {/* Host Force Reset - Emergency Only */}
-                    {userId === hostId && (
+                    {adminVisible && userId === hostId && (
                         <div className="mt-12 pt-8 border-t border-white/5 text-center">
                             <button 
                                 onClick={handleResetMatch}
@@ -1087,20 +1112,20 @@ export default function MatchPage() {
                     </div>
                 </div>
 
-                {/* Host Force Reset - Emergency Only */}
-                {userId === hostId && (
-                    <div className="mt-12 pt-8 border-t border-white/5 text-center">
-                        <button 
-                            onClick={handleResetMatch}
-                            className="text-[10px] font-black text-red-500/30 hover:text-red-500 uppercase tracking-widest transition-all"
-                        >
-                            🛑 Force Reset Match (Emergency Only)
-                        </button>
-                        <div className="text-[10px] text-white/20 mt-2 font-mono">
-                            v1.0.2 • Build: {new Date().toLocaleTimeString()}
+                    {/* Host Force Reset - Emergency Only */}
+                    {adminVisible && userId === hostId && (
+                        <div className="mt-12 pt-8 border-t border-white/5 text-center">
+                            <button 
+                                onClick={handleResetMatch}
+                                className="text-[10px] font-black text-red-500/30 hover:text-red-500 uppercase tracking-widest transition-all"
+                            >
+                                🛑 Force Reset Match (Emergency Only)
+                            </button>
+                            <div className="text-[10px] text-white/20 mt-2 font-mono">
+                                v1.0.3 • Restored Athletics • Build: {new Date().toLocaleTimeString()}
+                            </div>
                         </div>
-                    </div>
-                )}
+                    )}
             </main>
 
             {/* SELECT BATTER MODAL */}

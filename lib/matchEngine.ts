@@ -180,7 +180,7 @@ export function isSpinner(player: MatchPlayer): boolean {
     return spinnerNames.some(s => name.includes(s)) && player.role !== 'BATSMAN';
 }
 
-export function simulateBall(
+export async function simulateBall(
     batter: BatterState,
     bowler: BowlerState,
     pitchType: string,
@@ -191,9 +191,87 @@ export function simulateBall(
     ballsRemaining: number,
     stadiumId?: string,
     innings?: number,
-    fieldingTeam?: MatchTeam
-): BallResult {
+    fieldingTeam?: MatchTeam,
+    isSkip: boolean = false
+): Promise<BallResult> {
     const stadium = stadiumId ? getStadiumById(stadiumId) : null;
+
+    // --- ML Engine Integration ---
+    if (!isSkip) {
+        try {
+            const mlEngineUrl = process.env.ML_ENGINE_URL || 'http://127.0.0.1:8000';
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 600); // 600ms timeout for speed
+
+        // Construct payload
+        const totalBalls = 120 - ballsRemaining;
+        const over = Math.floor(totalBalls / 6);
+        const ball = (totalBalls % 6) + 1;
+        const wickets = fieldingTeam ? fieldingTeam.wickets : 0;
+        const venueName = stadiumId ? (getStadiumById(stadiumId)?.name || 'Neutral') : 'Neutral';
+        
+        const payload = {
+            innings: innings || 1,
+            over: over,
+            ball: ball,
+            current_score: currentScore,
+            wickets: wickets,
+            target: target || 0,
+            venue: venueName,
+            batter_rating: batter.player.battingSkill || 50,
+            bowler_rating: bowler.player.bowlingSkill || 30
+        };
+
+        const response = await fetch(`${mlEngineUrl}/api/simulate/ball`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+            signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+
+        if (response.ok) {
+            const data = await response.json();
+            // Map Python output to BallResult
+            // data contains: runs (string like "4", "WICKET", etc), dismissal, commentary
+            let runs = 0;
+            let isWicket = false;
+            let isBoundary = false;
+            let isSix = false;
+            let isExtra = false;
+            let extraType = null;
+            let extraRuns = 0;
+            
+            if (data.outcome === 'WICKET') {
+                isWicket = true;
+            } else if (data.outcome === 'EXTRA') {
+                isExtra = true;
+                extraType = 'wide'; // Simplified fallback
+                extraRuns = 1;
+            } else {
+                runs = parseInt(data.outcome);
+                if (runs === 4) isBoundary = true;
+                if (runs === 6) isSix = true;
+            }
+            
+            return {
+                runs,
+                isWicket,
+                isBoundary,
+                isSix,
+                isExtra,
+                extraType,
+                extraRuns,
+                dismissalType: data.dismissal || null,
+                commentary: data.commentary || 'Good ball.'
+            };
+        }
+    } catch (e) {
+        // Fallback to local math
+        // console.warn("ML Engine timeout/error, falling back to local math");
+    }
+    // --- End ML Engine Integration ---
+
     const { batMod, bowlMod } = getPitchModifier(pitchType, phase);
 
     let batSkill = batter.player.battingSkill * batMod;
@@ -656,7 +734,7 @@ export function initMatchState(
 // Process Next Ball
 // ======================================================
 
-export function processNextBall(state: MatchState): { state: MatchState; ballResult: BallResult } {
+export async function processNextBall(state: MatchState, isSkip: boolean = false): Promise<{ state: MatchState; ballResult: BallResult }> {
     if (state.status === 'completed') {
         return { state, ballResult: { runs: 0, isWicket: false, isBoundary: false, isSix: false, isExtra: false, extraType: null, extraRuns: 0, dismissalType: null, commentary: 'Match already completed.' } };
     }
@@ -673,12 +751,13 @@ export function processNextBall(state: MatchState): { state: MatchState; ballRes
 
     state.matchPhase = getMatchPhase(battingTeam.overs);
 
-    const ballResult = simulateBall(
+    const ballResult = await simulateBall(
         state.striker, state.currentBowler, state.pitchType, state.matchPhase,
         state.freeHit, state.target, battingTeam.score,
         (TOTAL_OVERS * 6) - (battingTeam.overs * 6 + battingTeam.balls),
         state.stadiumId, state.innings,
-        state.currentBatting === 'home' ? state.awayTeam : state.homeTeam
+        state.currentBatting === 'home' ? state.awayTeam : state.homeTeam,
+        isSkip
     );
 
     // Process result

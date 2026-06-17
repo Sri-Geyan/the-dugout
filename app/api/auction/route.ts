@@ -182,6 +182,9 @@ export async function POST(request: NextRequest) {
             const room = await getRoomState(roomCode);
             if (!room || room.hostId !== session.userId) return NextResponse.json({ error: 'Host only' }, { status: 403 });
             const state = await skipPlayer(roomCode);
+            if (state?.rtmPending) {
+                runBotRtmDecisions(roomCode).catch(e => console.error('[Bot RTM Error]:', e));
+            }
             if (state) emitToRoom(roomCode, 'auction_update', { state });
             return NextResponse.json({ state });
         }
@@ -189,6 +192,9 @@ export async function POST(request: NextRequest) {
             const room = await getRoomState(roomCode);
             if (!room || room.hostId !== session.userId) return NextResponse.json({ error: 'Host only' }, { status: 403 });
             const state = await skipSet(roomCode);
+            if (state?.rtmPending) {
+                runBotRtmDecisions(roomCode).catch(e => console.error('[Bot RTM Error]:', e));
+            }
             if (state) emitToRoom(roomCode, 'auction_update', { state });
             return NextResponse.json({ state });
         }

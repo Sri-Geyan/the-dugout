@@ -350,7 +350,7 @@ export async function POST(request: NextRequest) {
             }
 
             const wasCompleted = state.status === 'completed';
-            const result = processNextBall(state);
+            const result = await processNextBall(state);
             state = result.state;
 
             if (state.status === 'awaiting_batter' || state.status === 'awaiting_bowler') {
@@ -463,7 +463,7 @@ export async function POST(request: NextRequest) {
                         else break; // Should not happen
                     }
                 } else if (state.status === 'live') {
-                    const result = processNextBall(state);
+                    const result = await processNextBall(state, true);
                     state = result.state;
                 } else {
                     // unexpected state

@@ -5820,3 +5820,21 @@ export const IPL_PLAYERS: CricketPlayer[] = [
         "secondaryArchetype": ""
     }
 ];
+
+export const TEAM_NAMES = [
+    'Chennai Super Kings',
+    'Mumbai Indians',
+    'Royal Challengers Bengaluru',
+    'Kolkata Knight Riders',
+    'Delhi Capitals',
+    'Sunrisers Hyderabad',
+    'Punjab Kings',
+    'Rajasthan Royals',
+    'Lucknow Super Giants',
+    'Gujarat Titans',
+];
+
+export const getTeamByName = (name: string) => {
+    // Helper to find team if needed
+    return name;
+};

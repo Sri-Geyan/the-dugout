@@ -1,0 +1,38 @@
+name: Sync ML Engine to Hugging Face Space
+
+on:
+  push:
+    branches: [main]
+    # Only trigger if files in the ml-engine directory change
+    paths:
+      - 'ml-engine/**'
+  # Also allow running this workflow manually from the Actions tab
+  workflow_dispatch:
+
+jobs:
+  sync-to-hub:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Sync and Push to Hugging Face
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          # Set up git config for the action
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git config --global user.name "github-actions[bot]"
+          
+          # Clone the HF Space into a temporary directory
+          git clone https://user:${HF_TOKEN}@huggingface.co/spaces/Geyan16/the-dugout-ml hf-space
+          
+          # Copy everything from ml-engine/ to the root of the HF Space
+          cp -r ml-engine/* hf-space/
+          
+          # Navigate into the space, commit the updates, and push
+          cd hf-space
+          git add .
+          git commit -m "Auto-sync ML Engine from GitHub Actions (${{ github.sha }})" || echo "No changes to commit"
+          git push origin main

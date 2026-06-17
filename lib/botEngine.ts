@@ -609,7 +609,7 @@ export async function runBotRetentions(roomCode: string): Promise<void> {
                     team_id: team.userId,
                     player_features: {
                         overall_rating: skill,
-                        age: player.age || 25,
+                        age: (player as any).age || 25,
                         is_uncapped: isUncapped ? 1 : 0,
                         is_overseas: isOverseas ? 1 : 0,
                         form_score: formScore,

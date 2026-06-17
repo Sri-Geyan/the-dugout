@@ -1,6 +1,6 @@
 import redis from './redis';
 import { CricketPlayer, IPL_PLAYERS } from '@/data/players';
-import { analyzeSquadNeeds, canAddOverseas, getSquadComposition } from './squadUtils';
+import { canAddOverseas } from './squadUtils';
 import { getBotMaxHighBid, isBotUser } from './botEngine';
 
 // ======================================================
@@ -177,8 +177,6 @@ export async function initAuction(
     auctionSets.forEach(s => allPlayersFlat.push(...s.players));
 
     const teams: AuctionTeam[] = teamsData.map(p => {
-        const { RETENTION_POOL } = require('@/data/retentionPool'); // eslint-disable-line @typescript-eslint/no-require-imports
-        // Map retained players to SoldPlayer format
         const retainedSold: SoldPlayer[] = p.retained.map(r => {
             const player = IPL_PLAYERS.find(ip => ip.id === r.playerId)!;
             return {
@@ -187,13 +185,6 @@ export async function initAuction(
                 soldPrice: r.cost
             };
         });
-
-        const pool = RETENTION_POOL[p.teamName] ?? [];
-        const cappedRetainedCount = p.retained.filter(r => {
-            const player = IPL_PLAYERS.find(ip => ip.id === r.playerId);
-            const eligible = pool.find((pl: { name: string; capStatus?: string }) => pl.name === player?.name);
-            return eligible?.capStatus === 'Capped';
-        }).length;
 
         return {
             userId: p.userId,

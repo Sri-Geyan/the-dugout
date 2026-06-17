@@ -27,10 +27,10 @@ interface AuctionState {
     currentBidder: { userId: string; username: string; teamName: string } | null;
     timerEnd: number | null;
     teams: { userId: string; username: string; teamName: string; teamId?: string; purse: number; squad: { player: { id: string; name: string }; soldPrice: number }[] }[];
-    soldPlayers: { player: { name: string; role: string }; soldTo: { username: string; teamName: string }; soldPrice: number }[];
-    unsoldPlayers: any[];
+    soldPlayers: { player: { id: string; name: string; role: string }; soldTo: { username: string; teamName: string }; soldPrice: number }[];
+    unsoldPlayers: { id: string; name: string; role: string; basePrice: number }[];
     currentPlayerIndex: number;
-    remainingPlayers: any[];
+    remainingPlayers: { id: string; name: string; role: string; basePrice: number }[];
     // Slot-based fields
     auctionSets: AuctionSetInfo[];
     currentSetIndex: number;
@@ -54,7 +54,7 @@ export default function AuctionPage() {
     const [isSquadsModalOpen, setIsSquadsModalOpen] = useState(false);
     const [isPlayerSetsModalOpen, setIsPlayerSetsModalOpen] = useState(false);
     const [showSoldPopup, setShowSoldPopup] = useState(false);
-    const [lastSale, setLastSale] = useState<{ player: any; bid: number; team: string; status: string } | null>(null);
+    const [lastSale, setLastSale] = useState<{ player: { name: string; role?: string }; bid: number; team: string; status: string } | null>(null);
     const [bidError, setBidError] = useState<string | null>(null);
 
     const fetchAuction = useCallback(async () => {
@@ -97,7 +97,7 @@ export default function AuctionPage() {
         } else {
             setShowSoldPopup(false);
         }
-    }, [auction?.status, auction?.soldPlayers?.length, auction?.unsoldPlayers?.length]);
+    }, [auction?.status, auction?.soldPlayers, auction?.unsoldPlayers]);
 
     useEffect(() => {
         const init = async () => {
@@ -144,7 +144,7 @@ export default function AuctionPage() {
             setAuction(data.state);
         });
 
-        socket.on('room_update', (data: { room: any }) => {
+        socket.on('room_update', (data: { room: { status?: string } }) => {
             console.log('[Socket] Room updated:', data.room);
             const status = data.room.status?.toLowerCase();
             if (status === 'selection') {
@@ -650,8 +650,8 @@ export default function AuctionPage() {
                                     const isDone = setIdx < auction.currentSetIndex;
                                     const isCurrent = setIdx === auction.currentSetIndex;
                                     // Build a lookup of sold player IDs
-                                    const soldIds = new Set(auction.soldPlayers.map((s: any) => s.player.id));
-                                    const unsoldIds = new Set(auction.unsoldPlayers?.map((p: any) => p.id) || []);
+                                    const soldIds = new Set(auction.soldPlayers.map(s => s.player.id));
+                                    const unsoldIds = new Set(auction.unsoldPlayers?.map(p => p.id) || []);
 
                                     return (
                                         <div key={set.id} className="rounded-xl border overflow-hidden" style={{
@@ -680,10 +680,10 @@ export default function AuctionPage() {
                                             </div>
                                             <div className="p-4">
                                                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
-                                                    {set.players.map((player: any) => {
+                                                    {set.players.map((player: { id: string; name: string; role?: string; basePrice?: number }) => {
                                                         const isSold = soldIds.has(player.id);
                                                         const isUnsold = unsoldIds.has(player.id);
-                                                        const soldInfo = isSold ? auction.soldPlayers.find((s: any) => s.player.id === player.id) : null;
+                                                        const soldInfo = isSold ? auction.soldPlayers.find(s => s.player.id === player.id) : null;
                                                         const iplTeam = soldInfo ? IPL_TEAMS.find(t => t.name === soldInfo.soldTo.teamName) : null;
 
                                                         return (

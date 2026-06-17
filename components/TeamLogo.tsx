@@ -24,6 +24,7 @@ export default function TeamLogo({ team, size = 40, className = "" }: TeamLogoPr
     }
 
     return (
+        // eslint-disable-next-line @next/next/no-img-element
         <img
             src={team.logo}
             alt={team.shortName}

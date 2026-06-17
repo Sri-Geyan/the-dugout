@@ -38,7 +38,7 @@ export function canAddOverseas(squad: { player: CricketPlayer }[]): boolean {
     return comp.overseas < IPL_MAX_OVERSEAS;
 }
 
-import { STADIUMS, getStadiumById } from '@/data/stadiums';
+import { getStadiumById } from '@/data/stadiums';
 
 /**
  * Returns a "need score" per role and nationality combo for this team.

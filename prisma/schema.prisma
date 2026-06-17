@@ -125,6 +125,14 @@ model Player {
   auctionResults AuctionResult[]
   battingStats   BattingStats[]
   bowlingStats   BowlingStats[]
+
+  ratings        PlayerRating?
+  form           PlayerForm?
+  matchups       PlayerMatchup[]
+  venueRatings   PlayerVenueRating[]
+  archetypes     PlayerArchetype[]
+  scoutReport    PlayerScoutReport?
+  auctionScore   AuctionValueScore?
 }
 
 model AuctionResult {
@@ -276,4 +284,113 @@ enum PitchType {
   BOWLING
   BALANCED
   SPINNING
+}
+
+model PlayerRating {
+  id               String   @id @default(uuid())
+  playerId         String   @unique
+  player           Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  
+  // Batter DNA
+  paceRating       Float?
+  spinRating       Float?
+  powerplayBatting Float?
+  middleBatting    Float?
+  deathBatting     Float?
+  chasingRating    Float?
+  pressureBatting  Float?
+  boundaryHitting  Float?
+  strikeRotation   Float?
+
+  // Bowler DNA
+  powerplayBowling Float?
+  middleBowling    Float?
+  deathBowling     Float?
+  paceSkill        Float?
+  spinSkill        Float?
+  economyRating    Float?
+  wicketTaking     Float?
+  pressureBowling  Float?
+  venueAdaptability Float?
+
+  // Shared DNA
+  consistency      Float?
+  fitness          Float?
+  fielding         Float?
+
+  overall          Float?
+  updatedAt        DateTime @updatedAt
+}
+
+model PlayerForm {
+  id               String   @id @default(uuid())
+  playerId         String   @unique
+  player           Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  
+  baseRating       Float
+  currentForm      Float    @default(0)
+  currentOverall   Float
+  
+  // Stored payload of recent history for display
+  last5Innings     Json?
+  last10Innings    Json?
+  last20Innings    Json?
+  
+  updatedAt        DateTime @updatedAt
+}
+
+model PlayerMatchup {
+  id             String   @id @default(uuid())
+  playerId       String
+  opponentId     String
+  player         Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  matchupRating  Float
+  
+  updatedAt      DateTime @updatedAt
+
+  @@unique([playerId, opponentId])
+}
+
+model PlayerVenueRating {
+  id             String   @id @default(uuid())
+  playerId       String
+  venueId        String
+  player         Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  rating         Float
+  
+  updatedAt      DateTime @updatedAt
+
+  @@unique([playerId, venueId])
+}
+
+model PlayerArchetype {
+  id             String   @id @default(uuid())
+  playerId       String
+  player         Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  name           String
+  
+  @@unique([playerId, name])
+}
+
+model PlayerScoutReport {
+  id             String   @id @default(uuid())
+  playerId       String   @unique
+  player         Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  
+  strengths      String[]
+  weaknesses     String[]
+  futurePotential String
+  generatedText  String
+  
+  updatedAt      DateTime @updatedAt
+}
+
+model AuctionValueScore {
+  id             String   @id @default(uuid())
+  playerId       String   @unique
+  player         Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  
+  score          Float
+  
+  updatedAt      DateTime @updatedAt
 }

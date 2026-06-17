@@ -3,8 +3,6 @@ import {
     initLeagueState,
     getLeagueState,
     saveLeagueState,
-    updateStandings,
-    updatePlayerStats,
     validateSquads,
     processMatchResult,
     syncMatchToLeague,
@@ -24,7 +22,6 @@ import {
     botTossDecision, 
     botChooseNextBatter, 
     botChooseNextBowler, 
-    isBotUser,
     botSelectPlaying11
 } from '@/lib/botEngine';
 import redis from '@/lib/redis';
@@ -82,7 +79,7 @@ export async function POST(request: NextRequest) {
                     userId: t.userId,
                     username: t.username,
                     teamName: t.teamName,
-                    teamId: (t as any).teamId,
+                    teamId: (t as unknown as { teamId?: string }).teamId || t.userId,
                     squad: t.squad.map(s => ({
                         player: {
                             ...s.player,
@@ -309,7 +306,7 @@ export async function POST(request: NextRequest) {
                 };
 
                 const pitchProf = getPitchProfile(hUser.teamName);
-                const pitchType = (pitchProf?.pitchType || 'BALANCED') as any;
+                const pitchType = (pitchProf?.pitchType || 'BALANCED') as MatchState['pitchType'];
 
                 const toss = performToss(homeTeamMatch, awayTeamMatch);
                 toss.decision = botTossDecision(pitchType);
@@ -341,7 +338,7 @@ export async function POST(request: NextRequest) {
             while (matchState.status !== 'completed' && iterations < maxIterations) {
                 iterations++;
                 
-                const currentStatus = matchState.status as any;
+                const currentStatus = matchState.status;
 
                 if (currentStatus === 'awaiting_batter') {
                     const nextBat = botChooseNextBatter(matchState);

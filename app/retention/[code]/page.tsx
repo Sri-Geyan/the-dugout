@@ -8,6 +8,8 @@ import PlayerAvatar from '@/components/PlayerAvatar';
 import { getSocket } from '@/lib/socket';
 import TeamLogo from '@/components/TeamLogo';
 import { IPL_TEAMS } from '@/data/teams';
+import PlayerCard from '@/components/PlayerCard';
+import { IPL_PLAYERS } from '@/data/players';
 
 // Hardcoding these constants on the client avoid importing lib/retentionEngine which requires node dependencies (redis)
 const CAPPED_RETENTION_COSTS = [18, 14, 11, 18, 14];
@@ -425,50 +427,9 @@ export default function RetentionPage() {
                                                 </div>
                                             )}
 
-                                            <div className="flex items-center gap-3 mb-3">
-                                                <PlayerAvatar
-                                                    role={player.role as 'BATSMAN' | 'BOWLER' | 'ALL_ROUNDER' | 'WICKET_KEEPER'}
-                                                    name={player.name}
-                                                    size="md"
-                                                />
-                                                <div className="flex-1 min-w-0">
-                                                    <h4 className="font-bold text-sm text-white truncate pr-20">{player.name}</h4>
-                                                    <div className="flex items-center gap-2 mt-1">
-                                                        <span className="text-[10px] px-1.5 py-0.5 rounded font-semibold" style={{ background: `${roleColor}20`, color: roleColor }}>
-                                                            {getRoleLabel(player.role)}
-                                                        </span>
-                                                        <span className="text-[10px]" style={{ color: player.nationality === 'Indian' ? '#66BB6A' : '#4FC3F7' }}>
-                                                            {player.nationality === 'Indian' ? '🇮🇳' : '🌍'} {player.nationality}
-                                                        </span>
-                                                        {player.capStatus === 'Capped' ? (
-                                                            <span className="text-[10px]" style={{ color: 'var(--color-gold)' }}>⭐ Capped</span>
-                                                        ) : (
-                                                            <span className="text-[10px] px-1.5 py-0.5 rounded font-bold" style={{ background: 'rgba(102,187,106,0.15)', color: '#66BB6A', border: '1px solid rgba(102,187,106,0.3)' }}>🌱 Uncapped</span>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            </div>
-
-                                            {/* Skills */}
-                                            <div className="grid grid-cols-2 gap-2 mb-3">
-                                                <div>
-                                                    <div className="flex justify-between text-[10px] mb-0.5">
-                                                        <span style={{ color: 'var(--color-text-muted)' }}>BAT</span>
-                                                        <span className="font-mono">{player.battingSkill}</span>
-                                                    </div>
-                                                    <div className="h-1 rounded-full" style={{ background: 'var(--color-border)' }}>
-                                                        <div className="h-full rounded-full" style={{ width: `${player.battingSkill}%`, background: '#4FC3F7' }} />
-                                                    </div>
-                                                </div>
-                                                <div>
-                                                    <div className="flex justify-between text-[10px] mb-0.5">
-                                                        <span style={{ color: 'var(--color-text-muted)' }}>BOWL</span>
-                                                        <span className="font-mono">{player.bowlingSkill}</span>
-                                                    </div>
-                                                    <div className="h-1 rounded-full" style={{ background: 'var(--color-border)' }}>
-                                                        <div className="h-full rounded-full" style={{ width: `${player.bowlingSkill}%`, background: '#EF5350' }} />
-                                                    </div>
-                                                </div>
+                                            {/* We wrap the PlayerCard and overlay the retain button logic */}
+                                            <div className="mb-3 pointer-events-none">
+                                                <PlayerCard player={IPL_PLAYERS.find(p => p.name === player.name) || (player as any)} compact={true} showBasePrice={false} />
                                             </div>
 
                                             {/* 2025 price */}

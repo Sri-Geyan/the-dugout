@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createRoom, joinRoom, getUserRooms, updatePlayerTeam, getRoomState } from '@/lib/roomManager';
+import { createRoom, joinRoom, getUserRooms, updatePlayerTeam } from '@/lib/roomManager';
 import { emitToRoom } from '@/lib/socket-server';
 
 function getSession(request: NextRequest) {

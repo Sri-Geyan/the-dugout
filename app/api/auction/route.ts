@@ -15,9 +15,8 @@ import {
 } from '@/lib/auctionEngine';
 import { getRoomState, updateRoomStatus, fillRoomWithBots } from '@/lib/roomManager';
 import { TEAM_NAMES } from '@/data/players';
-import { IPL_PLAYERS } from '@/data/players';
 import { getRetentionState } from '@/lib/retentionEngine';
-import { runBotBidding, isBotUser, runBotRtmDecisions, runBotBargainDecisions, runBotFinalMatchDecisions } from '@/lib/botEngine';
+import { runBotBidding, runBotRtmDecisions, runBotBargainDecisions, runBotFinalMatchDecisions } from '@/lib/botEngine';
 import { emitToRoom } from '@/lib/socket-server';
 
 function getSession(request: NextRequest) {
@@ -210,9 +209,9 @@ export async function POST(request: NextRequest) {
         }
 
         return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error('[Auction POST Error]:', error);
-        return NextResponse.json({ error: error.message || 'Internal server error' }, { status: 500 });
+        return NextResponse.json({ error: error instanceof Error ? error.message : 'Internal server error' }, { status: 500 });
     }
 }
 
@@ -227,9 +226,9 @@ export async function GET(request: NextRequest) {
 
         const state = await getAuctionState(roomCode);
         return NextResponse.json({ state });
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error('[Auction GET Error]:', error);
-        return NextResponse.json({ error: error.message || 'Internal server error' }, { status: 500 });
+        return NextResponse.json({ error: error instanceof Error ? error.message : 'Internal server error' }, { status: 500 });
     }
 }
 

@@ -640,7 +640,7 @@ export async function syncMatchToLeague(roomCode: string, fixtureId: string, mat
             ...(matchState.firstInningsBattingOrder || []).map((b) => ({
                 playerId: b.player.id,
                 playerName: b.player.name,
-                teamName: (b.player as any).teamName || (batting1st === 'home' ? matchState.homeTeam.name : matchState.awayTeam.name),
+                teamName: (b.player as { teamName?: string }).teamName || (batting1st === 'home' ? matchState.homeTeam.name : matchState.awayTeam.name),
                 teamId: batting1st === 'home' ? matchState.homeTeam.userId : matchState.awayTeam.userId,
                 runs: b.runs, balls: b.balls, fours: b.fours, sixes: b.sixes, isOut: b.isOut, dismissal: b.dismissal,
                 isCaptain: b.player.isCaptain,
@@ -649,7 +649,7 @@ export async function syncMatchToLeague(roomCode: string, fixtureId: string, mat
             ...(matchState.battingOrder || []).map((b) => ({
                 playerId: b.player.id,
                 playerName: b.player.name,
-                teamName: (b.player as any).teamName || (batting2nd === 'home' ? matchState.homeTeam.name : matchState.awayTeam.name),
+                teamName: (b.player as { teamName?: string }).teamName || (batting2nd === 'home' ? matchState.homeTeam.name : matchState.awayTeam.name),
                 teamId: batting2nd === 'home' ? matchState.homeTeam.userId : matchState.awayTeam.userId,
                 runs: b.runs, balls: b.balls, fours: b.fours, sixes: b.sixes, isOut: b.isOut, dismissal: b.dismissal,
                 isCaptain: b.player.isCaptain,
@@ -660,7 +660,7 @@ export async function syncMatchToLeague(roomCode: string, fixtureId: string, mat
             ...(matchState.firstInningsBowlingOrder || []).map((b) => ({
                 playerId: b.player.id,
                 playerName: b.player.name,
-                teamName: (b.player as any).teamName || (batting2nd === 'home' ? matchState.homeTeam.name : matchState.awayTeam.name),
+                teamName: (b.player as { teamName?: string }).teamName || (batting2nd === 'home' ? matchState.homeTeam.name : matchState.awayTeam.name),
                 teamId: batting2nd === 'home' ? matchState.homeTeam.userId : matchState.awayTeam.userId,
                 overs: b.overs, balls: b.overBalls, runs: b.runs, wickets: b.wickets, maidens: b.maidens || 0,
                 isCaptain: b.player.isCaptain,
@@ -669,7 +669,7 @@ export async function syncMatchToLeague(roomCode: string, fixtureId: string, mat
             ...(matchState.bowlingOrder || []).map((b) => ({
                 playerId: b.player.id,
                 playerName: b.player.name,
-                teamName: (b.player as any).teamName || (batting1st === 'home' ? matchState.homeTeam.name : matchState.awayTeam.name),
+                teamName: (b.player as { teamName?: string }).teamName || (batting1st === 'home' ? matchState.homeTeam.name : matchState.awayTeam.name),
                 teamId: batting1st === 'home' ? matchState.homeTeam.userId : matchState.awayTeam.userId,
                 overs: b.overs, balls: b.overBalls, runs: b.runs, wickets: b.wickets, maidens: b.maidens || 0,
                 isCaptain: b.player.isCaptain,
@@ -724,7 +724,7 @@ export async function persistMatchToPrisma(roomCode: string, matchId: string, pi
                     awayTeamId: awayPrismaTeam.id,
                     status: 'COMPLETED',
                     innings: 2,
-                    pitchType: pitchType as any,
+                    pitchType: pitchType as import('@prisma/client').PitchType,
                     homeScore: result.homeScore,
                     homeWickets: result.homeWickets,
                     homeOvers: result.homeOvers,

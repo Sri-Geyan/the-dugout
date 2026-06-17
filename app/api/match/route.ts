@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
 
     try {
         const body = await request.json();
-        const { action, matchId, roomCode, homeTeam, awayTeam, pitchType } = body;
+        const { action, matchId, roomCode, homeTeam, awayTeam } = body;
 
         if (action === 'init') {
             const { fixtureId, roomCode: bodyRoomCode, pitchType: bodyPitchType } = body;
@@ -68,30 +68,30 @@ export async function POST(request: NextRequest) {
 
                     // Map Stadium based on home team city
                     if (!stadiumId && homeLeagueTeam?.teamName) {
-                        const { STADIUMS } = require('@/data/stadiums');
-                        const { getTeamByName } = require('@/data/teams');
+                        const { STADIUMS } = await import('@/data/stadiums');
+                        const { getTeamByName } = await import('@/data/teams');
                         const team = getTeamByName(homeLeagueTeam.teamName);
                         if (team) {
-                            const stadium = STADIUMS.find((s: any) => s.city === team.city);
+                            const stadium = STADIUMS.find((s: { city: string; id: string }) => s.city === team.city);
                             if (stadium) stadiumId = stadium.id;
                         }
                     }
 
-                    const mapToMatchTeam = (leagueTeam: any, selection: any) => {
+                    const mapToMatchTeam = (leagueTeam: import('@/lib/leagueEngine').LeagueTeam, selection: { selectedIds?: string[], captainId?: string, wkId?: string } | null) => {
                         let playingSquad = leagueTeam.squad;
 
                         if (selection?.selectedIds && selection.selectedIds.length > 0) {
-                            playingSquad = playingSquad.filter((s: any) => selection.selectedIds.includes(s.player.id));
+                            playingSquad = playingSquad.filter((s) => selection.selectedIds!.includes(s.player.id));
                         }
 
-                        playingSquad = [...playingSquad].sort((a: any, b: any) => b.soldPrice - a.soldPrice);
+                        playingSquad = [...playingSquad].sort((a, b) => b.soldPrice - a.soldPrice);
 
                         return {
                             teamId: leagueTeam.userId,
                             name: leagueTeam.teamName,
                             userId: leagueTeam.userId,
                             score: 0, wickets: 0, overs: 0, balls: 0, extras: 0, runRate: 0,
-                            players: playingSquad.map((s: any) => ({
+                            players: playingSquad.map((s) => ({
                                 id: s.player.id,
                                 name: s.player.name,
                                 role: s.player.role,
@@ -170,7 +170,6 @@ export async function POST(request: NextRequest) {
 
             // Determine which team to update
             const targetTeam = isHome ? state.homeTeam : state.awayTeam;
-            const targetPrefix = isHome ? 'home' : 'away';
 
             // Filter players and assign roles
             if (selectedIds && selectedIds.length === 11) {
@@ -315,7 +314,6 @@ export async function POST(request: NextRequest) {
             }
 
             // Authentication/Authorization Check
-            const battingTeamUserId = state.currentBatting === 'home' ? state.homeTeam.userId : state.awayTeam.userId;
             const bowlingTeamUserId = state.currentBatting === 'home' ? state.awayTeam.userId : state.homeTeam.userId;
             
             // Only bowling team can bowl

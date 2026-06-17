@@ -1,17 +1,11 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import PlayerAvatar from '@/components/PlayerAvatar';
+import PlayerCard from './PlayerCard';
+import type { CricketPlayer } from '@/data/players';
 
 interface AuctionPanelProps {
-    currentPlayer: {
-        name: string;
-        role: string;
-        basePrice: number;
-        battingSkill: number;
-        bowlingSkill: number;
-        nationality?: string;
-    } | null;
+    currentPlayer: CricketPlayer | null;
     currentBid: number;
     currentBidder: { userId: string; username: string; teamName: string } | null;
     timerEnd: number | null;
@@ -221,65 +215,10 @@ export default function AuctionPanel({
                 </div>
             </div>
 
-            {/* Player Card — Enhanced with Avatar */}
+            {/* Player Card */}
             {currentPlayer && (
-                <div className="rounded-xl p-6 mb-6 text-center relative overflow-hidden" style={{
-                    background: `linear-gradient(135deg, ${roleColors[currentPlayer.role]}08, ${roleColors[currentPlayer.role]}03)`,
-                    border: `1px solid ${roleColors[currentPlayer.role]}25`,
-                }}>
-                    {/* Nationality badge */}
-                    <div className="absolute top-3 left-3">
-                        <span className="text-xs px-2 py-0.5 rounded-full font-semibold" style={{
-                            background: currentPlayer.nationality === 'Indian' ? 'rgba(255, 153, 51, 0.15)' : 'rgba(79, 195, 247, 0.15)',
-                            color: currentPlayer.nationality === 'Indian' ? '#FF9933' : '#4FC3F7',
-                            border: `1px solid ${currentPlayer.nationality === 'Indian' ? '#FF993330' : '#4FC3F730'}`,
-                        }}>
-                            {currentPlayer.nationality === 'Indian' ? '🇮🇳 Indian' : '🌍 Overseas'}
-                        </span>
-                    </div>
-
-                    {/* Player Avatar */}
-                    <div className="mt-4">
-                        <PlayerAvatar
-                            name={currentPlayer.name}
-                            role={currentPlayer.role as 'BATSMAN' | 'BOWLER' | 'ALL_ROUNDER' | 'WICKET_KEEPER'}
-                            imageUrl={`/api/player-image?name=${encodeURIComponent(currentPlayer.name)}&size=200`}
-                            size="xl"
-                        />
-                    </div>
-
-                    <h3 className="text-xl font-bold mb-1 mt-3">{currentPlayer.name}</h3>
-
-                    {/* Role badge with emoji */}
-                    <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold mb-4" style={{
-                        background: `${roleColors[currentPlayer.role]}20`,
-                        color: roleColors[currentPlayer.role],
-                    }}>
-                        {roleEmoji[currentPlayer.role]} {roleLabels[currentPlayer.role] || currentPlayer.role}
-                    </span>
-
-                    {/* Skill bars */}
-                    <div className="grid grid-cols-3 gap-4 mt-4">
-                        <div>
-                            <div className="text-lg font-bold" style={{ color: '#4FC3F7' }}>{currentPlayer.battingSkill}</div>
-                            <div className="h-1 rounded-full mt-1 overflow-hidden" style={{ background: 'rgba(255,255,255,0.05)' }}>
-                                <div className="h-full rounded-full" style={{ width: `${currentPlayer.battingSkill}%`, background: '#4FC3F7' }} />
-                            </div>
-                            <div className="text-[10px] uppercase tracking-wider mt-1" style={{ color: 'var(--color-text-muted)' }}>Batting</div>
-                        </div>
-                        <div>
-                            <div className="text-lg font-bold" style={{ color: '#EF5350' }}>{currentPlayer.bowlingSkill}</div>
-                            <div className="h-1 rounded-full mt-1 overflow-hidden" style={{ background: 'rgba(255,255,255,0.05)' }}>
-                                <div className="h-full rounded-full" style={{ width: `${currentPlayer.bowlingSkill}%`, background: '#EF5350' }} />
-                            </div>
-                            <div className="text-[10px] uppercase tracking-wider mt-1" style={{ color: 'var(--color-text-muted)' }}>Bowling</div>
-                        </div>
-                        <div>
-                            <div className="text-lg font-bold gold-text">₹{currentPlayer.basePrice}Cr</div>
-                            <div className="h-1 rounded-full mt-1" style={{ background: 'var(--color-gold)' }} />
-                            <div className="text-[10px] uppercase tracking-wider mt-1" style={{ color: 'var(--color-text-muted)' }}>Base Price</div>
-                        </div>
-                    </div>
+                <div className="mb-6">
+                    <PlayerCard player={currentPlayer} showBasePrice={false} />
                 </div>
             )}
 

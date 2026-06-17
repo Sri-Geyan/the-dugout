@@ -7,9 +7,9 @@ import Navbar from '@/components/Navbar';
 import { IPL_TEAMS } from '@/data/teams';
 import { getSocket } from '@/lib/socket';
 import TeamLogo from '@/components/TeamLogo';
-import Link from 'next/link';
+import { AppRouterInstance } from 'next/dist/shared/lib/app-router-context.shared-runtime';
 
-function FixtureCard({ fixture, userId, code, router, isHost, onSkip, onViewScorecard }: { fixture: FixtureEntry, userId: string | null, code: string, router: any, isHost: boolean, onSkip: (id: string) => void, onViewScorecard: (id: string) => void }) {
+function FixtureCard({ fixture, userId, code, router, isHost, onSkip, onViewScorecard }: { fixture: FixtureEntry, userId: string | null, code: string, router: AppRouterInstance, isHost: boolean, onSkip: (id: string) => void, onViewScorecard: (id: string) => void }) {
     const [skipping, setSkipping] = useState(false);
 
     const handleSkip = async () => {
@@ -231,33 +231,33 @@ interface LeagueState {
     orangeCap: { playerId: string; playerName: string; teamName: string; runs: number } | null;
     purpleCap: { playerId: string; playerName: string; teamName: string; wickets: number } | null;
     mvp: { playerId: string; playerName: string; teamName: string; impactScore: number } | null;
-    teams: any[];
+    teams: { userId: string; username: string; teamName: string; teamId?: string; squad: { player: { id: string; name: string; role: string; battingSkill: number; bowlingSkill: number; nationality?: string; retained?: boolean }; soldPrice: number }[] }[];
 }
 
 interface LeaderboardData {
-    orangeCap: any[];
-    purpleCap: any[];
-    mvp: any[];
-    highestScores: any[];
-    boundaries: any[];
-    sixes: any[];
-    catches: any[];
-    bestBowling: any[];
-    economy: any[];
-    strikeRate: any[];
-    centuries: any[];
-    halfCenturies: any[];
+    orangeCap: PlayerStats[];
+    purpleCap: PlayerStats[];
+    mvp: PlayerStats[];
+    highestScores: PlayerStats[];
+    boundaries: PlayerStats[];
+    sixes: PlayerStats[];
+    catches: PlayerStats[];
+    bestBowling: PlayerStats[];
+    economy: PlayerStats[];
+    strikeRate: PlayerStats[];
+    centuries: PlayerStats[];
+    halfCenturies: PlayerStats[];
 }
 
 type Tab = 'standings' | 'fixtures' | 'awards' | 'squads';
 
-function StatTable({ title, data, valueKey, label, color, limit, formatValue }: any) {
+function StatTable({ title, data, valueKey, label, color, limit, formatValue }: { title: string; data: PlayerStats[]; valueKey: keyof PlayerStats; label: string; color: string; limit: number; formatValue?: (val: PlayerStats) => string | number }) {
     return (
         <div className="panel flex flex-col h-full" style={{ borderLeft: `3px solid ${color}` }}>
             <h3 className="text-[10px] font-bold tracking-widest uppercase mb-4" style={{ color }}>{title}</h3>
             {data.length > 0 ? (
                 <div className="space-y-3 flex-1">
-                    {data.slice(0, limit).map((ps: any, i: number) => (
+                    {data.slice(0, limit).map((ps: PlayerStats, i: number) => (
                         <div key={ps.playerId} className="flex items-center justify-between gap-2 group">
                             <div className="flex items-center gap-2 min-w-0">
                                 <span className="text-[10px] font-mono opacity-30 w-3">{i + 1}</span>
@@ -284,14 +284,14 @@ function StatTable({ title, data, valueKey, label, color, limit, formatValue }: 
     );
 }
 
-function SquadCategory({ title, players, playerStats, color }: any) {
+function SquadCategory({ title, players, playerStats, color }: { title: string; players: { player: { id: string; name: string; role: string; battingSkill: number; bowlingSkill: number; nationality?: string; retained?: boolean }; soldPrice: number }[]; playerStats: PlayerStats[]; color: string }) {
     if (players.length === 0) return null;
     return (
         <div>
             <h3 className="text-xs font-bold tracking-widest uppercase mb-4 px-2" style={{ color }}>{title}</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {players.map((s: any) => {
-                    const stats = playerStats?.find((ps: any) => ps.playerId === s.player.id);
+                {players.map((s: { player: { id: string; name: string; role: string; battingSkill: number; bowlingSkill: number; nationality?: string; retained?: boolean }; soldPrice: number }) => {
+                    const stats = playerStats?.find((ps: PlayerStats) => ps.playerId === s.player.id);
                     return <PlayerCard key={s.player.id} player={s.player} stats={stats} color={color} />;
                 })}
             </div>
@@ -299,7 +299,7 @@ function SquadCategory({ title, players, playerStats, color }: any) {
     );
 }
 
-function PlayerCard({ player, stats, color }: any) {
+function PlayerCard({ player, stats, color }: { player: { name: string; role: string; battingSkill: number; bowlingSkill: number; nationality?: string; retained?: boolean }; stats?: PlayerStats; color: string }) {
     const renderStats = () => {
         if (!stats || stats.matches === 0) {
             return (
@@ -395,7 +395,7 @@ function PlayerCard({ player, stats, color }: any) {
 }
 
 function ScorecardModal({ matchId, onClose }: { matchId: string, onClose: () => void }) {
-    const [data, setData] = useState<any>(null);
+    const [data, setData] = useState<{ match: { result: string; homeTeam: { name: string }; awayTeam: { name: string }; homeScore: number; homeWickets: number; homeOvers: number; awayScore: number; awayWickets: number; awayOvers: number }; scorecard: { homeBatting: { id: string; player: { name: string }; isCaptain?: boolean; isWicketKeeper?: boolean; isOut?: boolean; dismissal?: string; runs: number; balls: number; fours: number; sixes: number }[]; homeBowling: { id: string; player: { name: string }; isCaptain?: boolean; isWicketKeeper?: boolean; overs: number | string; maidens: number; runs: number; wickets: number; balls?: number }[]; awayBatting: { id: string; player: { name: string }; isCaptain?: boolean; isWicketKeeper?: boolean; isOut?: boolean; dismissal?: string; runs: number; balls: number; fours: number; sixes: number }[]; awayBowling: { id: string; player: { name: string }; isCaptain?: boolean; isWicketKeeper?: boolean; overs: number | string; maidens: number; runs: number; wickets: number; balls?: number }[] } } | null>(null);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
@@ -461,10 +461,10 @@ function ScorecardModal({ matchId, onClose }: { matchId: string, onClose: () => 
     );
 }
 
-function InningsTable({ teamName, score, overs, batting, bowling }: any) {
-    const didBat = batting.filter((s: any) => s.balls > 0 || s.isOut);
-    const didNotBat = batting.filter((s: any) => s.balls === 0 && !s.isOut);
-    const activeBowling = bowling.filter((s: any) => s.overs > 0 || (s.balls && s.balls > 0));
+function InningsTable({ teamName, score, overs, batting, bowling }: { teamName: string; score: string; overs: number; batting: { id: string; player: { name: string }; isCaptain?: boolean; isWicketKeeper?: boolean; isOut?: boolean; dismissal?: string; runs: number; balls: number; fours: number; sixes: number }[]; bowling: { id: string; player: { name: string }; isCaptain?: boolean; isWicketKeeper?: boolean; overs: number | string; maidens: number; runs: number; wickets: number; balls?: number }[] }) {
+    const didBat = batting.filter((s) => s.balls > 0 || s.isOut);
+    const didNotBat = batting.filter((s) => s.balls === 0 && !s.isOut);
+    const activeBowling = bowling.filter((s) => (typeof s.overs === 'number' ? s.overs > 0 : Number(s.overs) > 0) || (s.balls && s.balls > 0));
 
     return (
         <div className="panel bg-white/[0.02]">
@@ -487,7 +487,7 @@ function InningsTable({ teamName, score, overs, batting, bowling }: any) {
                             </tr>
                         </thead>
                         <tbody>
-                            {didBat.map((s: any) => (
+                            {didBat.map((s) => (
                                 <tr key={s.id} className="border-b border-white/5">
                                     <td className="py-2">
                                         <p className="font-bold">{s.player.name}{s.isCaptain && ' (c)'}{s.isWicketKeeper && ' (wk)'}</p>
@@ -510,7 +510,7 @@ function InningsTable({ teamName, score, overs, batting, bowling }: any) {
                     <div className="mt-2 py-2 border-t border-white/5">
                         <p className="text-[10px] opacity-40 mb-1">Did not bat</p>
                         <p className="text-[10px] font-medium opacity-60">
-                            {didNotBat.map((s: any) => `${s.player.name}${s.isCaptain ? ' (c)' : ''}${s.isWicketKeeper ? ' (wk)' : ''}`).join(', ')}
+                            {didNotBat.map((s) => `${s.player.name}${s.isCaptain ? ' (c)' : ''}${s.isWicketKeeper ? ' (wk)' : ''}`).join(', ')}
                         </p>
                     </div>
                 )}
@@ -528,7 +528,7 @@ function InningsTable({ teamName, score, overs, batting, bowling }: any) {
                             </tr>
                         </thead>
                         <tbody>
-                            {activeBowling.map((s: any) => (
+                            {activeBowling.map((s) => (
                                 <tr key={s.id} className="border-b border-white/5">
                                     <td className="py-2 font-bold">{s.player.name}{s.isCaptain && ' (c)'}{s.isWicketKeeper && ' (wk)'}</td>
                                     <td className="py-2 text-right font-mono">
@@ -650,11 +650,11 @@ export default function LeaguePage() {
         if (socket.connected) onConnect();
         socket.on('connect', onConnect);
 
-        socket.on('league_update', (data: any) => {
+        socket.on('league_update', (data: { state: LeagueState }) => {
             if (data.state) setLeague(data.state);
         });
 
-        socket.on('match_started', (data: any) => {
+        socket.on('match_started', (data: { fixture: FixtureEntry; homeTeamUserId: string; awayTeamUserId: string }) => {
             const { fixture, homeTeamUserId, awayTeamUserId } = data;
             const isUserPlaying = userId === homeTeamUserId || userId === awayTeamUserId;
             
@@ -1067,7 +1067,7 @@ export default function LeaguePage() {
                                 label="FIG"
                                 color="#F43F5E"
                                 limit={5}
-                                formatValue={(ps: any) => `${ps.bestBowlingWickets}/${ps.bestBowlingRuns}`}
+                                formatValue={(ps: PlayerStats) => `${ps.bestBowlingWickets}/${ps.bestBowlingRuns}`}
                             />
                             <StatTable 
                                 title="📉 Best Economy"
@@ -1076,7 +1076,7 @@ export default function LeaguePage() {
                                 label="ECON"
                                 color="#A855F7"
                                 limit={5}
-                                formatValue={(ps: any) => ((ps.runsConceded / ps.oversBowled) * 6).toFixed(2)}
+                                formatValue={(ps: PlayerStats) => ((ps.runsConceded / ps.oversBowled) * 6).toFixed(2)}
                             />
                             <StatTable 
                                 title="⚡ Strike Rate"
@@ -1085,7 +1085,7 @@ export default function LeaguePage() {
                                 label="S/R"
                                 color="#0EA5E9"
                                 limit={5}
-                                formatValue={(ps: any) => ((ps.runs / ps.balls) * 100).toFixed(2)}
+                                formatValue={(ps: PlayerStats) => ((ps.runs / ps.balls) * 100).toFixed(2)}
                             />
                             <div className="space-y-4">
                                 <StatTable 
@@ -1147,25 +1147,25 @@ export default function LeaguePage() {
                             <div className="space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
                                 <SquadCategory 
                                     title="⚡ Batters" 
-                                    players={selectedTeam.squad.filter((s: any) => s.player.role === 'BATSMAN')} 
+                                    players={selectedTeam.squad.filter((s: { player: { role: string } }) => s.player.role === 'BATSMAN')} 
                                     playerStats={league.playerStats}
                                     color="#FF6B00"
                                 />
                                 <SquadCategory 
                                     title="🧤 Wicketkeepers" 
-                                    players={selectedTeam.squad.filter((s: any) => s.player.role === 'WICKET_KEEPER')} 
+                                    players={selectedTeam.squad.filter((s: { player: { role: string } }) => s.player.role === 'WICKET_KEEPER')} 
                                     playerStats={league.playerStats}
                                     color="#3B82F6"
                                 />
                                 <SquadCategory 
                                     title="🌟 All-rounders" 
-                                    players={selectedTeam.squad.filter((s: any) => s.player.role === 'ALL_ROUNDER')} 
+                                    players={selectedTeam.squad.filter((s: { player: { role: string } }) => s.player.role === 'ALL_ROUNDER')} 
                                     playerStats={league.playerStats}
                                     color="var(--color-gold)"
                                 />
                                 <SquadCategory 
                                     title="🎯 Bowlers" 
-                                    players={selectedTeam.squad.filter((s: any) => s.player.role === 'BOWLER')} 
+                                    players={selectedTeam.squad.filter((s: { player: { role: string } }) => s.player.role === 'BOWLER')} 
                                     playerStats={league.playerStats}
                                     color="#8B5CF6"
                                 />

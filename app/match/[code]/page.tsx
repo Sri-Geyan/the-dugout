@@ -155,7 +155,6 @@ export default function MatchPage() {
     const [tossPhase, setTossPhase] = useState<'idle' | 'flipping' | 'result' | 'decided'>('idle');
     const [tossResult, setTossResult] = useState<TossResult | null>(null);
     const [coinFlipAnim, setCoinFlipAnim] = useState(false);
-    const [tossError, setTossError] = useState<string | null>(null);
     const [homeTeam, setHomeTeam] = useState<{ teamId: string; name: string; userId: string } | null>(null);
     const [awayTeam, setAwayTeam] = useState<{ teamId: string; name: string; userId: string } | null>(null);
     const [adminVisible, setAdminVisible] = useState(false);
@@ -244,6 +243,8 @@ export default function MatchPage() {
                     // NEW: If we have team info, try to force a client-side toss as a last resort
                     if (homeTeam && awayTeam) {
                         doClientSideToss(homeTeam, awayTeam);
+                    } else {
+                        setTossPhase('idle');
                     }
                 }
             }, 6000);
@@ -264,17 +265,20 @@ export default function MatchPage() {
         if (socket.connected) onConnect();
         socket.on('connect', onConnect);
 
-        socket.on('match_update', (data: { state?: any; toss?: any }) => {
+        socket.on('match_update', (data: { state?: MatchState; toss?: TossResult }) => {
             if (data.state) {
                 setMatch(data.state);
             }
             if (data.toss) {
                 setTossResult(data.toss);
-                // Only clobber the phase if we aren't currently animating locally
-                if (tossPhase !== 'flipping' || !coinFlipAnim) {
-                    if (data.toss.decision) setTossPhase('decided');
-                    else setTossPhase('result');
-                }
+                // Use functional state update to always get the freshest phase
+                setTossPhase((prevPhase) => {
+                    // Always move to decided if a decision exists (e.g., bot auto-decided)
+                    if (data.toss?.decision) return 'decided';
+                    // Only transition to result if we aren't currently animating locally
+                    if (prevPhase !== 'flipping') return 'result';
+                    return prevPhase;
+                });
             }
         });
 
@@ -321,8 +325,6 @@ export default function MatchPage() {
     }, [match?.status, match?.currentBall, match?.currentOver, match?.homeTeam?.score, match?.awayTeam?.score, hostId, userId]);
 
     const handleToss = async () => {
-        setTossError(null);
-
         // Get team info
         const auctionRes = await fetch(`/api/auction?roomCode=${code}`);
         const auctionData = await auctionRes.json();
@@ -358,7 +360,6 @@ export default function MatchPage() {
         // Start animation ONLY after we have all data ready for the API call
         setTossPhase('flipping');
         setCoinFlipAnim(true);
-        setTossError(null);
 
         // Perform toss IMMEDIATELY
         try {
@@ -375,10 +376,7 @@ export default function MatchPage() {
                 }),
             });
             
-            if (!res.ok) {
-                const errorData = await res.json();
-                throw new Error(errorData.error || 'Failed to flip coin');
-            }
+            if (!res.ok) throw new Error('Failed to flip coin');
 
             const data = await res.json();
             
@@ -387,7 +385,6 @@ export default function MatchPage() {
                 setCoinFlipAnim(false);
                 if (!data.toss) {
                     setTossPhase('idle');
-                    setTossError('Toss result not found');
                     return;
                 }
 
@@ -404,11 +401,10 @@ export default function MatchPage() {
             console.error('Toss failed:', err);
             setCoinFlipAnim(false);
             setTossPhase('idle');
-            setTossError(err instanceof Error ? err.message : 'Toss failed. Please try again.');
         }
     };
 
-    const doClientSideToss = async (h: any, a: any) => {
+    const doClientSideToss = async (h: { userId: string; name: string }, a: { userId: string; name: string }) => {
         console.log('[Toss] Triggering client-side fallback toss');
         const coinFlip = Math.random() < 0.5;
         const winner = coinFlip ? h : a;
@@ -424,8 +420,9 @@ export default function MatchPage() {
             coinSide: cSide as 'heads' | 'tails'
         };
 
+        setTossResult(toss);
         try {
-            const res = await fetch('/api/match', {
+            await fetch('/api/match', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -435,14 +432,10 @@ export default function MatchPage() {
                     toss
                 }),
             });
-            
-            if (res.ok) {
-                setTossResult(toss);
-                setTossError(null);
-            }
-            setTossPhase('result');
         } catch (err) {
             console.error('Client-side toss sync failed:', err);
+        } finally {
+            setTossPhase('result');
         }
     };
 
@@ -588,11 +581,6 @@ export default function MatchPage() {
                             <button onClick={handleToss} className="btn-primary text-xl px-12 py-4">
                                 🪙 Flip the Coin
                             </button>
-                            {tossError && (
-                                <p className="text-red-500 text-sm mt-4 animate-pulse">
-                                    ❌ {tossError}
-                                </p>
-                            )}
                         </div>
                     )}
 
@@ -1220,7 +1208,7 @@ export default function MatchPage() {
                         {isUserBowlingTeam && (
                             <div className="p-4 space-y-2 max-h-96 overflow-y-auto">
                                 {match.bowlingOrder
-                                    .filter(b => b.overs < 4 && b.player.id !== (match as any).lastBowlerId)
+                                    .filter(b => b.overs < 4 && b.player.id !== (match as MatchState & { lastBowlerId?: string }).lastBowlerId)
                                     .map(b => (
                                         <button
                                             key={b.player.id}
@@ -1289,7 +1277,7 @@ export default function MatchPage() {
 
 function MatchSelectionUI({ team, onLock, isBattingFirst, stadiumId }: { 
     team: MatchTeam, 
-    onLock: (s: any) => void,
+    onLock: (s: { selectedIds: string[]; captainId: string; wkId: string; openingBowlerId: string }) => void,
     isBattingFirst: boolean,
     stadiumId?: string
 }) {

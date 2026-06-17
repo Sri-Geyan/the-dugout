@@ -57,6 +57,7 @@ export default function PlayerAvatar({ name, role = 'BATSMAN', imageUrl, size = 
                 }}
             >
                 {hasImage ? (
+                    // eslint-disable-next-line @next/next/no-img-element
                     <img
                         src={imageUrl}
                         alt={name}

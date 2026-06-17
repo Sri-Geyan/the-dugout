@@ -18,7 +18,6 @@ const ws = wb.Sheets[wb.SheetNames[0]];
 const raw = xlsx.utils.sheet_to_json(ws, { header: 1 });
 
 // Row 0 = title, 1 = headers, 2..301 = data
-const headers = raw[1];
 const rows = raw.slice(2);
 
 // ─── Column indices ──────────────────────────────────────────────────────────

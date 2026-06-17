@@ -4,7 +4,7 @@ import { getRoomState } from './roomManager';
 import { emitToRoom } from './socket-server';
 import type { MatchState, BatterState, BowlerState, MatchPlayer } from './matchEngine';
 import { getRetentionState, retainPlayer, confirmRetentions, getRetentionEligiblePool } from './retentionEngine';
-import { analyzeSquadNeeds, canAddOverseas, playerFillScore, getSquadComposition, IPL_MAX_SQUAD, IPL_MIN_SQUAD } from './squadUtils';
+import { canAddOverseas, playerFillScore, getSquadComposition, IPL_MAX_SQUAD, IPL_MIN_SQUAD } from './squadUtils';
 
 // ======================================================
 // Bot Detection
@@ -267,7 +267,7 @@ const eliteFinishers = ['Nicholas Pooran', 'Heinrich Klaasen', 'Andre Russell', 
 const namedFinishers = ['MS Dhoni', 'Ramakrishna Ghosh', ...eliteFinishers];
 const finisherArchetypes = ['Finisher', 'Hard Hitter', 'Power Hitter', 'Lower Order'];
 
-export const isOpener = (p: EnrichedPlayer | any) => 
+export const isOpener = (p: EnrichedPlayer) => 
     (p.battingRole?.toLowerCase().includes('opener') || p.primaryArchetype?.includes('Opener') || p.secondaryArchetype?.includes('Opener') || p.name === 'Mitch Owen') && 
     !namedFinishers.includes(p.name) && 
     p.name !== 'Rishabh Pant' &&
@@ -276,18 +276,18 @@ export const isOpener = (p: EnrichedPlayer | any) =>
     p.name !== 'Wanindu Hasaranga' &&
     p.name !== 'Rajat Patidar';
 
-export const isExplicitFinisher = (p: EnrichedPlayer | any) => 
+export const isExplicitFinisher = (p: EnrichedPlayer) => 
     (namedFinishers.includes(p.name) || 
     finisherArchetypes.includes(p.battingRole || '') || 
     finisherArchetypes.some((a: string) => p.primaryArchetype?.includes(a)) ||
     p.secondaryArchetype?.includes('Finisher')) && 
     p.name !== 'Shivam Dube';
 
-export const isAnchor = (p: EnrichedPlayer | any) => 
+export const isAnchor = (p: EnrichedPlayer) => 
     (p.primaryArchetype?.includes('Anchor') || p.primaryArchetype?.includes('Stable') || p.battingRole?.includes('Number 3') || p.name === 'Rishabh Pant' || p.name === 'Ryan Rickelton' || p.name === 'KL Rahul' || p.name === 'Shubman Gill') &&
     !isOpener(p) && p.name !== 'MS Dhoni';
 
-export const isMiddleOrder = (p: EnrichedPlayer | any) => 
+export const isMiddleOrder = (p: EnrichedPlayer) => 
     p.name === 'Shivam Dube' || 
     p.name === 'Tilak Varma' ||
     p.name === 'Rahul Tripathi' ||
@@ -302,27 +302,27 @@ export const isMiddleOrder = (p: EnrichedPlayer | any) =>
     p.name === 'Deepak Chahar' ||
     p.name === 'Wanindu Hasaranga';
 
-export const isEliteFinisher = (p: EnrichedPlayer | any) => eliteFinishers.includes(p.name);
+export const isEliteFinisher = (p: EnrichedPlayer) => eliteFinishers.includes(p.name);
 
-export const isPowerplayPacer = (p: EnrichedPlayer | any) => 
+export const isPowerplayPacer = (p: EnrichedPlayer) => 
     (p.bowlingRole?.toLowerCase().includes('powerplay') || p.primaryArchetype?.includes('Powerplay') || p.primaryArchetype?.includes('New Ball')) && !isSpinner(p);
 
-export const isDeathPacer = (p: EnrichedPlayer | any) => 
+export const isDeathPacer = (p: EnrichedPlayer) => 
     (p.bowlingRole?.toLowerCase().includes('death') || p.primaryArchetype?.includes('Death Specialist')) && !isSpinner(p);
 
-export const isPacer = (p: EnrichedPlayer | any) => 
+export const isPacer = (p: EnrichedPlayer) => 
     (p.role === 'BOWLER' || p.role === 'ALL_ROUNDER') && !isSpinner(p) && (p.bowlingSkill > 40 || p.bowlingRating > 40);
 
-export const isSpinner = (p: EnrichedPlayer | any) => 
+export const isSpinner = (p: EnrichedPlayer) => 
     (p.role === 'BOWLER' || p.role === 'ALL_ROUNDER') && 
     (p.bowlingRole?.toLowerCase().includes('spin') || 
      p.primaryArchetype?.includes('Spinner') || 
      p.secondaryArchetype?.includes('Spinner') ||
      p.name === 'Rashid Khan' || p.name === 'Wanindu Hasaranga' || p.name === 'Varun Chakravarthy' || p.name === 'Kuldeep Yadav' || p.name === 'Yuzvendra Chahal' || p.name === 'R. Sai Kishore' || p.name === 'Rahul Chahar');
-export const isBattingAR = (p: EnrichedPlayer | any) => 
+export const isBattingAR = (p: EnrichedPlayer) => 
     p.role === 'ALL_ROUNDER' && (p.battingSkill > p.bowlingSkill + 10 || p.primaryArchetype?.includes('Batting All-Rounder'));
 
-export const isBowlingAR = (p: EnrichedPlayer | any) => 
+export const isBowlingAR = (p: EnrichedPlayer) => 
     p.role === 'ALL_ROUNDER' && (p.bowlingSkill > p.battingSkill + 10 || p.primaryArchetype?.includes('Bowling All-Rounder'));
 
 export function botSelectPlaying11(
@@ -870,7 +870,7 @@ interface Playing11Selection {
     openingBowlerId: string;
 }
 
-export async function ensureBotSelections(roomCode: string, fixtureId: string, teamUserId: string, tossResult?: any): Promise<Playing11Selection | null> {
+export async function ensureBotSelections(roomCode: string, fixtureId: string, teamUserId: string, tossResult?: { winnerId: string; decision: 'bat' | 'bowl' }): Promise<Playing11Selection | null> {
     const { getAuctionState } = await import('./auctionEngine');
     const { getRoomState } = await import('./roomManager');
     const redisObj = (await import('./redis')).default;
@@ -928,7 +928,7 @@ export async function ensureBotSelections(roomCode: string, fixtureId: string, t
     // Pitch type could be fetched from league fixture if available, otherwise BALANCED
     // Find pitch type from fixture if possible
     const pitchType = 'BALANCED';
-    const fixture = leagueState?.fixtures.find(f => f.id === fixtureId);
+    leagueState?.fixtures.find(f => f.id === fixtureId);
     // In a real app we might store pitch in fixture, but for now default or use room settings
     
     const selection = botSelectPlaying11(squad, pitchType, tossResult, teamUserId);

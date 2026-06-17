@@ -55,7 +55,7 @@ export async function GET(request: NextRequest) {
         } else {
             // Get all selections for the room/fixture
             const keys = await redis.keys(`${keyPrefix}:*`);
-            const selections: Record<string, any> = {};
+            const selections: Record<string, SelectionData | { selectedIds: string[] }> = {};
 
             for (const key of keys) {
                 const parts = key.split(':');
@@ -125,9 +125,9 @@ export async function POST(request: NextRequest) {
                         battingSkill: s.player.battingSkill,
                         bowlingSkill: s.player.bowlingSkill,
                         nationality: s.player.nationality,
-                        battingRole: (s.player as any).battingRole,
-                        bowlingRole: (s.player as any).bowlingRole,
-                        primaryArchetype: (s.player as any).primaryArchetype,
+                        battingRole: (s.player as unknown as { battingRole?: string }).battingRole,
+                        bowlingRole: (s.player as unknown as { bowlingRole?: string }).bowlingRole,
+                        primaryArchetype: (s.player as unknown as { primaryArchetype?: string }).primaryArchetype,
                         // Historical Performance Mapping
                         recentRuns: stats?.runs || 0,
                         recentWickets: stats?.wickets || 0,
@@ -207,7 +207,7 @@ export async function POST(request: NextRequest) {
                                 userId: t.userId,
                                 username: t.username,
                                 teamName: t.teamName,
-                                teamId: (t as any).teamId,
+                                teamId: (t as unknown as { teamId?: string }).teamId || t.userId,
                                 squad: t.squad.map(s => ({
                                     player: {
                                         id: s.player.id,

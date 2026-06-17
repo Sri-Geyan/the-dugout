@@ -15,6 +15,26 @@ export interface CricketPlayer {
     secondaryArchetype?: string;
     battingRating?: number;
     bowlingRating?: number;
+    battingStats?: {
+        matches: number;
+        innings: number;
+        runs: number;
+        average: number;
+        strikeRate: number;
+        highestScore: number;
+        fours: number;
+        sixes: number;
+    };
+    bowlingStats?: {
+        matches: number;
+        innings: number;
+        overs: number;
+        runsConceded: number;
+        wickets: number;
+        average: number;
+        economy: number;
+        bestBowling: string;
+    };
 }
 
 // Auto-generated from IPL_2026_Auction_Dataset_Fixed.xlsx — do not edit manually
@@ -31,7 +51,27 @@ export const IPL_PLAYERS: CricketPlayer[] = [
         "battingRole": "Finisher/WK",
         "bowlingRole": "N/A",
         "primaryArchetype": "WK-Bat Finisher",
-        "secondaryArchetype": "Finisher"
+        "secondaryArchetype": "Finisher",
+        "battingStats": {
+            "matches": 688,
+            "innings": 741,
+            "runs": 22018,
+            "average": 44.3,
+            "strikeRate": 86.21,
+            "highestScore": 224,
+            "fours": 1799,
+            "sixes": 599
+        },
+        "bowlingStats": {
+            "matches": 8,
+            "innings": 9,
+            "overs": 23.0,
+            "runsConceded": 98,
+            "wickets": 1,
+            "average": 98.0,
+            "economy": 4.26,
+            "bestBowling": "1/1"
+        }
     },
     {
         "id": "IPL26-002",
@@ -115,7 +155,17 @@ export const IPL_PLAYERS: CricketPlayer[] = [
         "battingRole": "WK-Bat/Finisher",
         "bowlingRole": "N/A",
         "primaryArchetype": "WK-Bat Finisher",
-        "secondaryArchetype": ""
+        "secondaryArchetype": "",
+        "battingStats": {
+            "matches": 41,
+            "innings": 41,
+            "runs": 808,
+            "average": 20.2,
+            "strikeRate": 156.29,
+            "highestScore": 96,
+            "fours": 95,
+            "sixes": 36
+        }
     },
     {
         "id": "IPL26-008",
@@ -129,7 +179,27 @@ export const IPL_PLAYERS: CricketPlayer[] = [
         "battingRole": "Lower Order",
         "bowlingRole": "Wrist-Spin",
         "primaryArchetype": "Wicket-Taking Spinner",
-        "secondaryArchetype": "Mystery Spinner"
+        "secondaryArchetype": "Mystery Spinner",
+        "battingStats": {
+            "matches": 46,
+            "innings": 46,
+            "runs": 196,
+            "average": 6.76,
+            "strikeRate": 89.5,
+            "highestScore": 23,
+            "fours": 9,
+            "sixes": 10
+        },
+        "bowlingStats": {
+            "matches": 157,
+            "innings": 158,
+            "overs": 610.0,
+            "runsConceded": 4356,
+            "wickets": 187,
+            "average": 23.29,
+            "economy": 7.14,
+            "bestBowling": "5/7"
+        }
     },
     {
         "id": "IPL26-009",
@@ -199,7 +269,27 @@ export const IPL_PLAYERS: CricketPlayer[] = [
         "battingRole": "Tail",
         "bowlingRole": "Swing Pacer",
         "primaryArchetype": "Powerplay Pacer",
-        "secondaryArchetype": ""
+        "secondaryArchetype": "",
+        "battingStats": {
+            "matches": 6,
+            "innings": 6,
+            "runs": 25,
+            "average": 25.0,
+            "strikeRate": 113.64,
+            "highestScore": 11,
+            "fours": 4,
+            "sixes": 0
+        },
+        "bowlingStats": {
+            "matches": 35,
+            "innings": 35,
+            "overs": 129.0,
+            "runsConceded": 1110,
+            "wickets": 41,
+            "average": 27.07,
+            "economy": 8.6,
+            "bestBowling": "4/10"
+        }
     },
     {
         "id": "IPL26-014",
@@ -227,7 +317,17 @@ export const IPL_PLAYERS: CricketPlayer[] = [
         "battingRole": "Tail",
         "bowlingRole": "Swing Pacer",
         "primaryArchetype": "Powerplay Pacer",
-        "secondaryArchetype": ""
+        "secondaryArchetype": "",
+        "bowlingStats": {
+            "matches": 8,
+            "innings": 8,
+            "overs": 26.5,
+            "runsConceded": 233,
+            "wickets": 4,
+            "average": 58.25,
+            "economy": 8.79,
+            "bestBowling": "1/7"
+        }
     },
     {
         "id": "IPL26-016",
@@ -269,7 +369,17 @@ export const IPL_PLAYERS: CricketPlayer[] = [
         "battingRole": "Middle-Order/Opener",
         "bowlingRole": "N/A",
         "primaryArchetype": "Aggressive Opener",
-        "secondaryArchetype": ""
+        "secondaryArchetype": "",
+        "battingStats": {
+            "matches": 11,
+            "innings": 11,
+            "runs": 295,
+            "average": 32.78,
+            "strikeRate": 134.09,
+            "highestScore": 71,
+            "fours": 24,
+            "sixes": 16
+        }
     },
     {
         "id": "IPL26-019",
@@ -381,7 +491,17 @@ export const IPL_PLAYERS: CricketPlayer[] = [
         "battingRole": "WK-Bat/Anchor",
         "bowlingRole": "N/A",
         "primaryArchetype": "WK-Bat Anchor",
-        "secondaryArchetype": "Anchor Opener"
+        "secondaryArchetype": "Anchor Opener",
+        "battingStats": {
+            "matches": 372,
+            "innings": 429,
+            "runs": 15559,
+            "average": 42.63,
+            "strikeRate": 88.79,
+            "highestScore": 199,
+            "fours": 1447,
+            "sixes": 455
+        }
     },
     {
         "id": "IPL26-027",
@@ -409,7 +529,27 @@ export const IPL_PLAYERS: CricketPlayer[] = [
         "battingRole": "Tail",
         "bowlingRole": "Wrist-Spin",
         "primaryArchetype": "Wicket-Taking Spinner",
-        "secondaryArchetype": "Mystery Spinner"
+        "secondaryArchetype": "Mystery Spinner",
+        "battingStats": {
+            "matches": 105,
+            "innings": 112,
+            "runs": 709,
+            "average": 12.22,
+            "strikeRate": 42.38,
+            "highestScore": 40,
+            "fours": 59,
+            "sixes": 4
+        },
+        "bowlingStats": {
+            "matches": 307,
+            "innings": 322,
+            "overs": 2129.0,
+            "runsConceded": 11665,
+            "wickets": 491,
+            "average": 23.76,
+            "economy": 5.48,
+            "bestBowling": "8/1"
+        }
     },
     {
         "id": "IPL26-029",
@@ -465,7 +605,27 @@ export const IPL_PLAYERS: CricketPlayer[] = [
         "battingRole": "Tail",
         "bowlingRole": "Swing Pacer",
         "primaryArchetype": "Powerplay Pacer",
-        "secondaryArchetype": ""
+        "secondaryArchetype": "",
+        "battingStats": {
+            "matches": 16,
+            "innings": 17,
+            "runs": 29,
+            "average": 5.8,
+            "strikeRate": 51.79,
+            "highestScore": 6,
+            "fours": 3,
+            "sixes": 0
+        },
+        "bowlingStats": {
+            "matches": 82,
+            "innings": 86,
+            "overs": 350.5,
+            "runsConceded": 2713,
+            "wickets": 92,
+            "average": 29.49,
+            "economy": 7.74,
+            "bestBowling": "4/3"
+        }
     },
     {
         "id": "IPL26-033",
@@ -493,7 +653,17 @@ export const IPL_PLAYERS: CricketPlayer[] = [
         "battingRole": "WK-Bat/Middle",
         "bowlingRole": "N/A",
         "primaryArchetype": "WK-Bat Anchor",
-        "secondaryArchetype": ""
+        "secondaryArchetype": "",
+        "battingStats": {
+            "matches": 36,
+            "innings": 36,
+            "runs": 822,
+            "average": 24.91,
+            "strikeRate": 140.03,
+            "highestScore": 65,
+            "fours": 86,
+            "sixes": 30
+        }
     },
     {
         "id": "IPL26-035",
@@ -507,7 +677,17 @@ export const IPL_PLAYERS: CricketPlayer[] = [
         "battingRole": "Finisher",
         "bowlingRole": "Part-time Pacer",
         "primaryArchetype": "Aggressive Middle-Order",
-        "secondaryArchetype": ""
+        "secondaryArchetype": "",
+        "battingStats": {
+            "matches": 33,
+            "innings": 33,
+            "runs": 792,
+            "average": 30.46,
+            "strikeRate": 160.65,
+            "highestScore": 84,
+            "fours": 66,
+            "sixes": 50
+        }
     },
     {
         "id": "IPL26-036",
@@ -521,7 +701,17 @@ export const IPL_PLAYERS: CricketPlayer[] = [
         "battingRole": "Middle-Order",
         "bowlingRole": "N/A",
         "primaryArchetype": "Aggressive Middle-Order",
-        "secondaryArchetype": ""
+        "secondaryArchetype": "",
+        "battingStats": {
+            "matches": 25,
+            "innings": 25,
+            "runs": 637,
+            "average": 35.39,
+            "strikeRate": 135.82,
+            "highestScore": 90,
+            "fours": 47,
+            "sixes": 38
+        }
     },
     {
         "id": "IPL26-037",
@@ -577,7 +767,27 @@ export const IPL_PLAYERS: CricketPlayer[] = [
         "battingRole": "Lower Order",
         "bowlingRole": "Part-time AR",
         "primaryArchetype": "Economy Spinner",
-        "secondaryArchetype": ""
+        "secondaryArchetype": "",
+        "battingStats": {
+            "matches": 20,
+            "innings": 20,
+            "runs": 217,
+            "average": 16.69,
+            "strikeRate": 113.61,
+            "highestScore": 33,
+            "fours": 17,
+            "sixes": 8
+        },
+        "bowlingStats": {
+            "matches": 26,
+            "innings": 27,
+            "overs": 85.2,
+            "runsConceded": 589,
+            "wickets": 26,
+            "average": 22.65,
+            "economy": 6.92,
+            "bestBowling": "3/9"
+        }
     },
     {
         "id": "IPL26-041",
@@ -731,7 +941,27 @@ export const IPL_PLAYERS: CricketPlayer[] = [
         "battingRole": "Opener/Captain",
         "bowlingRole": "N/A",
         "primaryArchetype": "Anchor Opener",
-        "secondaryArchetype": ""
+        "secondaryArchetype": "",
+        "battingStats": {
+            "matches": 287,
+            "innings": 321,
+            "runs": 12119,
+            "average": 43.44,
+            "strikeRate": 97.09,
+            "highestScore": 430,
+            "fours": 1283,
+            "sixes": 315
+        },
+        "bowlingStats": {
+            "matches": 3,
+            "innings": 3,
+            "overs": 4.2,
+            "runsConceded": 26,
+            "wickets": 0,
+            "average": 0.0,
+            "economy": 6.24,
+            "bestBowling": "-"
+        }
     },
     {
         "id": "IPL26-052",
@@ -745,7 +975,27 @@ export const IPL_PLAYERS: CricketPlayer[] = [
         "battingRole": "Lower Order Hitter",
         "bowlingRole": "Leg-Spin",
         "primaryArchetype": "Wicket-Taking Spinner",
-        "secondaryArchetype": "Mystery Spinner"
+        "secondaryArchetype": "Mystery Spinner",
+        "battingStats": {
+            "matches": 225,
+            "innings": 225,
+            "runs": 1998,
+            "average": 12.57,
+            "strikeRate": 135.0,
+            "highestScore": 79,
+            "fours": 149,
+            "sixes": 126
+        },
+        "bowlingStats": {
+            "matches": 407,
+            "innings": 410,
+            "overs": 1571.3,
+            "runsConceded": 10715,
+            "wickets": 517,
+            "average": 20.73,
+            "economy": 6.82,
+            "bestBowling": "6/3"
+        }
     },
     {
         "id": "IPL26-053",
@@ -787,7 +1037,27 @@ export const IPL_PLAYERS: CricketPlayer[] = [
         "battingRole": "Tail",
         "bowlingRole": "Swing+Yorker Pacer",
         "primaryArchetype": "Powerplay Pacer",
-        "secondaryArchetype": "Death Specialist"
+        "secondaryArchetype": "Death Specialist",
+        "battingStats": {
+            "matches": 92,
+            "innings": 112,
+            "runs": 379,
+            "average": 6.42,
+            "strikeRate": 46.39,
+            "highestScore": 21,
+            "fours": 35,
+            "sixes": 6
+        },
+        "bowlingStats": {
+            "matches": 259,
+            "innings": 299,
+            "overs": 2222.7,
+            "runsConceded": 11135,
+            "wickets": 404,
+            "average": 27.56,
+            "economy": 5.01,
+            "bestBowling": "9/5"
+        }
     },
     {
         "id": "IPL26-056",
@@ -829,7 +1099,27 @@ export const IPL_PLAYERS: CricketPlayer[] = [
         "battingRole": "Opener/Middle",
         "bowlingRole": "Off-Spin",
         "primaryArchetype": "Spin All-Rounder",
-        "secondaryArchetype": "Economy Spinner"
+        "secondaryArchetype": "Economy Spinner",
+        "battingStats": {
+            "matches": 149,
+            "innings": 166,
+            "runs": 3204,
+            "average": 25.84,
+            "strikeRate": 76.27,
+            "highestScore": 128,
+            "fours": 279,
+            "sixes": 90
+        },
+        "bowlingStats": {
+            "matches": 196,
+            "innings": 212,
+            "overs": 1131.7,
+            "runsConceded": 5681,
+            "wickets": 191,
+            "average": 29.74,
+            "economy": 5.02,
+            "bestBowling": "11/1"
+        }
     },
     {
         "id": "IPL26-059",
@@ -913,7 +1203,17 @@ export const IPL_PLAYERS: CricketPlayer[] = [
         "battingRole": "WK-Bat/Middle",
         "bowlingRole": "N/A",
         "primaryArchetype": "WK-Bat Anchor",
-        "secondaryArchetype": ""
+        "secondaryArchetype": "",
+        "battingStats": {
+            "matches": 47,
+            "innings": 47,
+            "runs": 903,
+            "average": 27.36,
+            "strikeRate": 119.44,
+            "highestScore": 88,
+            "fours": 77,
+            "sixes": 43
+        }
     },
     {
         "id": "IPL26-065",
@@ -927,7 +1227,17 @@ export const IPL_PLAYERS: CricketPlayer[] = [
         "battingRole": "WK-Bat",
         "bowlingRole": "N/A",
         "primaryArchetype": "WK-Bat Anchor",
-        "secondaryArchetype": ""
+        "secondaryArchetype": "",
+        "battingStats": {
+            "matches": 5,
+            "innings": 5,
+            "runs": 21,
+            "average": 4.2,
+            "strikeRate": 95.45,
+            "highestScore": 18,
+            "fours": 3,
+            "sixes": 0
+        }
     },
     {
         "id": "IPL26-066",
@@ -997,7 +1307,27 @@ export const IPL_PLAYERS: CricketPlayer[] = [
         "battingRole": "Tail",
         "bowlingRole": "Left-Arm Spin",
         "primaryArchetype": "Economy Spinner",
-        "secondaryArchetype": ""
+        "secondaryArchetype": "",
+        "battingStats": {
+            "matches": 16,
+            "innings": 16,
+            "runs": 172,
+            "average": 21.5,
+            "strikeRate": 121.13,
+            "highestScore": 58,
+            "fours": 9,
+            "sixes": 11
+        },
+        "bowlingStats": {
+            "matches": 33,
+            "innings": 33,
+            "overs": 126.5,
+            "runsConceded": 951,
+            "wickets": 25,
+            "average": 38.04,
+            "economy": 7.52,
+            "bestBowling": "3/7"
+        }
     },
     {
         "id": "IPL26-071",
@@ -1039,7 +1369,27 @@ export const IPL_PLAYERS: CricketPlayer[] = [
         "battingRole": "Tail",
         "bowlingRole": "Pace Bowler",
         "primaryArchetype": "Powerplay Pacer",
-        "secondaryArchetype": ""
+        "secondaryArchetype": "",
+        "battingStats": {
+            "matches": 2,
+            "innings": 2,
+            "runs": 1,
+            "average": 1.0,
+            "strikeRate": 20.0,
+            "highestScore": 1,
+            "fours": 0,
+            "sixes": 0
+        },
+        "bowlingStats": {
+            "matches": 6,
+            "innings": 6,
+            "overs": 22.7,
+            "runsConceded": 228,
+            "wickets": 6,
+            "average": 38.0,
+            "economy": 10.06,
+            "bestBowling": "2/31"
+        }
     },
     {
         "id": "IPL26-074",
@@ -1123,7 +1473,27 @@ export const IPL_PLAYERS: CricketPlayer[] = [
         "battingRole": "Tail",
         "bowlingRole": "Pace Bowler",
         "primaryArchetype": "Powerplay Pacer",
-        "secondaryArchetype": ""
+        "secondaryArchetype": "",
+        "battingStats": {
+            "matches": 22,
+            "innings": 23,
+            "runs": 247,
+            "average": 15.44,
+            "strikeRate": 102.49,
+            "highestScore": 52,
+            "fours": 20,
+            "sixes": 11
+        },
+        "bowlingStats": {
+            "matches": 59,
+            "innings": 60,
+            "overs": 314.8,
+            "runsConceded": 2317,
+            "wickets": 81,
+            "average": 28.6,
+            "economy": 7.36,
+            "bestBowling": "4/9"
+        }
     },
     {
         "id": "IPL26-080",
@@ -1151,7 +1521,27 @@ export const IPL_PLAYERS: CricketPlayer[] = [
         "battingRole": "Finisher",
         "bowlingRole": "Part-time Pacer",
         "primaryArchetype": "Finisher",
-        "secondaryArchetype": "Pace All-Rounder"
+        "secondaryArchetype": "Pace All-Rounder",
+        "battingStats": {
+            "matches": 42,
+            "innings": 42,
+            "runs": 483,
+            "average": 18.58,
+            "strikeRate": 145.05,
+            "highestScore": 35,
+            "fours": 29,
+            "sixes": 30
+        },
+        "bowlingStats": {
+            "matches": 17,
+            "innings": 17,
+            "overs": 35.0,
+            "runsConceded": 297,
+            "wickets": 15,
+            "average": 19.8,
+            "economy": 8.49,
+            "bestBowling": "3/5"
+        }
     },
     {
         "id": "IPL26-082",
@@ -1235,7 +1625,27 @@ export const IPL_PLAYERS: CricketPlayer[] = [
         "battingRole": "Tail",
         "bowlingRole": "Express Pacer",
         "primaryArchetype": "Powerplay Pacer",
-        "secondaryArchetype": ""
+        "secondaryArchetype": "",
+        "battingStats": {
+            "matches": 10,
+            "innings": 10,
+            "runs": 30,
+            "average": 15.0,
+            "strikeRate": 103.45,
+            "highestScore": 19,
+            "fours": 2,
+            "sixes": 2
+        },
+        "bowlingStats": {
+            "matches": 50,
+            "innings": 50,
+            "overs": 205.0,
+            "runsConceded": 1596,
+            "wickets": 66,
+            "average": 24.18,
+            "economy": 7.79,
+            "bestBowling": "5/9"
+        }
     },
     {
         "id": "IPL26-088",
@@ -1277,7 +1687,27 @@ export const IPL_PLAYERS: CricketPlayer[] = [
         "battingRole": "Tail",
         "bowlingRole": "Cutter/Swing Pacer",
         "primaryArchetype": "Economy Pacer",
-        "secondaryArchetype": "Death Specialist"
+        "secondaryArchetype": "Death Specialist",
+        "battingStats": {
+            "matches": 137,
+            "innings": 146,
+            "runs": 421,
+            "average": 6.19,
+            "strikeRate": 53.09,
+            "highestScore": 21,
+            "fours": 31,
+            "sixes": 15
+        },
+        "bowlingStats": {
+            "matches": 412,
+            "innings": 426,
+            "overs": 2378.5,
+            "runsConceded": 13665,
+            "wickets": 574,
+            "average": 23.81,
+            "economy": 5.75,
+            "bestBowling": "6/3"
+        }
     },
     {
         "id": "IPL26-091",
@@ -1347,7 +1777,27 @@ export const IPL_PLAYERS: CricketPlayer[] = [
         "battingRole": "Tail",
         "bowlingRole": "Swing Pacer",
         "primaryArchetype": "Powerplay Pacer",
-        "secondaryArchetype": ""
+        "secondaryArchetype": "",
+        "battingStats": {
+            "matches": 23,
+            "innings": 27,
+            "runs": 237,
+            "average": 11.85,
+            "strikeRate": 66.2,
+            "highestScore": 66,
+            "fours": 24,
+            "sixes": 11
+        },
+        "bowlingStats": {
+            "matches": 45,
+            "innings": 53,
+            "overs": 388.8,
+            "runsConceded": 2049,
+            "wickets": 63,
+            "average": 32.52,
+            "economy": 5.27,
+            "bestBowling": "10/9"
+        }
     },
     {
         "id": "IPL26-096",
@@ -1389,7 +1839,27 @@ export const IPL_PLAYERS: CricketPlayer[] = [
         "battingRole": "Tail",
         "bowlingRole": "Pace Bowler",
         "primaryArchetype": "Powerplay Pacer",
-        "secondaryArchetype": ""
+        "secondaryArchetype": "",
+        "battingStats": {
+            "matches": 9,
+            "innings": 9,
+            "runs": 24,
+            "average": 3.43,
+            "strikeRate": 92.31,
+            "highestScore": 7,
+            "fours": 2,
+            "sixes": 1
+        },
+        "bowlingStats": {
+            "matches": 40,
+            "innings": 40,
+            "overs": 149.7,
+            "runsConceded": 1362,
+            "wickets": 36,
+            "average": 37.83,
+            "economy": 9.1,
+            "bestBowling": "3/8"
+        }
     },
     {
         "id": "IPL26-099",
@@ -1403,7 +1873,17 @@ export const IPL_PLAYERS: CricketPlayer[] = [
         "battingRole": "Middle-Order",
         "bowlingRole": "N/A",
         "primaryArchetype": "Anchor Middle-Order",
-        "secondaryArchetype": ""
+        "secondaryArchetype": "",
+        "battingStats": {
+            "matches": 4,
+            "innings": 4,
+            "runs": 61,
+            "average": 15.25,
+            "strikeRate": 127.08,
+            "highestScore": 31,
+            "fours": 8,
+            "sixes": 2
+        }
     },
     {
         "id": "IPL26-100",
@@ -1473,7 +1953,27 @@ export const IPL_PLAYERS: CricketPlayer[] = [
         "battingRole": "Tail",
         "bowlingRole": "Swing+Death Pacer",
         "primaryArchetype": "All-Phase Pacer",
-        "secondaryArchetype": ""
+        "secondaryArchetype": "",
+        "battingStats": {
+            "matches": 144,
+            "innings": 174,
+            "runs": 1132,
+            "average": 10.02,
+            "strikeRate": 78.61,
+            "highestScore": 56,
+            "fours": 113,
+            "sixes": 42
+        },
+        "bowlingStats": {
+            "matches": 329,
+            "innings": 389,
+            "overs": 3434.3,
+            "runsConceded": 16272,
+            "wickets": 606,
+            "average": 26.85,
+            "economy": 4.74,
+            "bestBowling": "9/5"
+        }
     },
     {
         "id": "IPL26-105",
@@ -1487,7 +1987,27 @@ export const IPL_PLAYERS: CricketPlayer[] = [
         "battingRole": "Tail",
         "bowlingRole": "Left-Arm Swing Pacer",
         "primaryArchetype": "Powerplay Pacer",
-        "secondaryArchetype": ""
+        "secondaryArchetype": "",
+        "battingStats": {
+            "matches": 20,
+            "innings": 20,
+            "runs": 119,
+            "average": 11.9,
+            "strikeRate": 95.97,
+            "highestScore": 19,
+            "fours": 10,
+            "sixes": 4
+        },
+        "bowlingStats": {
+            "matches": 58,
+            "innings": 58,
+            "overs": 210.7,
+            "runsConceded": 1584,
+            "wickets": 76,
+            "average": 20.84,
+            "economy": 7.52,
+            "bestBowling": "5/6"
+        }
     },
     {
         "id": "IPL26-106",
@@ -1515,7 +2035,27 @@ export const IPL_PLAYERS: CricketPlayer[] = [
         "battingRole": "Tail",
         "bowlingRole": "Pace Bowler",
         "primaryArchetype": "Death Specialist",
-        "secondaryArchetype": ""
+        "secondaryArchetype": "",
+        "battingStats": {
+            "matches": 33,
+            "innings": 33,
+            "runs": 138,
+            "average": 9.86,
+            "strikeRate": 113.11,
+            "highestScore": 19,
+            "fours": 13,
+            "sixes": 7
+        },
+        "bowlingStats": {
+            "matches": 141,
+            "innings": 141,
+            "overs": 557.7,
+            "runsConceded": 4535,
+            "wickets": 168,
+            "average": 26.99,
+            "economy": 8.13,
+            "bestBowling": "5/6"
+        }
     },
     {
         "id": "IPL26-108",
@@ -1529,7 +2069,27 @@ export const IPL_PLAYERS: CricketPlayer[] = [
         "battingRole": "Finisher",
         "bowlingRole": "Part-time Pacer",
         "primaryArchetype": "Finisher",
-        "secondaryArchetype": "Pace All-Rounder"
+        "secondaryArchetype": "Pace All-Rounder",
+        "battingStats": {
+            "matches": 102,
+            "innings": 103,
+            "runs": 1636,
+            "average": 23.04,
+            "strikeRate": 135.66,
+            "highestScore": 76,
+            "fours": 110,
+            "sixes": 99
+        },
+        "bowlingStats": {
+            "matches": 33,
+            "innings": 34,
+            "overs": 75.8,
+            "runsConceded": 433,
+            "wickets": 23,
+            "average": 18.83,
+            "economy": 5.71,
+            "bestBowling": "2/1"
+        }
     },
     {
         "id": "IPL26-109",
@@ -1571,7 +2131,27 @@ export const IPL_PLAYERS: CricketPlayer[] = [
         "battingRole": "Middle-Order",
         "bowlingRole": "Left-Arm Spin",
         "primaryArchetype": "Spin All-Rounder",
-        "secondaryArchetype": ""
+        "secondaryArchetype": "",
+        "battingStats": {
+            "matches": 59,
+            "innings": 59,
+            "runs": 897,
+            "average": 21.36,
+            "strikeRate": 118.34,
+            "highestScore": 60,
+            "fours": 51,
+            "sixes": 41
+        },
+        "bowlingStats": {
+            "matches": 83,
+            "innings": 83,
+            "overs": 241.2,
+            "runsConceded": 1858,
+            "wickets": 58,
+            "average": 32.03,
+            "economy": 7.7,
+            "bestBowling": "3/6"
+        }
     },
     {
         "id": "IPL26-112",
@@ -1613,7 +2193,27 @@ export const IPL_PLAYERS: CricketPlayer[] = [
         "battingRole": "Middle-Order",
         "bowlingRole": "N/A",
         "primaryArchetype": "Anchor Middle-Order",
-        "secondaryArchetype": ""
+        "secondaryArchetype": "",
+        "battingStats": {
+            "matches": 38,
+            "innings": 38,
+            "runs": 691,
+            "average": 30.04,
+            "strikeRate": 124.95,
+            "highestScore": 53,
+            "fours": 53,
+            "sixes": 31
+        },
+        "bowlingStats": {
+            "matches": 1,
+            "innings": 1,
+            "overs": 0.5,
+            "runsConceded": 0,
+            "wickets": 1,
+            "average": 0.0,
+            "economy": 0.0,
+            "bestBowling": "1/0"
+        }
     },
     {
         "id": "IPL26-115",
@@ -1655,7 +2255,27 @@ export const IPL_PLAYERS: CricketPlayer[] = [
         "battingRole": "Tail",
         "bowlingRole": "Left-Arm Pacer",
         "primaryArchetype": "Powerplay Pacer",
-        "secondaryArchetype": ""
+        "secondaryArchetype": "",
+        "battingStats": {
+            "matches": 4,
+            "innings": 4,
+            "runs": 25,
+            "average": 12.5,
+            "strikeRate": 89.29,
+            "highestScore": 13,
+            "fours": 3,
+            "sixes": 0
+        },
+        "bowlingStats": {
+            "matches": 19,
+            "innings": 19,
+            "overs": 65.2,
+            "runsConceded": 579,
+            "wickets": 17,
+            "average": 34.06,
+            "economy": 8.88,
+            "bestBowling": "3/15"
+        }
     },
     {
         "id": "IPL26-118",
@@ -1669,7 +2289,27 @@ export const IPL_PLAYERS: CricketPlayer[] = [
         "battingRole": "Lower Order",
         "bowlingRole": "Left-Arm Pacer",
         "primaryArchetype": "Pace All-Rounder",
-        "secondaryArchetype": ""
+        "secondaryArchetype": "",
+        "battingStats": {
+            "matches": 6,
+            "innings": 6,
+            "runs": 38,
+            "average": 7.6,
+            "strikeRate": 88.37,
+            "highestScore": 15,
+            "fours": 1,
+            "sixes": 2
+        },
+        "bowlingStats": {
+            "matches": 13,
+            "innings": 13,
+            "overs": 45.8,
+            "runsConceded": 345,
+            "wickets": 14,
+            "average": 24.64,
+            "economy": 7.53,
+            "bestBowling": "4/9"
+        }
     },
     {
         "id": "IPL26-119",
@@ -1683,7 +2323,27 @@ export const IPL_PLAYERS: CricketPlayer[] = [
         "battingRole": "Middle-Order",
         "bowlingRole": "N/A",
         "primaryArchetype": "Developing",
-        "secondaryArchetype": ""
+        "secondaryArchetype": "",
+        "battingStats": {
+            "matches": 3,
+            "innings": 3,
+            "runs": 5,
+            "average": 5.0,
+            "strikeRate": 41.67,
+            "highestScore": 4,
+            "fours": 0,
+            "sixes": 0
+        },
+        "bowlingStats": {
+            "matches": 22,
+            "innings": 23,
+            "overs": 86.2,
+            "runsConceded": 754,
+            "wickets": 22,
+            "average": 34.27,
+            "economy": 8.75,
+            "bestBowling": "3/20"
+        }
     },
     {
         "id": "IPL26-120",
@@ -1711,7 +2371,17 @@ export const IPL_PLAYERS: CricketPlayer[] = [
         "battingRole": "Middle-Order",
         "bowlingRole": "N/A",
         "primaryArchetype": "Anchor Middle-Order",
-        "secondaryArchetype": ""
+        "secondaryArchetype": "",
+        "battingStats": {
+            "matches": 5,
+            "innings": 5,
+            "runs": 53,
+            "average": 13.25,
+            "strikeRate": 106.0,
+            "highestScore": 18,
+            "fours": 2,
+            "sixes": 2
+        }
     },
     {
         "id": "IPL26-122",
@@ -1781,7 +2451,27 @@ export const IPL_PLAYERS: CricketPlayer[] = [
         "battingRole": "Opener/Captain",
         "bowlingRole": "N/A",
         "primaryArchetype": "Anchor Opener",
-        "secondaryArchetype": "Impact Bat"
+        "secondaryArchetype": "Impact Bat",
+        "battingStats": {
+            "matches": 3,
+            "innings": 3,
+            "runs": 5,
+            "average": 5.0,
+            "strikeRate": 35.71,
+            "highestScore": 5,
+            "fours": 1,
+            "sixes": 0
+        },
+        "bowlingStats": {
+            "matches": 5,
+            "innings": 5,
+            "overs": 15.2,
+            "runsConceded": 94,
+            "wickets": 0,
+            "average": 0.0,
+            "economy": 6.2,
+            "bestBowling": "-"
+        }
     },
     {
         "id": "IPL26-127",
@@ -1837,7 +2527,27 @@ export const IPL_PLAYERS: CricketPlayer[] = [
         "battingRole": "Middle-Order",
         "bowlingRole": "N/A",
         "primaryArchetype": "Aggressive Middle-Order",
-        "secondaryArchetype": "Spin Basher"
+        "secondaryArchetype": "Spin Basher",
+        "battingStats": {
+            "matches": 139,
+            "innings": 141,
+            "runs": 4222,
+            "average": 40.6,
+            "strikeRate": 111.58,
+            "highestScore": 120,
+            "fours": 341,
+            "sixes": 198
+        },
+        "bowlingStats": {
+            "matches": 24,
+            "innings": 25,
+            "overs": 53.7,
+            "runsConceded": 304,
+            "wickets": 7,
+            "average": 43.43,
+            "economy": 5.66,
+            "bestBowling": "1/0"
+        }
     },
     {
         "id": "IPL26-131",
@@ -1879,7 +2589,27 @@ export const IPL_PLAYERS: CricketPlayer[] = [
         "battingRole": "Finisher",
         "bowlingRole": "Part-time Pacer",
         "primaryArchetype": "Pace All-Rounder",
-        "secondaryArchetype": ""
+        "secondaryArchetype": "",
+        "battingStats": {
+            "matches": 37,
+            "innings": 37,
+            "runs": 749,
+            "average": 24.97,
+            "strikeRate": 158.69,
+            "highestScore": 62,
+            "fours": 69,
+            "sixes": 39
+        },
+        "bowlingStats": {
+            "matches": 5,
+            "innings": 5,
+            "overs": 8.8,
+            "runsConceded": 76,
+            "wickets": 0,
+            "average": 0.0,
+            "economy": 8.6,
+            "bestBowling": "-"
+        }
     },
     {
         "id": "IPL26-134",
@@ -2019,7 +2749,27 @@ export const IPL_PLAYERS: CricketPlayer[] = [
         "battingRole": "Tail",
         "bowlingRole": "Pace Bowler",
         "primaryArchetype": "Powerplay Pacer",
-        "secondaryArchetype": ""
+        "secondaryArchetype": "",
+        "battingStats": {
+            "matches": 1,
+            "innings": 1,
+            "runs": 1,
+            "average": 1.0,
+            "strikeRate": 16.67,
+            "highestScore": 1,
+            "fours": 0,
+            "sixes": 0
+        },
+        "bowlingStats": {
+            "matches": 12,
+            "innings": 12,
+            "overs": 37.8,
+            "runsConceded": 384,
+            "wickets": 18,
+            "average": 21.33,
+            "economy": 10.15,
+            "bestBowling": "4/13"
+        }
     },
     {
         "id": "IPL26-144",
@@ -2047,7 +2797,27 @@ export const IPL_PLAYERS: CricketPlayer[] = [
         "battingRole": "Tail",
         "bowlingRole": "Leg-Spin",
         "primaryArchetype": "Wicket-Taking Spinner",
-        "secondaryArchetype": ""
+        "secondaryArchetype": "",
+        "battingStats": {
+            "matches": 1,
+            "innings": 1,
+            "runs": 0,
+            "average": 0.0,
+            "strikeRate": 0.0,
+            "highestScore": 0,
+            "fours": 0,
+            "sixes": 0
+        },
+        "bowlingStats": {
+            "matches": 8,
+            "innings": 8,
+            "overs": 26.3,
+            "runsConceded": 218,
+            "wickets": 4,
+            "average": 54.5,
+            "economy": 8.28,
+            "bestBowling": "2/22"
+        }
     },
     {
         "id": "IPL26-146",
@@ -2075,7 +2845,27 @@ export const IPL_PLAYERS: CricketPlayer[] = [
         "battingRole": "Lower Order",
         "bowlingRole": "Off-Spin AR",
         "primaryArchetype": "Spin All-Rounder",
-        "secondaryArchetype": ""
+        "secondaryArchetype": "",
+        "battingStats": {
+            "matches": 5,
+            "innings": 5,
+            "runs": 78,
+            "average": 39.0,
+            "strikeRate": 132.2,
+            "highestScore": 37,
+            "fours": 1,
+            "sixes": 6
+        },
+        "bowlingStats": {
+            "matches": 11,
+            "innings": 11,
+            "overs": 41.0,
+            "runsConceded": 234,
+            "wickets": 9,
+            "average": 26.0,
+            "economy": 5.71,
+            "bestBowling": "2/12"
+        }
     },
     {
         "id": "IPL26-148",
@@ -2117,7 +2907,27 @@ export const IPL_PLAYERS: CricketPlayer[] = [
         "battingRole": "Middle-Order",
         "bowlingRole": "N/A",
         "primaryArchetype": "Aggressive Opener",
-        "secondaryArchetype": ""
+        "secondaryArchetype": "",
+        "battingStats": {
+            "matches": 1,
+            "innings": 1,
+            "runs": 24,
+            "average": 24.0,
+            "strikeRate": 114.29,
+            "highestScore": 24,
+            "fours": 1,
+            "sixes": 1
+        },
+        "bowlingStats": {
+            "matches": 1,
+            "innings": 1,
+            "overs": 1.0,
+            "runsConceded": 9,
+            "wickets": 0,
+            "average": 0.0,
+            "economy": 9.0,
+            "bestBowling": "-"
+        }
     },
     {
         "id": "IPL26-151",
@@ -2145,7 +2955,27 @@ export const IPL_PLAYERS: CricketPlayer[] = [
         "battingRole": "Tail",
         "bowlingRole": "Death/Powerplay Pacer",
         "primaryArchetype": "Death Specialist",
-        "secondaryArchetype": "Powerplay Pacer"
+        "secondaryArchetype": "Powerplay Pacer",
+        "battingStats": {
+            "matches": 55,
+            "innings": 59,
+            "runs": 236,
+            "average": 8.14,
+            "strikeRate": 96.33,
+            "highestScore": 18,
+            "fours": 23,
+            "sixes": 9
+        },
+        "bowlingStats": {
+            "matches": 209,
+            "innings": 213,
+            "overs": 1008.3,
+            "runsConceded": 7106,
+            "wickets": 290,
+            "average": 24.5,
+            "economy": 7.05,
+            "bestBowling": "5/7"
+        }
     },
     {
         "id": "IPL26-153",
@@ -2201,7 +3031,27 @@ export const IPL_PLAYERS: CricketPlayer[] = [
         "battingRole": "Lower Order",
         "bowlingRole": "Left-Arm Spin",
         "primaryArchetype": "Economy Spinner",
-        "secondaryArchetype": ""
+        "secondaryArchetype": "",
+        "battingStats": {
+            "matches": 40,
+            "innings": 40,
+            "runs": 340,
+            "average": 17.0,
+            "strikeRate": 114.09,
+            "highestScore": 29,
+            "fours": 26,
+            "sixes": 14
+        },
+        "bowlingStats": {
+            "matches": 80,
+            "innings": 80,
+            "overs": 254.7,
+            "runsConceded": 1858,
+            "wickets": 73,
+            "average": 25.45,
+            "economy": 7.3,
+            "bestBowling": "4/4"
+        }
     },
     {
         "id": "IPL26-157",
@@ -2215,7 +3065,27 @@ export const IPL_PLAYERS: CricketPlayer[] = [
         "battingRole": "Finisher",
         "bowlingRole": "Part-time Pacer",
         "primaryArchetype": "Finisher",
-        "secondaryArchetype": ""
+        "secondaryArchetype": "",
+        "battingStats": {
+            "matches": 66,
+            "innings": 66,
+            "runs": 1271,
+            "average": 30.26,
+            "strikeRate": 142.65,
+            "highestScore": 68,
+            "fours": 96,
+            "sixes": 64
+        },
+        "bowlingStats": {
+            "matches": 23,
+            "innings": 23,
+            "overs": 54.3,
+            "runsConceded": 449,
+            "wickets": 16,
+            "average": 28.06,
+            "economy": 8.26,
+            "bestBowling": "3/4"
+        }
     },
     {
         "id": "IPL26-158",
@@ -2229,7 +3099,27 @@ export const IPL_PLAYERS: CricketPlayer[] = [
         "battingRole": "Middle-Order",
         "bowlingRole": "Pace AR",
         "primaryArchetype": "Pace All-Rounder",
-        "secondaryArchetype": "Spin Basher"
+        "secondaryArchetype": "Spin Basher",
+        "battingStats": {
+            "matches": 57,
+            "innings": 57,
+            "runs": 915,
+            "average": 22.88,
+            "strikeRate": 141.64,
+            "highestScore": 50,
+            "fours": 60,
+            "sixes": 54
+        },
+        "bowlingStats": {
+            "matches": 70,
+            "innings": 70,
+            "overs": 237.5,
+            "runsConceded": 2054,
+            "wickets": 75,
+            "average": 27.39,
+            "economy": 8.65,
+            "bestBowling": "4/7"
+        }
     },
     {
         "id": "IPL26-159",
@@ -2313,7 +3203,27 @@ export const IPL_PLAYERS: CricketPlayer[] = [
         "battingRole": "Opener/Middle",
         "bowlingRole": "Part-time Spin",
         "primaryArchetype": "Aggressive Opener",
-        "secondaryArchetype": ""
+        "secondaryArchetype": "",
+        "battingStats": {
+            "matches": 1,
+            "innings": 1,
+            "runs": 0,
+            "average": 0.0,
+            "strikeRate": 0.0,
+            "highestScore": 0,
+            "fours": 0,
+            "sixes": 0
+        },
+        "bowlingStats": {
+            "matches": 1,
+            "innings": 1,
+            "overs": 2.0,
+            "runsConceded": 27,
+            "wickets": 1,
+            "average": 27.0,
+            "economy": 13.5,
+            "bestBowling": "1/27"
+        }
     },
     {
         "id": "IPL26-165",
@@ -2327,7 +3237,17 @@ export const IPL_PLAYERS: CricketPlayer[] = [
         "battingRole": "Opener",
         "bowlingRole": "N/A",
         "primaryArchetype": "Aggressive Opener",
-        "secondaryArchetype": ""
+        "secondaryArchetype": "",
+        "battingStats": {
+            "matches": 39,
+            "innings": 39,
+            "runs": 1175,
+            "average": 30.13,
+            "strikeRate": 174.33,
+            "highestScore": 103,
+            "fours": 115,
+            "sixes": 77
+        }
     },
     {
         "id": "IPL26-166",
@@ -2355,7 +3275,27 @@ export const IPL_PLAYERS: CricketPlayer[] = [
         "battingRole": "Tail",
         "bowlingRole": "Pace Bowler",
         "primaryArchetype": "Death Specialist",
-        "secondaryArchetype": ""
+        "secondaryArchetype": "",
+        "battingStats": {
+            "matches": 7,
+            "innings": 7,
+            "runs": 23,
+            "average": 23.0,
+            "strikeRate": 62.16,
+            "highestScore": 10,
+            "fours": 1,
+            "sixes": 1
+        },
+        "bowlingStats": {
+            "matches": 53,
+            "innings": 53,
+            "overs": 188.2,
+            "runsConceded": 1485,
+            "wickets": 75,
+            "average": 19.8,
+            "economy": 7.89,
+            "bestBowling": "5/5"
+        }
     },
     {
         "id": "IPL26-168",
@@ -2397,7 +3337,27 @@ export const IPL_PLAYERS: CricketPlayer[] = [
         "battingRole": "WK-Bat/Middle",
         "bowlingRole": "N/A",
         "primaryArchetype": "WK-Bat Anchor",
-        "secondaryArchetype": ""
+        "secondaryArchetype": "",
+        "battingStats": {
+            "matches": 34,
+            "innings": 34,
+            "runs": 839,
+            "average": 33.56,
+            "strikeRate": 136.64,
+            "highestScore": 71,
+            "fours": 66,
+            "sixes": 43
+        },
+        "bowlingStats": {
+            "matches": 2,
+            "innings": 2,
+            "overs": 3.3,
+            "runsConceded": 24,
+            "wickets": 0,
+            "average": 0.0,
+            "economy": 7.2,
+            "bestBowling": "-"
+        }
     },
     {
         "id": "IPL26-171",
@@ -2411,7 +3371,27 @@ export const IPL_PLAYERS: CricketPlayer[] = [
         "battingRole": "Opener/Middle",
         "bowlingRole": "N/A",
         "primaryArchetype": "Aggressive Opener",
-        "secondaryArchetype": ""
+        "secondaryArchetype": "",
+        "battingStats": {
+            "matches": 13,
+            "innings": 13,
+            "runs": 243,
+            "average": 34.71,
+            "strikeRate": 182.71,
+            "highestScore": 57,
+            "fours": 13,
+            "sixes": 20
+        },
+        "bowlingStats": {
+            "matches": 4,
+            "innings": 4,
+            "overs": 11.3,
+            "runsConceded": 119,
+            "wickets": 5,
+            "average": 23.8,
+            "economy": 10.5,
+            "bestBowling": "2/11"
+        }
     },
     {
         "id": "IPL26-172",
@@ -2537,7 +3517,17 @@ export const IPL_PLAYERS: CricketPlayer[] = [
         "battingRole": "WK-Bat/Middle",
         "bowlingRole": "N/A",
         "primaryArchetype": "WK-Bat Anchor",
-        "secondaryArchetype": ""
+        "secondaryArchetype": "",
+        "battingStats": {
+            "matches": 68,
+            "innings": 74,
+            "runs": 1735,
+            "average": 31.55,
+            "strikeRate": 101.23,
+            "highestScore": 129,
+            "fours": 147,
+            "sixes": 77
+        }
     },
     {
         "id": "IPL26-181",
@@ -2579,7 +3569,27 @@ export const IPL_PLAYERS: CricketPlayer[] = [
         "battingRole": "Tail",
         "bowlingRole": "Swing Pacer",
         "primaryArchetype": "Economy Pacer",
-        "secondaryArchetype": "Powerplay Pacer"
+        "secondaryArchetype": "Powerplay Pacer",
+        "battingStats": {
+            "matches": 33,
+            "innings": 33,
+            "runs": 81,
+            "average": 13.5,
+            "strikeRate": 74.31,
+            "highestScore": 9,
+            "fours": 5,
+            "sixes": 0
+        },
+        "bowlingStats": {
+            "matches": 169,
+            "innings": 170,
+            "overs": 648.7,
+            "runsConceded": 5021,
+            "wickets": 176,
+            "average": 28.53,
+            "economy": 7.74,
+            "bestBowling": "5/6"
+        }
     },
     {
         "id": "IPL26-184",
@@ -2705,7 +3715,27 @@ export const IPL_PLAYERS: CricketPlayer[] = [
         "battingRole": "Tail",
         "bowlingRole": "Leg-Spin",
         "primaryArchetype": "Wicket-Taking Spinner",
-        "secondaryArchetype": "Mystery Spinner"
+        "secondaryArchetype": "Mystery Spinner",
+        "battingStats": {
+            "matches": 39,
+            "innings": 39,
+            "runs": 145,
+            "average": 6.04,
+            "strikeRate": 88.96,
+            "highestScore": 15,
+            "fours": 16,
+            "sixes": 4
+        },
+        "bowlingStats": {
+            "matches": 145,
+            "innings": 145,
+            "overs": 554.3,
+            "runsConceded": 4108,
+            "wickets": 174,
+            "average": 23.61,
+            "economy": 7.41,
+            "bestBowling": "4/6"
+        }
     },
     {
         "id": "IPL26-193",
@@ -2733,7 +3763,17 @@ export const IPL_PLAYERS: CricketPlayer[] = [
         "battingRole": "Lower Order",
         "bowlingRole": "Part-time AR",
         "primaryArchetype": "Spin All-Rounder",
-        "secondaryArchetype": ""
+        "secondaryArchetype": "",
+        "battingStats": {
+            "matches": 1,
+            "innings": 1,
+            "runs": 4,
+            "average": 4.0,
+            "strikeRate": 200.0,
+            "highestScore": 4,
+            "fours": 1,
+            "sixes": 0
+        }
     },
     {
         "id": "IPL26-195",
@@ -2775,7 +3815,27 @@ export const IPL_PLAYERS: CricketPlayer[] = [
         "battingRole": "Tail",
         "bowlingRole": "Pace Bowler",
         "primaryArchetype": "Powerplay Pacer",
-        "secondaryArchetype": ""
+        "secondaryArchetype": "",
+        "battingStats": {
+            "matches": 2,
+            "innings": 2,
+            "runs": 2,
+            "average": 2.0,
+            "strikeRate": 50.0,
+            "highestScore": 1,
+            "fours": 0,
+            "sixes": 0
+        },
+        "bowlingStats": {
+            "matches": 13,
+            "innings": 13,
+            "overs": 49.5,
+            "runsConceded": 450,
+            "wickets": 14,
+            "average": 32.14,
+            "economy": 9.09,
+            "bestBowling": "2/17"
+        }
     },
     {
         "id": "IPL26-198",
@@ -2873,7 +3933,27 @@ export const IPL_PLAYERS: CricketPlayer[] = [
         "battingRole": "Tail",
         "bowlingRole": "Left-Arm Death Pacer",
         "primaryArchetype": "Death Specialist",
-        "secondaryArchetype": ""
+        "secondaryArchetype": "",
+        "battingStats": {
+            "matches": 7,
+            "innings": 7,
+            "runs": 10,
+            "average": 2.5,
+            "strikeRate": 47.62,
+            "highestScore": 4,
+            "fours": 0,
+            "sixes": 0
+        },
+        "bowlingStats": {
+            "matches": 62,
+            "innings": 62,
+            "overs": 214.0,
+            "runsConceded": 1789,
+            "wickets": 57,
+            "average": 31.39,
+            "economy": 8.36,
+            "bestBowling": "3/8"
+        }
     },
     {
         "id": "IPL26-205",
@@ -2957,7 +4037,27 @@ export const IPL_PLAYERS: CricketPlayer[] = [
         "battingRole": "Lower Order",
         "bowlingRole": "Off-Spin AR",
         "primaryArchetype": "Spin All-Rounder",
-        "secondaryArchetype": ""
+        "secondaryArchetype": "",
+        "battingStats": {
+            "matches": 38,
+            "innings": 38,
+            "runs": 585,
+            "average": 22.5,
+            "strikeRate": 121.12,
+            "highestScore": 50,
+            "fours": 38,
+            "sixes": 27
+        },
+        "bowlingStats": {
+            "matches": 47,
+            "innings": 47,
+            "overs": 145.2,
+            "runsConceded": 1033,
+            "wickets": 39,
+            "average": 26.49,
+            "economy": 7.12,
+            "bestBowling": "3/1"
+        }
     },
     {
         "id": "IPL26-211",
@@ -2999,7 +4099,17 @@ export const IPL_PLAYERS: CricketPlayer[] = [
         "battingRole": "Tail",
         "bowlingRole": "Leg-Spin",
         "primaryArchetype": "Wicket-Taking Spinner",
-        "secondaryArchetype": ""
+        "secondaryArchetype": "",
+        "bowlingStats": {
+            "matches": 45,
+            "innings": 45,
+            "overs": 161.5,
+            "runsConceded": 1347,
+            "wickets": 41,
+            "average": 32.85,
+            "economy": 8.34,
+            "bestBowling": "5/5"
+        }
     },
     {
         "id": "IPL26-214",
@@ -3041,7 +4151,17 @@ export const IPL_PLAYERS: CricketPlayer[] = [
         "battingRole": "Tail",
         "bowlingRole": "Pace Bowler",
         "primaryArchetype": "Powerplay Pacer",
-        "secondaryArchetype": ""
+        "secondaryArchetype": "",
+        "bowlingStats": {
+            "matches": 3,
+            "innings": 3,
+            "overs": 10.0,
+            "runsConceded": 122,
+            "wickets": 3,
+            "average": 40.67,
+            "economy": 12.2,
+            "bestBowling": "2/30"
+        }
     },
     {
         "id": "IPL26-217",
@@ -3153,7 +4273,17 @@ export const IPL_PLAYERS: CricketPlayer[] = [
         "battingRole": "Tail",
         "bowlingRole": "Leg-Spin",
         "primaryArchetype": "Wicket-Taking Spinner",
-        "secondaryArchetype": ""
+        "secondaryArchetype": "",
+        "bowlingStats": {
+            "matches": 8,
+            "innings": 8,
+            "overs": 31.0,
+            "runsConceded": 279,
+            "wickets": 9,
+            "average": 31.0,
+            "economy": 9.0,
+            "bestBowling": "2/25"
+        }
     },
     {
         "id": "IPL26-225",
@@ -3209,7 +4339,27 @@ export const IPL_PLAYERS: CricketPlayer[] = [
         "battingRole": "Opener",
         "bowlingRole": "Left-Arm Spin",
         "primaryArchetype": "Aggressive Opener",
-        "secondaryArchetype": "Spin All-Rounder"
+        "secondaryArchetype": "Spin All-Rounder",
+        "battingStats": {
+            "matches": 168,
+            "innings": 168,
+            "runs": 4695,
+            "average": 31.51,
+            "strikeRate": 163.53,
+            "highestScore": 141,
+            "fours": 438,
+            "sixes": 291
+        },
+        "bowlingStats": {
+            "matches": 78,
+            "innings": 78,
+            "overs": 155.8,
+            "runsConceded": 1226,
+            "wickets": 36,
+            "average": 34.06,
+            "economy": 7.87,
+            "bestBowling": "3/2"
+        }
     },
     {
         "id": "IPL26-229",
@@ -3237,7 +4387,27 @@ export const IPL_PLAYERS: CricketPlayer[] = [
         "battingRole": "WK-Bat/Opener",
         "bowlingRole": "N/A",
         "primaryArchetype": "WK-Bat Opener",
-        "secondaryArchetype": "Impact Bat"
+        "secondaryArchetype": "Impact Bat",
+        "battingStats": {
+            "matches": 222,
+            "innings": 224,
+            "runs": 6823,
+            "average": 33.78,
+            "strikeRate": 129.37,
+            "highestScore": 210,
+            "fours": 687,
+            "sixes": 305
+        },
+        "bowlingStats": {
+            "matches": 2,
+            "innings": 2,
+            "overs": 1.2,
+            "runsConceded": 5,
+            "wickets": 0,
+            "average": 0.0,
+            "economy": 4.29,
+            "bestBowling": "-"
+        }
     },
     {
         "id": "IPL26-231",
@@ -3279,7 +4449,17 @@ export const IPL_PLAYERS: CricketPlayer[] = [
         "battingRole": "Tail",
         "bowlingRole": "Left-Arm Spin",
         "primaryArchetype": "Wicket-Taking Spinner",
-        "secondaryArchetype": ""
+        "secondaryArchetype": "",
+        "bowlingStats": {
+            "matches": 11,
+            "innings": 11,
+            "overs": 39.0,
+            "runsConceded": 365,
+            "wickets": 6,
+            "average": 60.83,
+            "economy": 9.36,
+            "bestBowling": "3/22"
+        }
     },
     {
         "id": "IPL26-234",
@@ -3321,7 +4501,27 @@ export const IPL_PLAYERS: CricketPlayer[] = [
         "battingRole": "Tail",
         "bowlingRole": "Left-Arm Spin",
         "primaryArchetype": "Economy Spinner",
-        "secondaryArchetype": ""
+        "secondaryArchetype": "",
+        "battingStats": {
+            "matches": 4,
+            "innings": 4,
+            "runs": 13,
+            "average": 6.5,
+            "strikeRate": 118.18,
+            "highestScore": 9,
+            "fours": 2,
+            "sixes": 0
+        },
+        "bowlingStats": {
+            "matches": 15,
+            "innings": 15,
+            "overs": 44.5,
+            "runsConceded": 397,
+            "wickets": 15,
+            "average": 26.47,
+            "economy": 8.92,
+            "bestBowling": "3/8"
+        }
     },
     {
         "id": "IPL26-237",
@@ -3335,7 +4535,17 @@ export const IPL_PLAYERS: CricketPlayer[] = [
         "battingRole": "Middle-Order",
         "bowlingRole": "N/A",
         "primaryArchetype": "Anchor Middle-Order",
-        "secondaryArchetype": ""
+        "secondaryArchetype": "",
+        "battingStats": {
+            "matches": 20,
+            "innings": 20,
+            "runs": 315,
+            "average": 22.5,
+            "strikeRate": 153.66,
+            "highestScore": 74,
+            "fours": 18,
+            "sixes": 25
+        }
     },
     {
         "id": "IPL26-238",
@@ -3391,7 +4601,17 @@ export const IPL_PLAYERS: CricketPlayer[] = [
         "battingRole": "WK-Bat Finisher",
         "bowlingRole": "N/A",
         "primaryArchetype": "WK-Bat Finisher",
-        "secondaryArchetype": "Impact Bat"
+        "secondaryArchetype": "Impact Bat",
+        "battingStats": {
+            "matches": 1,
+            "innings": 1,
+            "runs": 35,
+            "average": 35.0,
+            "strikeRate": 140.0,
+            "highestScore": 35,
+            "fours": 2,
+            "sixes": 2
+        }
     },
     {
         "id": "IPL26-242",
@@ -3419,7 +4639,27 @@ export const IPL_PLAYERS: CricketPlayer[] = [
         "battingRole": "Lower Order",
         "bowlingRole": "Pace Bowler",
         "primaryArchetype": "Powerplay Pacer",
-        "secondaryArchetype": ""
+        "secondaryArchetype": "",
+        "battingStats": {
+            "matches": 16,
+            "innings": 16,
+            "runs": 85,
+            "average": 6.07,
+            "strikeRate": 92.39,
+            "highestScore": 26,
+            "fours": 6,
+            "sixes": 4
+        },
+        "bowlingStats": {
+            "matches": 46,
+            "innings": 46,
+            "overs": 158.8,
+            "runsConceded": 1308,
+            "wickets": 45,
+            "average": 29.07,
+            "economy": 8.24,
+            "bestBowling": "4/6"
+        }
     },
     {
         "id": "IPL26-244",
@@ -3433,7 +4673,27 @@ export const IPL_PLAYERS: CricketPlayer[] = [
         "battingRole": "Tail",
         "bowlingRole": "Leg-Spin",
         "primaryArchetype": "Wicket-Taking Spinner",
-        "secondaryArchetype": ""
+        "secondaryArchetype": "",
+        "battingStats": {
+            "matches": 1,
+            "innings": 1,
+            "runs": 2,
+            "average": 2.0,
+            "strikeRate": 100.0,
+            "highestScore": 2,
+            "fours": 0,
+            "sixes": 0
+        },
+        "bowlingStats": {
+            "matches": 3,
+            "innings": 3,
+            "overs": 6.0,
+            "runsConceded": 56,
+            "wickets": 1,
+            "average": 56.0,
+            "economy": 9.33,
+            "bestBowling": "1/10"
+        }
     },
     {
         "id": "IPL26-245",
@@ -3461,7 +4721,27 @@ export const IPL_PLAYERS: CricketPlayer[] = [
         "battingRole": "Tail",
         "bowlingRole": "Pace Bowler",
         "primaryArchetype": "Powerplay Pacer",
-        "secondaryArchetype": ""
+        "secondaryArchetype": "",
+        "battingStats": {
+            "matches": 1,
+            "innings": 1,
+            "runs": 5,
+            "average": 5.0,
+            "strikeRate": 71.43,
+            "highestScore": 5,
+            "fours": 1,
+            "sixes": 0
+        },
+        "bowlingStats": {
+            "matches": 13,
+            "innings": 13,
+            "overs": 50.5,
+            "runsConceded": 444,
+            "wickets": 19,
+            "average": 23.37,
+            "economy": 8.79,
+            "bestBowling": "4/17"
+        }
     },
     {
         "id": "IPL26-247",
@@ -3489,7 +4769,27 @@ export const IPL_PLAYERS: CricketPlayer[] = [
         "battingRole": "Middle-Order",
         "bowlingRole": "Left-Arm Wrist Spin",
         "primaryArchetype": "Spin All-Rounder",
-        "secondaryArchetype": "Mystery Spinner"
+        "secondaryArchetype": "Mystery Spinner",
+        "battingStats": {
+            "matches": 6,
+            "innings": 6,
+            "runs": 53,
+            "average": 8.83,
+            "strikeRate": 106.0,
+            "highestScore": 27,
+            "fours": 6,
+            "sixes": 1
+        },
+        "bowlingStats": {
+            "matches": 13,
+            "innings": 13,
+            "overs": 40.0,
+            "runsConceded": 375,
+            "wickets": 9,
+            "average": 41.67,
+            "economy": 9.38,
+            "bestBowling": "3/18"
+        }
     },
     {
         "id": "IPL26-249",
@@ -3601,7 +4901,17 @@ export const IPL_PLAYERS: CricketPlayer[] = [
         "battingRole": "WK-Bat/Opener",
         "bowlingRole": "N/A",
         "primaryArchetype": "WK-Bat Opener",
-        "secondaryArchetype": "Pace Basher"
+        "secondaryArchetype": "Pace Basher",
+        "battingStats": {
+            "matches": 137,
+            "innings": 138,
+            "runs": 3117,
+            "average": 23.61,
+            "strikeRate": 141.62,
+            "highestScore": 89,
+            "fours": 253,
+            "sixes": 203
+        }
     },
     {
         "id": "IPL26-257",
@@ -3671,7 +4981,27 @@ export const IPL_PLAYERS: CricketPlayer[] = [
         "battingRole": "Tail",
         "bowlingRole": "Left-Arm Swing Pacer",
         "primaryArchetype": "Powerplay Pacer",
-        "secondaryArchetype": ""
+        "secondaryArchetype": "",
+        "battingStats": {
+            "matches": 14,
+            "innings": 14,
+            "runs": 34,
+            "average": 8.5,
+            "strikeRate": 69.39,
+            "highestScore": 16,
+            "fours": 3,
+            "sixes": 1
+        },
+        "bowlingStats": {
+            "matches": 88,
+            "innings": 88,
+            "overs": 336.5,
+            "runsConceded": 2605,
+            "wickets": 116,
+            "average": 22.46,
+            "economy": 7.74,
+            "bestBowling": "5/10"
+        }
     },
     {
         "id": "IPL26-262",
@@ -3699,7 +5029,27 @@ export const IPL_PLAYERS: CricketPlayer[] = [
         "battingRole": "Lower Order",
         "bowlingRole": "Off-Break/Doosra",
         "primaryArchetype": "Mystery Spinner",
-        "secondaryArchetype": ""
+        "secondaryArchetype": "",
+        "battingStats": {
+            "matches": 59,
+            "innings": 59,
+            "runs": 263,
+            "average": 7.97,
+            "strikeRate": 98.5,
+            "highestScore": 34,
+            "fours": 20,
+            "sixes": 10
+        },
+        "bowlingStats": {
+            "matches": 198,
+            "innings": 199,
+            "overs": 781.7,
+            "runsConceded": 5165,
+            "wickets": 197,
+            "average": 26.22,
+            "economy": 6.61,
+            "bestBowling": "5/4"
+        }
     },
     {
         "id": "IPL26-264",
@@ -3713,7 +5063,27 @@ export const IPL_PLAYERS: CricketPlayer[] = [
         "battingRole": "Middle-Order",
         "bowlingRole": "N/A",
         "primaryArchetype": "Developing",
-        "secondaryArchetype": ""
+        "secondaryArchetype": "",
+        "battingStats": {
+            "matches": 4,
+            "innings": 4,
+            "runs": 99,
+            "average": 24.75,
+            "strikeRate": 120.73,
+            "highestScore": 44,
+            "fours": 8,
+            "sixes": 6
+        },
+        "bowlingStats": {
+            "matches": 1,
+            "innings": 1,
+            "overs": 1.0,
+            "runsConceded": 11,
+            "wickets": 0,
+            "average": 0.0,
+            "economy": 11.0,
+            "bestBowling": "-"
+        }
     },
     {
         "id": "IPL26-265",
@@ -3755,7 +5125,17 @@ export const IPL_PLAYERS: CricketPlayer[] = [
         "battingRole": "Opener/Middle",
         "bowlingRole": "N/A",
         "primaryArchetype": "Anchor Opener",
-        "secondaryArchetype": ""
+        "secondaryArchetype": "",
+        "battingStats": {
+            "matches": 42,
+            "innings": 42,
+            "runs": 1093,
+            "average": 28.03,
+            "strikeRate": 135.44,
+            "highestScore": 113,
+            "fours": 104,
+            "sixes": 40
+        }
     },
     {
         "id": "IPL26-268",
@@ -3769,7 +5149,27 @@ export const IPL_PLAYERS: CricketPlayer[] = [
         "battingRole": "Middle-Order",
         "bowlingRole": "N/A",
         "primaryArchetype": "Anchor Middle-Order",
-        "secondaryArchetype": ""
+        "secondaryArchetype": "",
+        "battingStats": {
+            "matches": 35,
+            "innings": 35,
+            "runs": 891,
+            "average": 31.82,
+            "strikeRate": 124.96,
+            "highestScore": 66,
+            "fours": 100,
+            "sixes": 26
+        },
+        "bowlingStats": {
+            "matches": 13,
+            "innings": 13,
+            "overs": 25.8,
+            "runsConceded": 138,
+            "wickets": 10,
+            "average": 13.8,
+            "economy": 5.34,
+            "bestBowling": "2/0"
+        }
     },
     {
         "id": "IPL26-269",
@@ -3811,7 +5211,27 @@ export const IPL_PLAYERS: CricketPlayer[] = [
         "battingRole": "Lower Order",
         "bowlingRole": "Off-Spin AR",
         "primaryArchetype": "Spin All-Rounder",
-        "secondaryArchetype": ""
+        "secondaryArchetype": "",
+        "battingStats": {
+            "matches": 5,
+            "innings": 5,
+            "runs": 75,
+            "average": 25.0,
+            "strikeRate": 102.74,
+            "highestScore": 28,
+            "fours": 7,
+            "sixes": 2
+        },
+        "bowlingStats": {
+            "matches": 15,
+            "innings": 15,
+            "overs": 50.2,
+            "runsConceded": 296,
+            "wickets": 18,
+            "average": 16.44,
+            "economy": 5.9,
+            "bestBowling": "4/8"
+        }
     },
     {
         "id": "IPL26-272",
@@ -3853,7 +5273,27 @@ export const IPL_PLAYERS: CricketPlayer[] = [
         "battingRole": "Lower Order",
         "bowlingRole": "Part-time AR",
         "primaryArchetype": "Pace All-Rounder",
-        "secondaryArchetype": ""
+        "secondaryArchetype": "",
+        "battingStats": {
+            "matches": 17,
+            "innings": 17,
+            "runs": 251,
+            "average": 41.83,
+            "strikeRate": 169.59,
+            "highestScore": 55,
+            "fours": 21,
+            "sixes": 14
+        },
+        "bowlingStats": {
+            "matches": 6,
+            "innings": 6,
+            "overs": 13.8,
+            "runsConceded": 127,
+            "wickets": 4,
+            "average": 31.75,
+            "economy": 9.18,
+            "bestBowling": "2/11"
+        }
     },
     {
         "id": "IPL26-275",
@@ -3895,7 +5335,27 @@ export const IPL_PLAYERS: CricketPlayer[] = [
         "battingRole": "Tail",
         "bowlingRole": "Pace Bowler",
         "primaryArchetype": "Powerplay Pacer",
-        "secondaryArchetype": ""
+        "secondaryArchetype": "",
+        "battingStats": {
+            "matches": 9,
+            "innings": 9,
+            "runs": 12,
+            "average": 3.0,
+            "strikeRate": 54.55,
+            "highestScore": 3,
+            "fours": 0,
+            "sixes": 0
+        },
+        "bowlingStats": {
+            "matches": 31,
+            "innings": 31,
+            "overs": 102.2,
+            "runsConceded": 837,
+            "wickets": 33,
+            "average": 25.36,
+            "economy": 8.19,
+            "bestBowling": "3/7"
+        }
     },
     {
         "id": "IPL26-278",
@@ -3909,7 +5369,27 @@ export const IPL_PLAYERS: CricketPlayer[] = [
         "battingRole": "Tail",
         "bowlingRole": "Pace Bowler",
         "primaryArchetype": "Powerplay Pacer",
-        "secondaryArchetype": ""
+        "secondaryArchetype": "",
+        "battingStats": {
+            "matches": 5,
+            "innings": 5,
+            "runs": 14,
+            "average": 14.0,
+            "strikeRate": 50.0,
+            "highestScore": 5,
+            "fours": 0,
+            "sixes": 0
+        },
+        "bowlingStats": {
+            "matches": 35,
+            "innings": 36,
+            "overs": 129.8,
+            "runsConceded": 1088,
+            "wickets": 44,
+            "average": 24.73,
+            "economy": 8.38,
+            "bestBowling": "5/4"
+        }
     },
     {
         "id": "IPL26-279",
@@ -4007,7 +5487,27 @@ export const IPL_PLAYERS: CricketPlayer[] = [
         "battingRole": "Tail",
         "bowlingRole": "Left-Arm Spin",
         "primaryArchetype": "Wicket-Taking Spinner",
-        "secondaryArchetype": ""
+        "secondaryArchetype": "",
+        "battingStats": {
+            "matches": 13,
+            "innings": 13,
+            "runs": 22,
+            "average": 7.33,
+            "strikeRate": 48.89,
+            "highestScore": 7,
+            "fours": 2,
+            "sixes": 0
+        },
+        "bowlingStats": {
+            "matches": 79,
+            "innings": 79,
+            "overs": 280.3,
+            "runsConceded": 2262,
+            "wickets": 100,
+            "average": 22.62,
+            "economy": 8.07,
+            "bestBowling": "4/1"
+        }
     },
     {
         "id": "IPL26-286",
@@ -4021,7 +5521,27 @@ export const IPL_PLAYERS: CricketPlayer[] = [
         "battingRole": "Tail",
         "bowlingRole": "Pace Bowler",
         "primaryArchetype": "Powerplay Pacer",
-        "secondaryArchetype": ""
+        "secondaryArchetype": "",
+        "battingStats": {
+            "matches": 136,
+            "innings": 150,
+            "runs": 1007,
+            "average": 9.78,
+            "strikeRate": 67.49,
+            "highestScore": 75,
+            "fours": 86,
+            "sixes": 31
+        },
+        "bowlingStats": {
+            "matches": 273,
+            "innings": 289,
+            "overs": 1872.5,
+            "runsConceded": 10496,
+            "wickets": 396,
+            "average": 26.51,
+            "economy": 5.61,
+            "bestBowling": "8/6"
+        }
     },
     {
         "id": "IPL26-287",
@@ -4133,7 +5653,27 @@ export const IPL_PLAYERS: CricketPlayer[] = [
         "battingRole": "Tail",
         "bowlingRole": "Pace Bowler",
         "primaryArchetype": "Powerplay Pacer",
-        "secondaryArchetype": ""
+        "secondaryArchetype": "",
+        "battingStats": {
+            "matches": 1,
+            "innings": 1,
+            "runs": 1,
+            "average": 1.0,
+            "strikeRate": 33.33,
+            "highestScore": 1,
+            "fours": 0,
+            "sixes": 0
+        },
+        "bowlingStats": {
+            "matches": 3,
+            "innings": 3,
+            "overs": 10.3,
+            "runsConceded": 67,
+            "wickets": 2,
+            "average": 33.5,
+            "economy": 6.48,
+            "bestBowling": "1/20"
+        }
     },
     {
         "id": "IPL26-295",
@@ -4147,7 +5687,17 @@ export const IPL_PLAYERS: CricketPlayer[] = [
         "battingRole": "Tail",
         "bowlingRole": "Express Pacer",
         "primaryArchetype": "Powerplay Pacer",
-        "secondaryArchetype": ""
+        "secondaryArchetype": "",
+        "bowlingStats": {
+            "matches": 2,
+            "innings": 2,
+            "overs": 7.5,
+            "runsConceded": 59,
+            "wickets": 2,
+            "average": 29.5,
+            "economy": 7.87,
+            "bestBowling": "1/27"
+        }
     },
     {
         "id": "IPL26-296",
@@ -4161,7 +5711,27 @@ export const IPL_PLAYERS: CricketPlayer[] = [
         "battingRole": "Tail",
         "bowlingRole": "Leg-Spin/Googly",
         "primaryArchetype": "Wicket-Taking Spinner",
-        "secondaryArchetype": ""
+        "secondaryArchetype": "",
+        "battingStats": {
+            "matches": 11,
+            "innings": 11,
+            "runs": 67,
+            "average": 9.57,
+            "strikeRate": 124.07,
+            "highestScore": 21,
+            "fours": 0,
+            "sixes": 7
+        },
+        "bowlingStats": {
+            "matches": 37,
+            "innings": 38,
+            "overs": 139.7,
+            "runsConceded": 906,
+            "wickets": 39,
+            "average": 23.23,
+            "economy": 6.49,
+            "bestBowling": "4/14"
+        }
     },
     {
         "id": "IPL26-297",
@@ -4175,7 +5745,17 @@ export const IPL_PLAYERS: CricketPlayer[] = [
         "battingRole": "Opener",
         "bowlingRole": "N/A",
         "primaryArchetype": "Aggressive Opener",
-        "secondaryArchetype": ""
+        "secondaryArchetype": "",
+        "battingStats": {
+            "matches": 11,
+            "innings": 11,
+            "runs": 252,
+            "average": 22.91,
+            "strikeRate": 124.75,
+            "highestScore": 74,
+            "fours": 13,
+            "sixes": 13
+        }
     },
     {
         "id": "IPL26-298",
@@ -4189,7 +5769,27 @@ export const IPL_PLAYERS: CricketPlayer[] = [
         "battingRole": "Lower Order",
         "bowlingRole": "Pace AR",
         "primaryArchetype": "Pace All-Rounder",
-        "secondaryArchetype": ""
+        "secondaryArchetype": "",
+        "battingStats": {
+            "matches": 5,
+            "innings": 5,
+            "runs": 23,
+            "average": 7.67,
+            "strikeRate": 76.67,
+            "highestScore": 9,
+            "fours": 0,
+            "sixes": 0
+        },
+        "bowlingStats": {
+            "matches": 7,
+            "innings": 7,
+            "overs": 47.2,
+            "runsConceded": 205,
+            "wickets": 9,
+            "average": 22.78,
+            "economy": 4.35,
+            "bestBowling": "3/10"
+        }
     },
     {
         "id": "IPL26-299",
@@ -4220,22 +5820,3 @@ export const IPL_PLAYERS: CricketPlayer[] = [
         "secondaryArchetype": ""
     }
 ];
-
-// Legacy export for backward compatibility
-export const TEAM_NAMES = [
-    'Chennai Super Kings',
-    'Mumbai Indians',
-    'Royal Challengers Bengaluru',
-    'Kolkata Knight Riders',
-    'Delhi Capitals',
-    'Sunrisers Hyderabad',
-    'Punjab Kings',
-    'Rajasthan Royals',
-    'Lucknow Super Giants',
-    'Gujarat Titans',
-];
-
-export const getTeamByName = (name: string) => {
-    // Helper to find team if needed
-    return name;
-};

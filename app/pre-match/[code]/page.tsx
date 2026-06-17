@@ -122,7 +122,7 @@ export default function PreMatchSelectionPage() {
                         const leagueData = await leagueRes.json();
                         if (leagueData.hostId === currentUserId) setIsHost(true);
                         
-                        const fixture = leagueData.state?.fixtures?.find((f: any) => String(f.id) === String(fixtureId));
+                        const fixture = leagueData.state?.fixtures?.find((f: { id: string | number; homeTeamUserId: string; awayTeamUserId: string }) => String(f.id) === String(fixtureId));
                         if (fixture) {
                             const h = auction.teams.find((t: TeamData) => t.userId === fixture.homeTeamUserId) ?? null;
                             const a = auction.teams.find((t: TeamData) => t.userId === fixture.awayTeamUserId) ?? null;
@@ -177,7 +177,7 @@ export default function PreMatchSelectionPage() {
                                 } else {
                                     setPhase('selection');
                                 }
-                            } else if (tossData.toss.winnerId === currentUserId || (resolvedMyTeam && tossData.toss.winnerName === (resolvedMyTeam as any).teamName)) {
+                            } else if (tossData.toss.winnerId === currentUserId || (resolvedMyTeam && tossData.toss.winnerName === (resolvedMyTeam as TeamData).teamName)) {
                                 setTossDecisionPending(true);
                                 setPhase('decision');
                             } else {
@@ -244,7 +244,7 @@ export default function PreMatchSelectionPage() {
             const leagueRes = await fetch(`/api/league?roomCode=${code}`);
             if (leagueRes.ok) {
                 const d = await leagueRes.json();
-                const f = d.state?.fixtures?.find((fx: any) => String(fx.id) === String(fixtureId));
+                const f = d.state?.fixtures?.find((fx: { id: string | number; status?: string }) => String(fx.id) === String(fixtureId));
                 if (f && (f.status === 'live' || f.status === 'completed')) {
                     router.push(`/match/${code}?fixtureId=${fixtureId}`);
                 }
@@ -256,7 +256,7 @@ export default function PreMatchSelectionPage() {
         
         socket.emit('join_room', code);
 
-        const handleMatchUpdate = (data: any) => {
+        const handleMatchUpdate = (data: { toss?: TossResult; matchId?: string }) => {
             if (data.toss) {
                 setTossResult(data.toss);
                 if (data.matchId) setMatchId(data.matchId);
@@ -270,10 +270,10 @@ export default function PreMatchSelectionPage() {
             }
         };
 
-        const handleLeagueUpdate = (data: any) => {
+        const handleLeagueUpdate = (data: { state?: { fixtures?: { id: string | number; matchId?: string; status?: string }[] } }) => {
             // Reload fixture info if league updates (e.g. status changes)
             if (data.state?.fixtures) {
-                const f = data.state.fixtures.find((fx: any) => String(fx.id) === String(fixtureId));
+                const f = data.state.fixtures.find((fx: { id: string | number; matchId?: string; status?: string }) => String(fx.id) === String(fixtureId));
                 if (f) {
                     if (f.matchId && f.matchId !== matchId) setMatchId(f.matchId);
                     if (f.status === 'live' || f.status === 'completed') {

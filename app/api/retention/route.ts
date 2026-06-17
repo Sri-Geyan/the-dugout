@@ -40,9 +40,9 @@ export async function GET(request: NextRequest) {
         const eligiblePool = getRetentionEligiblePool(teamName);
 
         return NextResponse.json({ state, eligiblePool });
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error('[Retention GET Error]:', error);
-        return NextResponse.json({ error: error.message || 'Internal server error' }, { status: 500 });
+        return NextResponse.json({ error: error instanceof Error ? error.message : 'Internal server error' }, { status: 500 });
     }
 }
 
@@ -182,8 +182,8 @@ export async function POST(request: NextRequest) {
         }
 
         return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error('[Retention POST Error]:', error);
-        return NextResponse.json({ error: error.message || 'Internal server error' }, { status: 500 });
+        return NextResponse.json({ error: error instanceof Error ? error.message : 'Internal server error' }, { status: 500 });
     }
 }

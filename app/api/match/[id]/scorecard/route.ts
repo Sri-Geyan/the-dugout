@@ -41,17 +41,16 @@ export async function GET(
         }
 
         // Organize stats by team
-        const m = match as any;
-        const homeBatting = m.battingStats.filter((s: any) => s.teamId === match.homeTeamId);
-        const awayBatting = m.battingStats.filter((s: any) => s.teamId === match.awayTeamId);
-        const homeBowling = m.bowlingStats.filter((s: any) => s.teamId === match.homeTeamId);
-        const awayBowling = m.bowlingStats.filter((s: any) => s.teamId === match.awayTeamId);
+        const homeBatting = match.battingStats.filter(s => s.teamId === match.homeTeamId);
+        const awayBatting = match.battingStats.filter(s => s.teamId === match.awayTeamId);
+        const homeBowling = match.bowlingStats.filter(s => s.teamId === match.homeTeamId);
+        const awayBowling = match.bowlingStats.filter(s => s.teamId === match.awayTeamId);
 
         return NextResponse.json({
             match: {
                 id: match.id,
-                homeTeam: m.homeTeam,
-                awayTeam: m.awayTeam,
+                homeTeam: match.homeTeam,
+                awayTeam: match.awayTeam,
                 homeScore: match.homeScore,
                 homeWickets: match.homeWickets,
                 homeOvers: match.homeOvers,

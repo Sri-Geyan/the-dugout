@@ -2,7 +2,7 @@
 
 import { IPL_TEAMS } from '@/data/teams';
 import type { IPLTeam } from '@/data/teams';
-import { useState } from 'react';
+
 
 interface TeamSelectorProps {
     selectedTeamId: string | null;

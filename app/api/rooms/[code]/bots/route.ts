@@ -1,23 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
-import prisma from '@/lib/prisma';
-import { joinRoom, getRoomState, fillRoomWithBots } from '@/lib/roomManager';
-import redis from '@/lib/redis';
-import { v4 as uuidv4 } from 'uuid';
-import { IPL_TEAMS } from '@/data/teams';
+import { getRoomState, fillRoomWithBots } from '@/lib/roomManager';
 
-const BOT_PROFILES = [
-    { username: 'Captain_Dhoni', teamId: 'csk' },
-    { username: 'King_Kohli', teamId: 'rcb' },
-    { username: 'Hitman_Rohit', teamId: 'mi' },
-    { username: 'KKR_Champion', teamId: 'kkr' },
-    { username: 'DC_Warrior', teamId: 'dc' },
-    { username: 'SRH_Sunriser', teamId: 'srh' },
-    { username: 'PBKS_Lion', teamId: 'pbks' },
-    { username: 'RR_Royal', teamId: 'rr' },
-    { username: 'LSG_Giant', teamId: 'lsg' },
-    { username: 'GT_Titan', teamId: 'gt' },
-];
 
 export async function POST(
     request: NextRequest,

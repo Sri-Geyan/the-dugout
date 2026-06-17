@@ -325,235 +325,102 @@ export const isBattingAR = (p: EnrichedPlayer) =>
 export const isBowlingAR = (p: EnrichedPlayer) => 
     p.role === 'ALL_ROUNDER' && (p.bowlingSkill > p.battingSkill + 10 || p.primaryArchetype?.includes('Bowling All-Rounder'));
 
-export function botSelectPlaying11(
+export async function botSelectPlaying11(
     squad: EnrichedPlayer[], 
     pitchType: string = 'BALANCED', 
     tossResult?: { winnerId: string; decision: 'bat' | 'bowl' },
     teamUserId?: string
-): {
+): Promise<{
     selectedIds: string[];
     battingOrder: string[];
     actualOrder: EnrichedPlayer[];
     captainId: string;
     wkId: string;
     openingBowlerId: string;
-} {
-    const isBattingFirst = tossResult ? (
-        (tossResult.winnerId === teamUserId && tossResult.decision === 'bat') ||
-        (tossResult.winnerId !== teamUserId && tossResult.decision === 'bowl')
-    ) : true; // Default to batting first if no toss info
+}> {
+    const mlEngineUrl = process.env.ML_ENGINE_URL || 'http://127.0.0.1:8000';
+    
+    let venue = 'Neutral';
+    if (pitchType === 'BATTING') venue = 'Wankhede Stadium, Mumbai';
+    else if (pitchType === 'BOWLING') venue = 'Eden Gardens, Kolkata';
+    else if (pitchType === 'SPINNING') venue = 'MA Chidambaram Stadium, Chepauk, Chennai';
 
-    const eligible: EnrichedPlayer[] = [];
-    const seenIds = new Set<string>();
-    for (const p of squad.slice(0, IPL_MAX_SQUAD)) {
-        if (!seenIds.has(p.id)) {
-            eligible.push(p);
-            seenIds.add(p.id);
+    const payload = {
+        team_id: teamUserId || 'bot_team',
+        venue: venue,
+        players: squad.slice(0, IPL_MAX_SQUAD).map(p => ({
+            player_id: p.id,
+            name: p.name,
+            role: p.role,
+            batting_skill: p.battingSkill || 50,
+            bowling_skill: p.bowlingSkill || 30,
+            nationality: p.nationality || 'Indian',
+            is_captain: (p as any).isCaptain ? 1 : 0,
+            is_wk: (p as any).isWicketKeeper ? 1 : 0
+        }))
+    };
+
+    try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+        const response = await fetch(`${mlEngineUrl}/api/select/playing11`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+            signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+
+        if (response.ok) {
+            const data = await response.json();
+            const selectedIds = data.selected_xi.map((x: any) => x.player_id);
+            
+            const selected = squad.filter(p => selectedIds.includes(p.id));
+            const wkId = selected.find(p => p.role === 'WICKET_KEEPER')?.id || selectedIds[0];
+            const captainId = selected.find(p => (p as any).isCaptain)?.id || selectedIds[0];
+            const openingBowlerId = selected.filter(p => p.role === 'BOWLER' || p.role === 'ALL_ROUNDER')[0]?.id || selectedIds[selectedIds.length - 1];
+
+            return {
+                selectedIds,
+                battingOrder: selectedIds,
+                actualOrder: selected,
+                captainId,
+                wkId,
+                openingBowlerId
+            };
         }
+    } catch (error) {
+        console.error('ML Selection Fetch Error:', error);
     }
-
-    const selected: EnrichedPlayer[] = [];
-    const isSelected = (p: EnrichedPlayer) => selected.some(s => s.id === p.id);
-
-    // Helper for overseas count
-    const getOverseasCount = (list: EnrichedPlayer[]) => list.filter(p => p.nationality !== 'Indian').length;
-
-    // Helper for adding players with overseas constraint
-    const tryAddWithLimit = (pool: EnrichedPlayer[], count: number) => {
-        let added = 0;
-        for (const p of pool) {
-            if (added >= count) break;
-            if (isSelected(p)) continue;
-            
-            const isOverseas = p.nationality !== 'Indian';
-            if (isOverseas && getOverseasCount(selected) >= 4) continue;
-            
-            selected.push(p);
-            added++;
-        }
-    };
-
-    const getSelectionScore = (p: EnrichedPlayer, slot: 'opener' | 'middle' | 'finisher' | 'bowler') => {
-        const isBattingSlot = slot === 'opener' || slot === 'middle' || slot === 'finisher';
-        let base = isBattingSlot ? (p.battingRating || p.battingSkill) : (p.bowlingRating || p.bowlingSkill);
-        
-        // --- Positional Priority (Strengthened) ---
-        if (slot === 'opener' && isOpener(p)) base += 40;
-        if (slot === 'middle' && isMiddleOrder(p)) base += 35;
-        if (slot === 'finisher' && isExplicitFinisher(p)) base += 30;
-        if (slot === 'bowler' && p.role === 'BOWLER') base += 20;
-
-        // --- Squad Rotation & Performance (Form) ---
-        // Only apply if they've played enough to establish a trend
-        if (p.recentMatches && p.recentMatches >= 2) {
-            if (isBattingSlot) {
-                if (p.recentAverage && p.recentAverage < 15) base -= 15; // Poor form
-                if (p.recentAverage && p.recentAverage > 40) base += 10; // Great form
-                if (p.recentStrikeRate && p.recentStrikeRate > 150) base += 5;
-            } else {
-                if (p.recentEconomy && p.recentEconomy > 10) base -= 15; // Expensive
-                if (p.recentEconomy && p.recentEconomy < 7.5) base += 10; // Economical
-                const wicketsPerMatch = (p.recentWickets || 0) / p.recentMatches;
-                if (wicketsPerMatch > 1.2) base += 10;
-                if (wicketsPerMatch < 0.4) base -= 5;
-            }
-        }
-
-        // --- Post-Toss Pitch Fitness (Tactical) ---
-        if (tossResult) {
-            if (!isBattingFirst) {
-                // Bowling First
-                if (pitchType === 'BOWLING' && isPacer(p)) base += 15; // Extra boost for pacers on green tops
-                if (pitchType === 'SPINNING' && isSpinner(p)) base += 10; // Use turn early
-            } else {
-                // Batting First
-                if (pitchType === 'SPINNING' && isSpinner(p)) base += 20; // Prioritize extra spinner for 4th innings defense
-                if (pitchType === 'BATTING' && isOpener(p)) base += 5; // Solid start is key
-            }
-        }
-
-        return base;
-    };
-
-    // 1. Mandatory Pick (WK)
-    const wks = [...eligible].sort((a, b) => getSelectionScore(b, 'middle') - getSelectionScore(a, 'middle'))
-        .filter(p => p.role === 'WICKET_KEEPER');
+    
+    console.warn('Falling back to basic bot selection');
+    const sorted = [...squad].sort((a, b) => Math.max(b.battingSkill || 0, b.bowlingSkill || 0) - Math.max(a.battingSkill || 0, a.bowlingSkill || 0));
+    const wks = sorted.filter(p => p.role === 'WICKET_KEEPER');
+    const others = sorted.filter(p => p.role !== 'WICKET_KEEPER');
+    
+    const selected = [];
     if (wks.length > 0) {
-        const bestWK = wks.find(p => p.nationality === 'Indian') || wks[0];
-        selected.push(bestWK);
+        selected.push(wks[0]);
+    } else {
+        selected.push(others[0]);
+        others.shift();
     }
-
-    // 2. Bowling Core (Strict: 2 PP Pacers, 1 Death Pacer, 2 Spinners)
-    // 2a. 2 Powerplay Pacers
-    const ppPacers = eligible.filter(p => isPowerplayPacer(p) && !isSelected(p))
-        .sort((a, b) => getSelectionScore(b, 'bowler') - getSelectionScore(a, 'bowler'));
-    tryAddWithLimit(ppPacers, 2);
-
-    // 2b. 1 Death Specialist Pacer
-    const deathPacers = eligible.filter(p => isDeathPacer(p) && !isSelected(p))
-        .sort((a, b) => getSelectionScore(b, 'bowler') - getSelectionScore(a, 'bowler'));
-    tryAddWithLimit(deathPacers, 1);
-
-    // Ensure min 3 pacers total
-    const currentPacers = selected.filter(isPacer).length;
-    if (currentPacers < 3) {
-        const generalPacers = eligible.filter(p => isPacer(p) && !isSelected(p))
-            .sort((a, b) => getSelectionScore(b, 'bowler') - getSelectionScore(a, 'bowler'));
-        tryAddWithLimit(generalPacers, 3 - currentPacers);
+    
+    while (selected.length < 11 && others.length > 0) {
+        selected.push(others.shift()!);
     }
-
-    // 2c. 2 Spinners
-    const spinners = eligible.filter(p => isSpinner(p) && !isSelected(p))
-        .sort((a, b) => getSelectionScore(b, 'bowler') - getSelectionScore(a, 'bowler'));
-    tryAddWithLimit(spinners, 2);
-
-    // 3. Batting Core (Strict: 2 Specialist Openers + 2 Specialist Middle Order)
-    const openersPool = eligible.filter(p => isOpener(p) && !isSelected(p))
-        .sort((a, b) => getSelectionScore(b, 'opener') - getSelectionScore(a, 'opener'));
-    tryAddWithLimit(openersPool, 2);
-
-    const moPool = eligible.filter(p => isMiddleOrder(p) && !isSelected(p))
-        .sort((a, b) => getSelectionScore(b, 'middle') - getSelectionScore(a, 'middle'));
-    tryAddWithLimit(moPool, 2);
-
-    // 4. All-Rounder / Top Order Flex (Fill to 11)
-    while (selected.length < 11) {
-        const arCount = selected.filter(p => p.role === 'ALL_ROUNDER').length;
-        const openerCount = selected.filter(isOpener).length;
-        const currentPacers = selected.filter(isPacer).length;
-        const currentSpinners = selected.filter(isSpinner).length;
-        
-        const flexPool = eligible.filter(p => !isSelected(p))
-            .filter(p => {
-                if (isOpener(p) && openerCount >= 3) return false;
-                // HARD CAP: Max 4 pacers in the XI
-                if (isPacer(p) && currentPacers >= 4) return false;
-                // Important: If we are at overseas limit, only allow Indians in flexPool
-                if (p.nationality !== 'Indian' && getOverseasCount(selected) >= 4) return false;
-                return true;
-            })
-            .sort((a, b) => {
-                let scoreB = Math.max(getSelectionScore(b, 'middle'), getSelectionScore(b, 'bowler'), getSelectionScore(b, 'finisher'));
-                let scoreA = Math.max(getSelectionScore(a, 'middle'), getSelectionScore(a, 'bowler'), getSelectionScore(a, 'finisher'));
-                
-                // CRITICAL: Strictly prioritize getting 2 spinners if we only have 1
-                if (currentSpinners < 2) {
-                    if (isSpinner(b)) scoreB += 50;
-                    if (isSpinner(a)) scoreA += 50;
-                }
-
-                // Favor specialized middle order if we don't have enough
-                if (isMiddleOrder(b)) scoreB += 15;
-                if (isMiddleOrder(a)) scoreA += 15;
-
-                if (arCount < 2) { 
-                    if (b.role === 'ALL_ROUNDER') scoreB += 30;
-                    if (a.role === 'ALL_ROUNDER') scoreA += 30;
-                }
-                return scoreB - scoreA;
-            });
-
-        if (flexPool.length === 0) break;
-        selected.push(flexPool[0]);
-    }
-
-    // 5. Construct STRICT BATTING ORDER (1-11)
-    // Constraint: Never use an opener below #3
-    const actualOrder: EnrichedPlayer[] = [];
-    const remainingToOrder = [...selected];
-
-    // Priority 1-2: True Openers
-    const trueOpeners = remainingToOrder.filter(isOpener)
-        .sort((a, b) => (b.battingRating || b.battingSkill) - (a.battingRating || a.battingSkill));
-    trueOpeners.slice(0, 2).forEach(p => {
-        actualOrder.push(p);
-        remainingToOrder.splice(remainingToOrder.indexOf(p), 1);
-    });
-
-    // Priority 3: 3rd Opener (STRICT) or Anchor
-    const thirdOpener = remainingToOrder.filter(isOpener);
-    const anchors = remainingToOrder.filter(p => isAnchor(p))
-        .sort((a, b) => (b.battingRating || b.battingSkill) - (a.battingRating || a.battingSkill));
-
-    if (thirdOpener.length > 0) {
-        actualOrder.push(thirdOpener[0]);
-        remainingToOrder.splice(remainingToOrder.indexOf(thirdOpener[0]), 1);
-    } else if (anchors.length > 0) {
-        actualOrder.push(anchors[0]);
-        remainingToOrder.splice(remainingToOrder.indexOf(anchors[0]), 1);
-    }
-
-    // Priority 4-7: Middle order / Batting ARs / Remaining Openers
-    const midPriority = remainingToOrder.filter(p => isMiddleOrder(p) || isBattingAR(p) || isOpener(p))
-        .sort((a, b) => (b.battingRating || b.battingSkill) - (a.battingRating || a.battingSkill));
-    midPriority.forEach(p => {
-        if (actualOrder.length < 7) {
-            actualOrder.push(p);
-            remainingToOrder.splice(remainingToOrder.indexOf(p), 1);
-        }
-    });
-
-    // Priority 8-11: Remaining (Bowlers)
-    const tail = remainingToOrder.sort((a, b) => (b.battingRating || b.battingSkill) - (a.battingRating || a.battingSkill));
-    tail.forEach(p => actualOrder.push(p));
-
-    const final11 = actualOrder.slice(0, 11);
-    const reorderedIds = final11.map(p => p.id);
-    const captain = final11.find(p => p.role === 'WICKET_KEEPER') || final11[0];
-
+    
+    const selectedIds = selected.map(p => p.id);
     return {
-        selectedIds: selected.map(p => p.id),
-        battingOrder: reorderedIds,
-        actualOrder: final11,
-        captainId: captain.id,
-        wkId: final11.find(p => p.role === 'WICKET_KEEPER')?.id || final11[0].id,
-        openingBowlerId: final11.find(p => isPowerplayPacer(p))?.id || final11.find(isPacer)?.id || selected[0].id
+        selectedIds,
+        battingOrder: selectedIds,
+        actualOrder: selected,
+        captainId: selectedIds[0],
+        wkId: selected[0]?.id || selectedIds[0],
+        openingBowlerId: selectedIds[selectedIds.length - 1]
     };
 }
-
-// ======================================================
-// Bot Match Decisions
-// ======================================================
 
 export function botChooseNextBatter(state: MatchState): string | null {
     const available = state.battingOrder.filter(
@@ -723,24 +590,62 @@ export async function runBotRetentions(roomCode: string): Promise<void> {
             return skillB - skillA;
         });
 
-        // Retention strategy:
-        // - Retain superstars (92+) regardless.
-        // - Retain very good (87+) if slots < 3.
-        // - Retain uncapped assets (80+) aggressively (slots < 5).
-        
+        const mlEngineUrl = process.env.ML_ENGINE_URL || 'http://127.0.0.1:8000';
+
         for (const player of sorted) {
             if (!player) continue;
             const skill = Math.max(player.battingSkill || 0, player.bowlingSkill || 0);
             const isUncapped = player.capStatus === 'Uncapped';
+            const isOverseas = player.nationality !== 'Indian';
             
             let shouldRetain = false;
-            if (skill >= 92) shouldRetain = true;
-            else if (skill >= 87 && team.retained.length < 3) shouldRetain = true;
-            else if (isUncapped && skill >= 80 && team.retained.length < 5) shouldRetain = true;
 
-            if (shouldRetain && player.nationality !== 'Indian') {
-                const overseasCount = team.retained.filter(r => r.nationality !== 'Indian').length;
-                if (overseasCount >= 2) shouldRetain = false;
+            // --- Attempt 1: ML Engine Retention Decision ---
+            try {
+                // Approximate form score using the logic from python (skill - 20)
+                const formScore = Math.max(0, Math.min(100, skill - 15)); 
+                
+                const payload = {
+                    team_id: team.userId,
+                    player_features: {
+                        overall_rating: skill,
+                        age: player.age || 25,
+                        is_uncapped: isUncapped ? 1 : 0,
+                        is_overseas: isOverseas ? 1 : 0,
+                        form_score: formScore,
+                        current_retained_count: team.retained.length,
+                        current_overseas_retained_count: team.retained.filter(r => r.nationality !== 'Indian').length
+                    }
+                };
+
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 3000);
+                
+                const response = await fetch(`${mlEngineUrl}/api/retention/decide`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload),
+                    signal: controller.signal
+                });
+                clearTimeout(timeoutId);
+
+                if (response.ok) {
+                    const data = await response.json();
+                    shouldRetain = !!data.retain;
+                } else {
+                    throw new Error('ML endpoint returned non-ok status');
+                }
+            } catch (error) {
+                // --- Attempt 2: Fallback to Heuristics ---
+                console.warn(`Falling back to heuristic retention for ${player.name}`);
+                if (skill >= 92) shouldRetain = true;
+                else if (skill >= 87 && team.retained.length < 3) shouldRetain = true;
+                else if (isUncapped && skill >= 80 && team.retained.length < 5) shouldRetain = true;
+
+                if (shouldRetain && isOverseas) {
+                    const overseasCount = team.retained.filter(r => r.nationality !== 'Indian').length;
+                    if (overseasCount >= 2) shouldRetain = false;
+                }
             }
 
             if (shouldRetain) {
@@ -931,7 +836,7 @@ export async function ensureBotSelections(roomCode: string, fixtureId: string, t
     leagueState?.fixtures.find(f => f.id === fixtureId);
     // In a real app we might store pitch in fixture, but for now default or use room settings
     
-    const selection = botSelectPlaying11(squad, pitchType, tossResult, teamUserId);
+    const selection = await botSelectPlaying11(squad, pitchType, tossResult, teamUserId);
     await redisObj.set(key, JSON.stringify(selection), 'EX', 86400);
     return selection;
 }

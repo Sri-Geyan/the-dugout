@@ -9,6 +9,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from models.market_value import MarketValueModel
 from core.franchise_dna import apply_franchise_dna
 from stable_baselines3 import PPO
+from models.retention_model import RetentionModel
 import numpy as np
 
 app = FastAPI(title="The Dugout - ML Auction Engine")
@@ -27,6 +28,12 @@ try:
 except Exception as e:
     rl_model = None
     print(f"Failed to load PPO Model: {e}")
+
+try:
+    retention_model = RetentionModel(os.path.join(BASE_DIR, "models", "xgboost_retention_model.json"))
+except Exception as e:
+    retention_model = None
+    print(f"Failed to load Retention Model: {e}")
 
 # Load Match Simulator
 import sys
@@ -121,13 +128,27 @@ async def decide_bid(state: AuctionState):
         "reasoning": reasons
     }
 
+class RetentionState(BaseModel):
+    team_id: str
+    player_features: dict
+    
+@app.post("/api/retention/decide")
+async def decide_retention(state: RetentionState):
+    if not retention_model:
+        raise HTTPException(status_code=500, detail="Retention model not initialized.")
+    
+    decision = retention_model.predict(state.player_features)
+    return {"retain": decision}
+
 @app.get("/api/health")
 async def health_check():
     return {
         "status": "online",
         "market_model_loaded": market_model is not None,
         "rl_model_loaded": rl_model is not None,
-        "match_simulator_loaded": match_simulator is not None
+        "match_simulator_loaded": match_simulator is not None,
+        "retention_model_loaded": retention_model is not None,
+        "selection_model_loaded": selection_model is not None
     }
 
 # --- Match Simulation Endpoints ---

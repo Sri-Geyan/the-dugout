@@ -447,6 +447,7 @@ export async function POST(request: NextRequest) {
                 return NextResponse.json({ error: 'Permission denied: Only participants or host can skip' }, { status: 403 });
             }
 
+            let batchResults: any[] = [];
             while (state.status !== 'completed') {
                 if (state.status === 'innings_break') {
                     state.status = 'awaiting_bowler';
@@ -462,8 +463,43 @@ export async function POST(request: NextRequest) {
                         if (bId) selectNextBowler(state, bId);
                         else break; // Should not happen
                     }
+                    batchResults = []; // clear batch since new batter/bowler means we need a new batch
                 } else if (state.status === 'live') {
-                    const result = await processNextBall(state, true);
+                    if (batchResults.length === 0) {
+                        try {
+                            const battingTeam = state.currentBatting === 'home' ? state.homeTeam : state.awayTeam;
+                            const ballsRemaining = (20 * 6) - (battingTeam.overs * 6 + battingTeam.balls);
+                            const max_balls = Math.min(ballsRemaining, 6 - battingTeam.balls);
+                            
+                            const mlEngineUrl = process.env.ML_ENGINE_URL || 'http://127.0.0.1:8000';
+                            const response = await fetch(`${mlEngineUrl}/api/simulate/batch`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    innings: state.innings,
+                                    over: battingTeam.overs,
+                                    ball: battingTeam.balls + 1,
+                                    current_score: battingTeam.score,
+                                    wickets: battingTeam.wickets,
+                                    target: state.target || 0,
+                                    venue: state.stadiumId ? state.stadiumId : 'Neutral',
+                                    batter_rating: state.striker?.player.battingSkill || 50,
+                                    bowler_rating: state.currentBowler?.player.bowlingSkill || 30,
+                                    max_balls: max_balls
+                                })
+                            });
+                            if (response.ok) {
+                                batchResults = await response.json();
+                            } else {
+                                batchResults = [null]; // fallback
+                            }
+                        } catch (e) {
+                            batchResults = [null]; // fallback
+                        }
+                    }
+                    
+                    const nextOutcome = batchResults.shift();
+                    const result = await processNextBall(state, false, nextOutcome); // Pass false so it uses nextOutcome or fetches 1 if fallback
                     state = result.state;
                 } else {
                     // unexpected state

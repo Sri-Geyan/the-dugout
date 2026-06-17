@@ -234,41 +234,12 @@ export async function simulateBall(
             const data = await response.json();
             // Map Python output to BallResult
             // data contains: runs (string like "4", "WICKET", etc), dismissal, commentary
-            let runs = 0;
-            let isWicket = false;
-            let isBoundary = false;
-            let isSix = false;
-            let isExtra = false;
-            let extraType = null;
-            let extraRuns = 0;
-            
-            if (data.outcome === 'WICKET') {
-                isWicket = true;
-            } else if (data.outcome === 'EXTRA') {
-                isExtra = true;
-                extraType = 'wide'; // Simplified fallback
-                extraRuns = 1;
-            } else {
-                runs = parseInt(data.outcome);
-                if (runs === 4) isBoundary = true;
-                if (runs === 6) isSix = true;
-            }
-            
-            return {
-                runs,
-                isWicket,
-                isBoundary,
-                isSix,
-                isExtra,
-                extraType,
-                extraRuns,
-                dismissalType: data.dismissal || null,
-                commentary: data.commentary || 'Good ball.'
-            };
+            return mapOutcomeToBallResult(data);
         }
     } catch (e) {
         // Fallback to local math
         // console.warn("ML Engine timeout/error, falling back to local math");
+    }
     }
     // --- End ML Engine Integration ---
 
@@ -734,7 +705,7 @@ export function initMatchState(
 // Process Next Ball
 // ======================================================
 
-export async function processNextBall(state: MatchState, isSkip: boolean = false): Promise<{ state: MatchState; ballResult: BallResult }> {
+export async function processNextBall(state: MatchState, isSkip: boolean = false, preCalculatedOutcome?: any): Promise<{ state: MatchState; ballResult: BallResult }> {
     if (state.status === 'completed') {
         return { state, ballResult: { runs: 0, isWicket: false, isBoundary: false, isSix: false, isExtra: false, extraType: null, extraRuns: 0, dismissalType: null, commentary: 'Match already completed.' } };
     }
@@ -751,14 +722,19 @@ export async function processNextBall(state: MatchState, isSkip: boolean = false
 
     state.matchPhase = getMatchPhase(battingTeam.overs);
 
-    const ballResult = await simulateBall(
-        state.striker, state.currentBowler, state.pitchType, state.matchPhase,
-        state.freeHit, state.target, battingTeam.score,
-        (TOTAL_OVERS * 6) - (battingTeam.overs * 6 + battingTeam.balls),
-        state.stadiumId, state.innings,
-        state.currentBatting === 'home' ? state.awayTeam : state.homeTeam,
-        isSkip
-    );
+    let ballResult: BallResult;
+    if (preCalculatedOutcome) {
+        ballResult = mapOutcomeToBallResult(preCalculatedOutcome);
+    } else {
+        ballResult = await simulateBall(
+            state.striker, state.currentBowler, state.pitchType, state.matchPhase,
+            state.freeHit, state.target, battingTeam.score,
+            (TOTAL_OVERS * 6) - (battingTeam.overs * 6 + battingTeam.balls),
+            state.stadiumId, state.innings,
+            state.currentBatting === 'home' ? state.awayTeam : state.homeTeam,
+            isSkip
+        );
+    }
 
     // Process result
     if (ballResult.extraType === 'no_ball') {
@@ -1108,4 +1084,40 @@ export async function getMatchState(matchId: string): Promise<MatchState | null>
     }
 
     return state;
+}
+
+export function mapOutcomeToBallResult(data: any): BallResult {
+    let runs = 0;
+    let isWicket = false;
+    let isBoundary = false;
+    let isSix = false;
+    let isExtra = false;
+    let extraType: 'wide' | 'no_ball' | 'bye' | 'leg_bye' | null = null;
+    let extraRuns = 0;
+    
+    if (data.outcome === 'WICKET') {
+        isWicket = true;
+    } else if (data.outcome === 'EXTRA') {
+        isExtra = true;
+        extraType = 'wide';
+        extraRuns = 1;
+    } else {
+        try {
+            runs = parseInt(data.outcome);
+            if (runs === 4) isBoundary = true;
+            if (runs === 6) isSix = true;
+        } catch (e) {}
+    }
+    
+    return {
+        runs,
+        isWicket,
+        isBoundary,
+        isSix,
+        isExtra,
+        extraType,
+        extraRuns,
+        dismissalType: data.dismissal || null,
+        commentary: data.commentary || 'Good ball.'
+    };
 }

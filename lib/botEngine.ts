@@ -119,6 +119,34 @@ export function getBotMaxHighBid(
     return Math.floor(finalMax / BID_INCREMENT) * BID_INCREMENT;
 }
 
+export async function getMlBotValuations(player: CricketPlayer, teams: AuctionTeam[]): Promise<Record<string, number>> {
+    const mlEngineUrl = process.env.ML_ENGINE_URL || 'http://127.0.0.1:8000';
+    try {
+        const playerFeatures = {
+            overall_rating: Math.max(player.battingSkill, player.bowlingSkill),
+            age: player.age || 25,
+            scarcity: 50,
+            form: 0,
+            base_price: player.basePrice
+        };
+        const teamPayload = teams.map(t => ({ team_id: t.userId, purse_remaining: t.purse }));
+        
+        const res = await fetch(`${mlEngineUrl}/api/auction/valuations`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ player_features: playerFeatures, teams: teamPayload })
+        });
+        
+        if (res.ok) {
+            const data = await res.json();
+            return data.team_valuations || {};
+        }
+    } catch (e) {
+        console.error('Failed to fetch ML bot valuations', e);
+    }
+    return {};
+}
+
 function shouldBotBid(
     player: CricketPlayer,
     currentBid: number,

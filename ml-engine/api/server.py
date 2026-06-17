@@ -128,6 +128,29 @@ async def decide_bid(state: AuctionState):
         "reasoning": reasons
     }
 
+class AuctionValuationsPayload(BaseModel):
+    player_features: dict
+    teams: list
+
+@app.post("/api/auction/valuations")
+async def get_auction_valuations(payload: AuctionValuationsPayload):
+    if not market_model:
+        raise HTTPException(status_code=500, detail="Market model not initialized.")
+        
+    base_val = market_model.predict(payload.player_features)
+    
+    valuations = {}
+    for team in payload.teams:
+        team_id = team.get("team_id")
+        # Apply Franchise DNA
+        adjusted_val = apply_franchise_dna(team_id, payload.player_features, base_val)
+        valuations[team_id] = round(adjusted_val, 2)
+        
+    return {
+        "base_value": round(base_val, 2),
+        "team_valuations": valuations
+    }
+
 class RetentionState(BaseModel):
     team_id: str
     player_features: dict
@@ -163,6 +186,13 @@ async def simulate_ball(state: dict):
     if not match_simulator:
         raise HTTPException(status_code=500, detail="Match Simulator not loaded")
     return match_simulator.simulate_ball(state)
+
+@app.post("/api/simulate/batch")
+async def simulate_batch(state: dict):
+    if not match_simulator:
+        raise HTTPException(status_code=500, detail="Match Simulator not loaded")
+    max_balls = state.get('max_balls', 6)
+    return match_simulator.simulate_batch(state, max_balls)
 
 @app.post("/api/simulate/innings")
 async def simulate_innings(state: MatchState):

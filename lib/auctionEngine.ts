@@ -1,7 +1,7 @@
 import redis from './redis';
 import { CricketPlayer, IPL_PLAYERS } from '@/data/players';
 import { canAddOverseas } from './squadUtils';
-import { getBotMaxHighBid, isBotUser } from './botEngine';
+import { getBotMaxHighBid, isBotUser, getMlBotValuations } from './botEngine';
 
 // ======================================================
 // IPL-Style Auction Slot Definitions
@@ -513,30 +513,29 @@ export async function handleFinalMatch(roomCode: string, execute: boolean): Prom
 // Smart Skip & Bot Assignment
 // ======================================================
 
+
+
 /**
  * Simulates a competitive bidding war among bots (and potentially the current human high bidder).
  * Uses a "Second-Price" logic to determine a realistic final price and winner.
  */
-function simulateBiddingWar(player: CricketPlayer, state: AuctionState): { winner: AuctionTeam | null; price: number } {
-    const participants = state.teams
-        .filter(team => {
-            // Include bots always
-            if (isBotUser(team.username)) return true;
-            // Include human ONLY if they are the current high bidder
-            return state.currentBidder?.userId === team.userId;
-        }) 
-        .map(team => {
-            const isCurrentHigh = state.currentBidder?.userId === team.userId;
-            
-            // For bots, use their calculated max. 
-            // For humans, we only know their CURRENT bid (assume that is their max for skip purposes)
-            const botMax = isBotUser(team.username) ? getBotMaxHighBid(player, team) : (isCurrentHigh ? state.currentBid : 0);
-            
-            return {
-                team,
-                max: isCurrentHigh ? Math.max(state.currentBid, botMax) : botMax
-            };
-        }).filter(p => p.max >= (state.currentBid || player.basePrice));
+async function simulateBiddingWar(player: CricketPlayer, state: AuctionState): Promise<{ winner: AuctionTeam | null; price: number }> {
+    const botTeams = state.teams.filter(team => isBotUser(team.username) || state.currentBidder?.userId === team.userId);
+    
+    // Fetch ML valuations in bulk!
+    const mlValuations = await getMlBotValuations(player, botTeams);
+    
+    const participants = botTeams.map(team => {
+        const isCurrentHigh = state.currentBidder?.userId === team.userId;
+        const isBot = isBotUser(team.username);
+        
+        let botMax = isBot ? (mlValuations[team.userId] || getBotMaxHighBid(player, team)) : (isCurrentHigh ? state.currentBid : 0);
+        
+        return {
+            team,
+            max: isCurrentHigh ? Math.max(state.currentBid, botMax) : botMax
+        };
+    }).filter(p => p.max >= (state.currentBid || player.basePrice));
 
     if (participants.length === 0) return { winner: null, price: 0 };
     
@@ -579,7 +578,7 @@ export async function skipPlayer(roomCode: string): Promise<AuctionState | null>
     // If already sold or unsold, don't re-process (prevents double-selling/double-unsold)
     if (state.status === 'sold' || state.status === 'unsold') return state;
 
-    const { winner, price } = simulateBiddingWar(state.currentPlayer, state);
+    const { winner, price } = await simulateBiddingWar(state.currentPlayer, state);
 
     if (winner) {
         state.currentBidder = { userId: winner.userId, username: winner.username, teamName: winner.teamName };
@@ -646,7 +645,7 @@ export async function skipSet(roomCode: string): Promise<AuctionState | null> {
             state.currentBidder = null;
         }
 
-        const { winner, price } = simulateBiddingWar(p, state);
+        const { winner, price } = await simulateBiddingWar(p, state);
         if (winner) {
             const soldPlayer: SoldPlayer = {
                 player: p,

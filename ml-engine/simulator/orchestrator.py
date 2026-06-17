@@ -113,6 +113,49 @@ class MatchOrchestrator:
             "raw_probabilities": {k: round(v, 4) for k, v in probs.items()}
         }
 
+    def simulate_batch(self, state, max_balls=6):
+        results = []
+        current_state = dict(state)
+        score = current_state.get('current_score', 0)
+        wickets = current_state.get('wickets', 0)
+        over = current_state.get('over', 0)
+        ball = current_state.get('ball', 1)
+        
+        for _ in range(max_balls):
+            result = self.simulate_ball(current_state)
+            results.append(result)
+            
+            if result['outcome'] == 'WICKET':
+                wickets += 1
+                current_state['wickets'] = wickets
+                break # Stop at wicket so Next.js can pick next batter
+            elif result['outcome'] == 'EXTRA':
+                score += 1
+                current_state['current_score'] = score
+            else:
+                try:
+                    score += int(result['outcome'])
+                except ValueError:
+                    pass
+                current_state['current_score'] = score
+                
+                ball += 1
+                if ball > 6:
+                    ball = 1
+                    over += 1
+                    current_state['over'] = over
+                    current_state['ball'] = ball
+                    break # Stop at end of over so Next.js can pick next bowler
+                current_state['ball'] = ball
+                
+            if over >= 20 or wickets >= 10:
+                break
+            target = current_state.get('target', 0)
+            if target > 0 and score >= target:
+                break
+                
+        return results
+
     def simulate_innings(self, venue, target=0):
         innings = 1 if target == 0 else 2
         score = 0

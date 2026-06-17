@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: ml-engine
+    name: the-dugout-ml
     runtime: python
     rootDir: ml-engine
     plan: free
@@ -34,7 +34,7 @@ services:
       - key: ML_ENGINE_URL
         fromService:
           type: web
-          name: ml-engine
+          name: the-dugout-ml
           property: url
 
 databases:

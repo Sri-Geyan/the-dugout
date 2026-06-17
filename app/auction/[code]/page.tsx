@@ -8,6 +8,7 @@ import PlayerAvatar from '@/components/PlayerAvatar';
 import TeamLogo from '@/components/TeamLogo';
 import { IPL_TEAMS } from '@/data/teams';
 import { getSocket } from '@/lib/socket';
+import { CricketPlayer } from '@/data/players';
 
 interface AuctionSetInfo {
     id: string;
@@ -22,7 +23,7 @@ interface AuctionSetInfo {
 interface AuctionState {
     roomCode: string;
     status: string;
-    currentPlayer: { name: string; role: string; basePrice: number; battingSkill: number; bowlingSkill: number; nationality?: string } | null;
+    currentPlayer: CricketPlayer | null;
     currentBid: number;
     currentBidder: { userId: string; username: string; teamName: string } | null;
     timerEnd: number | null;

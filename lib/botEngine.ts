@@ -311,7 +311,7 @@ export const isDeathPacer = (p: EnrichedPlayer) =>
     (p.bowlingRole?.toLowerCase().includes('death') || p.primaryArchetype?.includes('Death Specialist')) && !isSpinner(p);
 
 export const isPacer = (p: EnrichedPlayer) => 
-    (p.role === 'BOWLER' || p.role === 'ALL_ROUNDER') && !isSpinner(p) && (p.bowlingSkill > 40 || p.bowlingRating > 40);
+    (p.role === 'BOWLER' || p.role === 'ALL_ROUNDER') && !isSpinner(p) && (p.bowlingSkill > 40 || (p.bowlingRating || 0) > 40);
 
 export const isSpinner = (p: EnrichedPlayer) => 
     (p.role === 'BOWLER' || p.role === 'ALL_ROUNDER') && 

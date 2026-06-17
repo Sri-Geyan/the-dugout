@@ -538,7 +538,7 @@ function InningsTable({ teamName, score, overs, batting, bowling }: { teamName: 
                                     <td className="py-2 text-right font-mono">{s.runs}</td>
                                     <td className="py-2 text-right font-mono font-bold text-purple-400">{s.wickets}</td>
                                     <td className="py-2 text-right font-mono text-cyan-400">
-                                        {s.overs > 0 ? (s.runs / s.overs).toFixed(2) : '0.00'}
+                                        {Number(s.overs) > 0 ? (s.runs / Number(s.overs)).toFixed(2) : '0.00'}
                                     </td>
                                 </tr>
                             ))}
@@ -1063,7 +1063,7 @@ export default function LeaguePage() {
                             <StatTable 
                                 title="🎯 Best Bowling"
                                 data={leaderboard?.bestBowling || []}
-                                valueKey="bestBowling"
+                                valueKey="playerId"
                                 label="FIG"
                                 color="#F43F5E"
                                 limit={5}
@@ -1072,7 +1072,7 @@ export default function LeaguePage() {
                             <StatTable 
                                 title="📉 Best Economy"
                                 data={leaderboard?.economy || []}
-                                valueKey="economy"
+                                valueKey="playerId"
                                 label="ECON"
                                 color="#A855F7"
                                 limit={5}
@@ -1081,7 +1081,7 @@ export default function LeaguePage() {
                             <StatTable 
                                 title="⚡ Strike Rate"
                                 data={leaderboard?.strikeRate || []}
-                                valueKey="strikeRate"
+                                valueKey="playerId"
                                 label="S/R"
                                 color="#0EA5E9"
                                 limit={5}

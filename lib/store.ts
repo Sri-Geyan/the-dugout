@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { CricketPlayer } from '@/data/players';
 
 interface UserState {
     userId: string | null;
@@ -38,7 +39,7 @@ export const useRoomStore = create<RoomState>((set) => ({
 }));
 
 interface AuctionUIState {
-    currentPlayer: { name: string; role: string; basePrice: number; battingSkill: number; bowlingSkill: number } | null;
+    currentPlayer: CricketPlayer | null;
     currentBid: number;
     currentBidder: { username: string; teamName: string } | null;
     timerEnd: number | null;

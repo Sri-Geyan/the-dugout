@@ -137,7 +137,7 @@ export async function POST(request: NextRequest) {
                     };
                 });
 
-                const selection = botSelectPlaying11(squad, pitchType);
+                const selection = (await botSelectPlaying11(squad, pitchType)) as any;
 
                 const key = fixtureId
                     ? `selection:${roomCode}:${fixtureId}:${team.userId}`

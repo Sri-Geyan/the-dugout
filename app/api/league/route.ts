@@ -338,7 +338,7 @@ export async function POST(request: NextRequest) {
             while (matchState.status !== 'completed' && iterations < maxIterations) {
                 iterations++;
                 
-                const currentStatus = matchState.status;
+                const currentStatus = matchState.status as MatchState['status'];
 
                 if (currentStatus === 'awaiting_batter') {
                     const nextBat = botChooseNextBatter(matchState);

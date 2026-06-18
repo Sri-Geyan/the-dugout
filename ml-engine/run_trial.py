@@ -3,14 +3,14 @@ import sys
 
 # Train Market Model
 print("--- Training Market Value Model (XGBoost) ---")
-from models.market_value.market_value import MarketValueModel
-mvm = MarketValueModel()
-mvm.train_mock()
+# from models.market_value.market_value import MarketValueModel
+# mvm = MarketValueModel()
+# mvm.train_mock()
 
 # Train PPO Agent
 print("\n--- Training PPO Auction Agent (Stable-Baselines3) ---")
-from models.train_ppo import train_ppo_agent
-train_ppo_agent()
+# from models.train_ppo import train_ppo_agent
+# train_ppo_agent()
 
 # Simulate a decision
 print("\n--- Simulating Live Auction Decision ---")
@@ -40,6 +40,31 @@ async def test_decision():
     print(result)
 
 asyncio.run(test_decision())
+
+# Test Match Orchestrator with Pitch Data
+print("\n--- Testing Match Orchestrator (Pitch Data) ---")
+from simulator.orchestrator import MatchOrchestrator
+orchestrator = MatchOrchestrator()
+state = {
+    'innings': 2,
+    'over': 15,
+    'ball': 1,
+    'current_score': 120,
+    'wickets': 3,
+    'target': 180,
+    'venue': 'MA Chidambaram Stadium',
+    'batter_rating': 85,
+    'bowler_rating': 90,
+    'pitch_data': {
+        'batFriendly': 2,
+        'bounce': 2,
+        'turn': 5,
+        'dewProbability': 0.8
+    }
+}
+result = orchestrator.simulate_ball(state)
+print("Simulation result for Spin Bowler on high-turn track in 2nd Innings with Dew:")
+print(result)
 
 # Test Fixture Scheduler
 print("\n--- Testing Fixture Scheduler ---")

@@ -7,6 +7,7 @@ import { getAuctionState } from '@/lib/auctionEngine';
 import { getRoomState } from '@/lib/roomManager';
 import { isBotUser, botChooseNextBatter, botChooseNextBowler, botTossDecision, ensureBotSelections } from '@/lib/botEngine';
 import redis from '@/lib/redis';
+import { getStadiumById } from '@/data/stadiums';
 
 function getSession(request: NextRequest) {
     const sessionCookie = request.cookies.get('session');
@@ -472,6 +473,7 @@ export async function POST(request: NextRequest) {
                             const max_balls = Math.min(ballsRemaining, 6 - battingTeam.balls);
                             
                             const mlEngineUrl = process.env.ML_ENGINE_URL || 'http://127.0.0.1:8000';
+                            const stadium = state.stadiumId ? getStadiumById(state.stadiumId) : null;
                             const response = await fetch(`${mlEngineUrl}/api/simulate/batch`, {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json' },
@@ -485,7 +487,13 @@ export async function POST(request: NextRequest) {
                                     venue: state.stadiumId ? state.stadiumId : 'Neutral',
                                     batter_rating: state.striker?.player.battingSkill || 50,
                                     bowler_rating: state.currentBowler?.player.bowlingSkill || 30,
-                                    max_balls: max_balls
+                                    max_balls: max_balls,
+                                    pitch_data: stadium ? {
+                                        batFriendly: stadium.batFriendly,
+                                        bounce: stadium.bounce,
+                                        turn: stadium.turn,
+                                        dewProbability: stadium.dewProbability
+                                    } : null
                                 })
                             });
                             if (response.ok) {

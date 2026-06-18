@@ -73,12 +73,18 @@ class MatchOrchestrator:
         # Base Probabilities from ML Model
         probs = self.ball_model.predict_probs(features)
         
+        # Extract pitch data and bowler type
+        pitch_data = state.get('pitch_data', None)
+        bowler_type = "spin" if state.get('bowler_rating', 80) % 2 == 0 else "pace"
+        
         # Apply heuristics (Venue, Matchups, Game Situation)
         probs = self.venue_engine.adjust_probabilities(
             probs, 
-            state.get('venue', 'Neutral'),
-            state.get('batter_rating', 80),
-            state.get('bowler_rating', 80)
+            pitch_data=pitch_data,
+            batter_rating=state.get('batter_rating', 80),
+            bowler_rating=state.get('bowler_rating', 80),
+            bowler_type=bowler_type,
+            innings=innings
         )
         
         probs = self.behavior_engine.adjust_for_situation(
@@ -98,7 +104,6 @@ class MatchOrchestrator:
         dismissal_type = None
         if outcome == "WICKET":
             # Very simplistic pace vs spin fallback for demo
-            bowler_type = "spin" if state.get('bowler_rating', 80) % 2 == 0 else "pace"
             dismissal_type = self.wicket_engine.generate_dismissal(bowler_type, phase)
             
         # Generate Commentary

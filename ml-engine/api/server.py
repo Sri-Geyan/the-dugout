@@ -188,6 +188,7 @@ async def health_check():
 class MatchState(BaseModel):
     venue: str = "Neutral"
     target: int = 0
+    pitch_data: dict = None
     # Additional configurations can go here
 
 @app.post("/api/simulate/ball")

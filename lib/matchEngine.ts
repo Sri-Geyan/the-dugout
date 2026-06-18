@@ -219,7 +219,13 @@ export async function simulateBall(
             target: target || 0,
             venue: venueName,
             batter_rating: batter.player.battingSkill || 50,
-            bowler_rating: bowler.player.bowlingSkill || 30
+            bowler_rating: bowler.player.bowlingSkill || 30,
+            pitch_data: stadium ? {
+                batFriendly: stadium.batFriendly,
+                bounce: stadium.bounce,
+                turn: stadium.turn,
+                dewProbability: stadium.dewProbability
+            } : null
         };
 
         const response = await fetch(`${mlEngineUrl}/api/simulate/ball`, {

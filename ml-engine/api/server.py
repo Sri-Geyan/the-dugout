@@ -6,10 +6,10 @@ import os
 # Add parent directory to path so we can import models and core
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from models.market_value import MarketValueModel
+from models.market_value.market_value import MarketValueModel
 from core.franchise_dna import apply_franchise_dna
 from stable_baselines3 import PPO
-from models.retention_model import RetentionModel
+from models.retention.retention_model import RetentionModel
 import numpy as np
 
 app = FastAPI(title="The Dugout - ML Auction Engine")
@@ -18,19 +18,19 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 # Initialize models
 try:
-    market_model = MarketValueModel(os.path.join(BASE_DIR, "models", "xgboost_market_model.json"))
+    market_model = MarketValueModel(os.path.join(BASE_DIR, "models", "market_value", "xgboost_market_model.json"))
 except Exception as e:
     market_model = None
     print(f"Failed to load Market Model: {e}")
 
 try:
-    rl_model = PPO.load(os.path.join(BASE_DIR, "models", "ppo_auction_bot.zip"))
+    rl_model = PPO.load(os.path.join(BASE_DIR, "models", "auction", "ppo_auction_bot.zip"))
 except Exception as e:
     rl_model = None
     print(f"Failed to load PPO Model: {e}")
 
 try:
-    retention_model = RetentionModel(os.path.join(BASE_DIR, "models", "xgboost_retention_model.json"))
+    retention_model = RetentionModel(os.path.join(BASE_DIR, "models", "retention", "xgboost_retention_model.json"))
 except Exception as e:
     retention_model = None
     print(f"Failed to load Retention Model: {e}")
@@ -47,7 +47,7 @@ except Exception as e:
 
 # Load Selection Engine
 try:
-    from models.selection_model import SelectionModel
+    from models.selection.selection_model import SelectionModel
     from selection.modifiers import ContextModifierEngine
     from selection.optimizer import LineupOptimizer
     from selection.explainer import ExplainableAIEngine

@@ -3,7 +3,7 @@ import sys
 
 # Train Market Model
 print("--- Training Market Value Model (XGBoost) ---")
-from models.market_value import MarketValueModel
+from models.market_value.market_value import MarketValueModel
 mvm = MarketValueModel()
 mvm.train_mock()
 

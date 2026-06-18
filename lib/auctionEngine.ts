@@ -533,6 +533,11 @@ async function simulateBiddingWar(player: CricketPlayer, state: AuctionState): P
         
         let botMax = isBot ? (mlValuations[team.userId] || getBotMaxHighBid(player, team)) : (isCurrentHigh ? state.currentBid : 0);
         
+        // Critical: Never let a bot bid more than its actual remaining purse
+        if (isBot) {
+            botMax = Math.min(botMax, team.purse);
+        }
+        
         return {
             team,
             max: isCurrentHigh ? Math.max(state.currentBid, botMax) : botMax

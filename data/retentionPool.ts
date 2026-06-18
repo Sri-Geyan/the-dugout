@@ -249,7 +249,7 @@ export const RETENTION_POOL: Record<string, RetentionEligiblePlayer[]> = {
             "role": "WICKET_KEEPER",
             "nationality": "Indian",
             "auctionPrice2025": 0,
-            "capStatus": "Capped"
+            "capStatus": "Uncapped"
         },
         {
             "name": "Ashutosh Sharma",

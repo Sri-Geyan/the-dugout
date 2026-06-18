@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { CricketPlayer } from '@/data/players';
+import { CricketPlayer } from '@/lib/playersDb';
 
 interface UserState {
     userId: string | null;

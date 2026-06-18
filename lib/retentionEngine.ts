@@ -1,8 +1,8 @@
 import redis from './redis';
-import { IPL_PLAYERS } from '@/data/players';
+import { getAllPlayers } from '@/lib/playersDb';
 import { RETENTION_POOL } from '@/data/retentionPool';
 
-// ─── Constants ────────────────────────────────────────────────────────────────
+const IPL_PLAYERS = getAllPlayers();
 export const MAX_RETENTIONS = 6;
 export const MAX_CAPPED_RETENTIONS = 5;
 export const MAX_UNCAPPED_RETENTIONS = 2;

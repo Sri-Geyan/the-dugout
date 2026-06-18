@@ -1,4 +1,4 @@
-import { CricketPlayer } from '@/data/players';
+import { CricketPlayer } from '@/lib/playersDb';
 
 export const IPL_MAX_OVERSEAS = 8;
 export const IPL_MIN_SQUAD = 21;
@@ -170,14 +170,14 @@ export function playerFillScore(
 
     // Capped vs Uncapped Balance
     // Define "Capped" as basePrice >= 1.0 or skill > 75
-    const isCapped = player.basePrice >= 1.0 || Math.max(player.battingSkill, player.bowlingSkill) > 75;
-    const squadCapped = squad.filter(s => (s.player.basePrice || 0) >= 1.0 || Math.max(s.player.battingSkill, s.player.bowlingSkill) > 75).length;
+    const isCapped = player.basePrice >= 1.0 || Math.max(player.battingSkill || 0, player.bowlingSkill || 0) > 75;
+    const squadCapped = squad.filter(s => (s.player.basePrice || 0) >= 1.0 || Math.max(s.player.battingSkill || 0, s.player.bowlingSkill || 0) > 75).length;
     const squadUncapped = comp.total - squadCapped;
 
     let balanceMultiplier = 1.0;
     if (isCapped && squadCapped > 10) balanceMultiplier = 0.8; // Don't overspend on too many stars
     if (!isCapped && squadUncapped > 12) balanceMultiplier = 0.7; // Don't fill squad with too many low-skill players
 
-    const skill = Math.max(player.battingSkill, player.bowlingSkill);
+    const skill = Math.max(player.battingSkill || 0, player.bowlingSkill || 0);
     return roleNeed * (skill / 70) * balanceMultiplier;
 }

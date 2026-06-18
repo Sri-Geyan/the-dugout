@@ -9,7 +9,6 @@ import { getSocket } from '@/lib/socket';
 import TeamLogo from '@/components/TeamLogo';
 import { IPL_TEAMS } from '@/data/teams';
 import PlayerCard from '@/components/PlayerCard';
-import { IPL_PLAYERS } from '@/data/players';
 
 // Hardcoding these constants on the client avoid importing lib/retentionEngine which requires node dependencies (redis)
 const CAPPED_RETENTION_COSTS = [18, 14, 11, 18, 14];
@@ -138,6 +137,16 @@ export default function RetentionPage() {
             if (roomRes.ok) {
                 const roomData = await roomRes.json();
                 setHostId(roomData.room.hostId);
+            }
+
+            try {
+                const pRes = await fetch('/api/players');
+                if (pRes.ok) {
+                    const pData = await pRes.json();
+                    (window as any).IPL_PLAYERS = pData.players;
+                }
+            } catch (err) {
+                console.error("Failed to load players for UI", err);
             }
 
             await fetchState();
@@ -427,9 +436,8 @@ export default function RetentionPage() {
                                                 </div>
                                             )}
 
-                                            {/* We wrap the PlayerCard and overlay the retain button logic */}
                                             <div className="mb-3 pointer-events-none">
-                                                <PlayerCard player={IPL_PLAYERS.find(p => p.name === player.name) || (player as any)} compact={true} showBasePrice={false} />
+                                                <PlayerCard player={((window as any).IPL_PLAYERS || []).find((p: any) => p.name === player.name) || (player as any)} compact={true} showBasePrice={false} />
                                             </div>
 
                                             {/* 2025 price */}

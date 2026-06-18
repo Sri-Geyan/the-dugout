@@ -1,5 +1,5 @@
 import { AuctionState, AuctionTeam, placeBid, getAuctionState, sellCurrentPlayer, BID_INCREMENT, handleRtm, handleBargain, handleFinalMatch } from './auctionEngine';
-import { CricketPlayer } from '@/data/players';
+import { CricketPlayer } from '@/lib/playersDb';
 import { getRoomState } from './roomManager';
 import { emitToRoom } from './socket-server';
 import type { MatchState, BatterState, BowlerState, MatchPlayer } from './matchEngine';
@@ -96,7 +96,7 @@ export function getBotMaxHighBid(
     const fillScore = playerFillScore(player, team.squad, stadiumId);
     if (fillScore === 0) return 0;
 
-    const skill = Math.max(player.battingSkill, player.bowlingSkill);
+    const skill = Math.max(player.battingSkill || 0, player.bowlingSkill || 0);
     const maxBidRaw = Math.min(
         player.basePrice * personality.maxOverpay * fillScore,
         availablePurse * 0.35 // Reduced from 0.75: cap single-player spend to 35% of purse
@@ -123,7 +123,7 @@ export async function getMlBotValuations(player: CricketPlayer, teams: AuctionTe
     const mlEngineUrl = process.env.ML_ENGINE_URL || 'http://127.0.0.1:8000';
     try {
         const playerFeatures = {
-            overall_rating: Math.max(player.battingSkill, player.bowlingSkill),
+            overall_rating: Math.max(player.battingSkill || 0, player.bowlingSkill || 0),
             age: player.age || 25,
             scarcity: 50,
             form: 0,
@@ -272,8 +272,8 @@ interface EnrichedPlayer {
     id: string;
     name: string;
     role: string;
-    battingSkill: number;
-    bowlingSkill: number;
+    battingSkill: number | null;
+    bowlingSkill: number | null;
     nationality?: string;
     battingRole?: string;
     bowlingRole?: string;
@@ -339,7 +339,7 @@ export const isDeathPacer = (p: EnrichedPlayer) =>
     (p.bowlingRole?.toLowerCase().includes('death') || p.primaryArchetype?.includes('Death Specialist')) && !isSpinner(p);
 
 export const isPacer = (p: EnrichedPlayer) => 
-    (p.role === 'BOWLER' || p.role === 'ALL_ROUNDER') && !isSpinner(p) && (p.bowlingSkill > 40 || (p.bowlingRating || 0) > 40);
+    (p.role === 'BOWLER' || p.role === 'ALL_ROUNDER') && !isSpinner(p) && ((p.bowlingSkill || 0) > 40 || (p.bowlingRating || 0) > 40);
 
 export const isSpinner = (p: EnrichedPlayer) => 
     (p.role === 'BOWLER' || p.role === 'ALL_ROUNDER') && 
@@ -348,10 +348,10 @@ export const isSpinner = (p: EnrichedPlayer) =>
      p.secondaryArchetype?.includes('Spinner') ||
      p.name === 'Rashid Khan' || p.name === 'Wanindu Hasaranga' || p.name === 'Varun Chakravarthy' || p.name === 'Kuldeep Yadav' || p.name === 'Yuzvendra Chahal' || p.name === 'R. Sai Kishore' || p.name === 'Rahul Chahar');
 export const isBattingAR = (p: EnrichedPlayer) => 
-    p.role === 'ALL_ROUNDER' && (p.battingSkill > p.bowlingSkill + 10 || p.primaryArchetype?.includes('Batting All-Rounder'));
+    p.role === 'ALL_ROUNDER' && ((p.battingSkill || 0) > (p.bowlingSkill || 0) + 10 || p.primaryArchetype?.includes('Batting All-Rounder'));
 
 export const isBowlingAR = (p: EnrichedPlayer) => 
-    p.role === 'ALL_ROUNDER' && (p.bowlingSkill > p.battingSkill + 10 || p.primaryArchetype?.includes('Bowling All-Rounder'));
+    p.role === 'ALL_ROUNDER' && ((p.bowlingSkill || 0) > (p.battingSkill || 0) + 10 || p.primaryArchetype?.includes('Bowling All-Rounder'));
 
 export async function botSelectPlaying11(
     squad: EnrichedPlayer[], 
@@ -469,7 +469,7 @@ export function botChooseNextBatter(state: MatchState): string | null {
     if (isCollapse) {
         // Send the best Anchor or Middle Order remaining, regardless of phase
         const stabilizer = available.filter(b => isAnchor(b.player) || isMiddleOrder(b.player))
-            .sort((a, b) => (b.player.battingRating || b.player.battingSkill) - (a.player.battingRating || a.player.battingSkill))[0];
+            .sort((a, b) => (b.player.battingRating || b.player.battingSkill || 0) - (a.player.battingRating || a.player.battingSkill || 0))[0];
         if (stabilizer) return stabilizer.player.id;
     }
 
@@ -492,7 +492,7 @@ export function botChooseNextBatter(state: MatchState): string | null {
     // 4. CRISIS: Top order gone early in Powerplay
     if (phase === 'powerplay' && wicketsDown >= 2) {
         const solid = available.filter(b => isAnchor(b.player))
-            .sort((a, b) => (b.player.battingRating || b.player.battingSkill) - (a.player.battingRating || a.player.battingSkill))[0];
+            .sort((a, b) => (b.player.battingRating || b.player.battingSkill || 0) - (a.player.battingRating || a.player.battingSkill || 0))[0];
         if (solid) return solid.player.id;
     }
 
@@ -508,14 +508,14 @@ export function botChooseNextBatter(state: MatchState): string | null {
             const pA = priority(a.player);
             const pB = priority(b.player);
             if (pA !== pB) return pB - pA;
-            return (b.player.battingRating || b.player.battingSkill) - (a.player.battingRating || a.player.battingSkill);
+            return (b.player.battingRating || b.player.battingSkill || 0) - (a.player.battingRating || a.player.battingSkill || 0);
         });
         return sorted[0].player.id;
     }
 
     // Default: Follow the pre-set batting order
     // But ensure we don't send a pure bowler if a batter is available
-    const batterAvailable = available.find(b => b.player.role !== 'BOWLER' || b.player.battingSkill > 40);
+    const batterAvailable = available.find(b => b.player.role !== 'BOWLER' || (b.player.battingSkill || 0) > 40);
     if (batterAvailable) return batterAvailable.player.id;
 
     return available[0].player.id;
@@ -535,8 +535,8 @@ export function botChooseNextBowler(state: MatchState): string | null {
 
     // Sorting Logic based on Professional Strategy
     const sorted = [...pool].sort((a, b) => {
-        const skillA = a.player.bowlingRating || a.player.bowlingSkill;
-        const skillB = b.player.bowlingRating || b.player.bowlingSkill;
+        const skillA = a.player.bowlingRating || a.player.bowlingSkill || 0;
+        const skillB = b.player.bowlingRating || b.player.bowlingSkill || 0;
         
         const isDeathSpecialistA = isDeathPacer(a.player);
         const isDeathSpecialistB = isDeathPacer(b.player);
@@ -558,7 +558,7 @@ export function botChooseNextBowler(state: MatchState): string | null {
         } else if (phase === 'death') {
             if (isDeathSpecialistA && !isDeathSpecialistB) return -1;
             if (isDeathSpecialistB && !isDeathSpecialistA) return 1;
-            return skillB - skillA;
+            return (skillB || 0) - (skillA || 0);
         } else if (phase === 'middle') {
             // Prefer spinners in middle overs if it's a spinning track
             const spinTrack = state.pitchType === 'SPINNING';
@@ -615,7 +615,7 @@ export async function runBotRetentions(roomCode: string): Promise<void> {
         const sorted = [...pool].sort((a, b) => {
             const skillA = Math.max(a?.battingSkill || 0, a?.bowlingSkill || 0);
             const skillB = Math.max(b?.battingSkill || 0, b?.bowlingSkill || 0);
-            return skillB - skillA;
+            return (skillB || 0) - (skillA || 0);
         });
 
         const mlEngineUrl = process.env.ML_ENGINE_URL || 'http://127.0.0.1:8000';

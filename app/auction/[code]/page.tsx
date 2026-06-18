@@ -8,7 +8,7 @@ import PlayerAvatar from '@/components/PlayerAvatar';
 import TeamLogo from '@/components/TeamLogo';
 import { IPL_TEAMS } from '@/data/teams';
 import { getSocket } from '@/lib/socket';
-import { CricketPlayer } from '@/data/players';
+import { CricketPlayer } from '@/lib/playersDb';
 
 interface AuctionSetInfo {
     id: string;

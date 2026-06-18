@@ -2,7 +2,7 @@
 
 import React from 'react';
 import PlayerAvatar from './PlayerAvatar';
-import type { CricketPlayer } from '@/data/players'; // Will import the full interface from players.ts
+import type { CricketPlayer } from '@/lib/playersDb';
 
 interface PlayerCardProps {
     player: CricketPlayer;
@@ -161,7 +161,7 @@ export default function PlayerCard({ player, compact = false, showBasePrice = tr
                                 <div className="grid grid-cols-2 gap-2 mt-3 pt-3 border-t border-white/5 text-center">
                                     <div>
                                         <p className="text-[9px] text-white/40 uppercase mb-0.5">Best Bowling</p>
-                                        <p className="text-xs font-bold text-white/80">{player.bowlingStats.bestBowling}</p>
+                                        <p className="text-xs font-bold text-white/80">{player.bowlingStats.bestWickets}</p>
                                     </div>
                                     <div>
                                         <p className="text-[9px] text-white/40 uppercase mb-0.5">Overs</p>

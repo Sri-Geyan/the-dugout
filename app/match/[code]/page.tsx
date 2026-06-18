@@ -8,7 +8,7 @@ import { getSocket } from '@/lib/socket';
 import PlayerAvatar from '@/components/PlayerAvatar';
 import { STADIUMS, getStadiumById } from '@/data/stadiums';
 import { getTeamByName } from '@/data/teams';
-import { CricketPlayer } from '@/data/players';
+import { CricketPlayer } from '@/lib/playersDb';
 import { StadiumCard } from '@/components/StadiumCard';
 import TeamLogo from '@/components/TeamLogo';
 

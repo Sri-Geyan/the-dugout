@@ -1,5 +1,5 @@
 import redis from './redis';
-import { CricketPlayer, IPL_PLAYERS } from '@/data/players';
+import { CricketPlayer, getAllPlayers } from '@/lib/playersDb';
 import { canAddOverseas } from './squadUtils';
 import { getBotMaxHighBid, isBotUser, getMlBotValuations } from './botEngine';
 
@@ -33,14 +33,14 @@ function buildAuctionSets(excludeIds: Set<string> = new Set()): AuctionSet[] {
     };
 
     const bySkillDesc = (a: CricketPlayer, b: CricketPlayer) =>
-        Math.max(b.battingSkill, b.bowlingSkill) - Math.max(a.battingSkill, a.bowlingSkill);
+        Math.max(b.battingSkill || 0, b.bowlingSkill || 0) - Math.max(a.battingSkill || 0, a.bowlingSkill || 0);
 
     const byBasePriceDesc = (a: CricketPlayer, b: CricketPlayer) =>
         b.basePrice - a.basePrice || bySkillDesc(a, b);
 
     // Categories
     const categories = [
-        { id: 'marquee', name: 'Marquee', short: 'MARQUEE', emoji: '👑', color: '#FFD700', filter: (p: CricketPlayer) => p.basePrice >= 2 && Math.max(p.battingSkill, p.bowlingSkill) >= 85 },
+        { id: 'marquee', name: 'Marquee', short: 'MARQUEE', emoji: '👑', color: '#FFD700', filter: (p: CricketPlayer) => p.basePrice >= 2 && Math.max(p.battingSkill || 0, p.bowlingSkill || 0) >= 85 },
         { id: 'ind-bat', name: 'Capped Indian Batsmen', short: 'IND BAT', emoji: '🏏', color: '#4FC3F7', filter: (p: CricketPlayer) => p.nationality === 'Indian' && p.role === 'BATSMAN' && p.basePrice >= 0.5 },
         { id: 'ind-ar', name: 'Capped Indian All-Rounders', short: 'IND AR', emoji: '⭐', color: '#66BB6A', filter: (p: CricketPlayer) => p.nationality === 'Indian' && p.role === 'ALL_ROUNDER' && p.basePrice >= 0.5 },
         { id: 'ind-bowl', name: 'Capped Indian Bowlers', short: 'IND BOWL', emoji: '🎯', color: '#EF5350', filter: (p: CricketPlayer) => p.nationality === 'Indian' && p.role === 'BOWLER' && p.basePrice >= 0.5 },
@@ -149,6 +149,8 @@ export interface AuctionTeam {
         cost: number;
     }[];
 }
+
+const IPL_PLAYERS = getAllPlayers();
 
 const INITIAL_PURSE = 120; // Cr
 const MAX_SQUAD_SIZE = 25;

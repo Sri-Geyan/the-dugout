@@ -85,8 +85,8 @@ export interface MatchPlayer {
     id: string;
     name: string;
     role: string;
-    battingSkill: number;
-    bowlingSkill: number;
+    battingSkill: number | null;
+    bowlingSkill: number | null;
     nationality?: string;
     isCaptain?: boolean;
     isWicketKeeper?: boolean;
@@ -245,8 +245,8 @@ export async function simulateBall(
 
     const { batMod, bowlMod } = getPitchModifier(pitchType, phase);
 
-    let batSkill = batter.player.battingSkill * batMod;
-    let bowlSkill = bowler.player.bowlingSkill * bowlMod;
+    let batSkill = (batter.player.battingSkill || 0) * batMod;
+    let bowlSkill = (bowler.player.bowlingSkill || 0) * bowlMod;
 
     // Apply Stadium Factors
     if (stadium) {

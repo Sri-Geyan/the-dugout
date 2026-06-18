@@ -6,12 +6,13 @@ from sklearn.preprocessing import LabelEncoder
 import joblib
 import os
 
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))) # ml-engine
+MODEL_DIR = os.path.dirname(os.path.abspath(__file__)) # match_sim
 
 class BallOutcomeModel:
     def __init__(self, model_path=None, encoder_path=None):
-        self.model_path = model_path or os.path.join(BASE_DIR, "models", "ball_outcome_xgb.json")
-        self.encoder_path = encoder_path or os.path.join(BASE_DIR, "models", "label_encoder.pkl")
+        self.model_path = model_path or os.path.join(MODEL_DIR, "ball_outcome_xgb.json")
+        self.encoder_path = encoder_path or os.path.join(MODEL_DIR, "label_encoder.pkl")
         self.model = xgb.XGBClassifier(objective='multi:softprob', n_estimators=100, enable_categorical=True)
         self.label_encoder = LabelEncoder()
         

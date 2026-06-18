@@ -14,7 +14,7 @@ import {
     saveAuctionState,
 } from '@/lib/auctionEngine';
 import { getRoomState, updateRoomStatus, fillRoomWithBots } from '@/lib/roomManager';
-import { TEAM_NAMES } from '@/data/players';
+import { TEAM_NAMES } from '@/lib/playersDb';
 import { getRetentionState } from '@/lib/retentionEngine';
 import { runBotBidding, runBotRtmDecisions, runBotBargainDecisions, runBotFinalMatchDecisions } from '@/lib/botEngine';
 import { emitToRoom } from '@/lib/socket-server';

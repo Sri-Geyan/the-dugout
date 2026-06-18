@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import PlayerCard from './PlayerCard';
-import type { CricketPlayer } from '@/data/players';
+import type { CricketPlayer } from '@/lib/playersDb';
 
 interface AuctionPanelProps {
     currentPlayer: CricketPlayer | null;

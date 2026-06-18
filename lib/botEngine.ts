@@ -127,9 +127,9 @@ export async function getMlBotValuations(player: CricketPlayer, teams: AuctionTe
             age: player.age || 25,
             scarcity: 50,
             form: 0,
-            base_price: player.basePrice
+            base_price: player.basePrice * 100 // Convert Cr to Lakhs
         };
-        const teamPayload = teams.map(t => ({ team_id: t.userId, purse_remaining: t.purse }));
+        const teamPayload = teams.map(t => ({ team_id: t.userId, purse_remaining: t.purse * 100 })); // Convert Cr to Lakhs
         
         const res = await fetch(`${mlEngineUrl}/api/auction/valuations`, {
             method: 'POST',
@@ -139,7 +139,13 @@ export async function getMlBotValuations(player: CricketPlayer, teams: AuctionTe
         
         if (res.ok) {
             const data = await res.json();
-            return data.team_valuations || {};
+            const valuationsInCr: Record<string, number> = {};
+            if (data.team_valuations) {
+                for (const [key, val] of Object.entries(data.team_valuations)) {
+                    valuationsInCr[key] = (val as number) / 100; // Convert Lakhs back to Cr
+                }
+            }
+            return valuationsInCr;
         }
     } catch (e) {
         console.error('Failed to fetch ML bot valuations', e);

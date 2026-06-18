@@ -55,7 +55,7 @@ export interface CricketPlayer {
 
 // In Next.js App Router (especially Server Components or API routes),
 // process.cwd() points to the root of the application
-const dbPath = path.resolve(process.cwd(), 'data/players.db');
+const dbPath = path.resolve(process.cwd(), 'players.db');
 const db = new Database(dbPath, { readonly: true });
 
 export function getAllPlayers(): CricketPlayer[] {

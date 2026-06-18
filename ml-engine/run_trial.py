@@ -40,3 +40,14 @@ async def test_decision():
     print(result)
 
 asyncio.run(test_decision())
+
+# Test Fixture Scheduler
+print("\n--- Testing Fixture Scheduler ---")
+from models.fixtures.scheduler_model import FixtureScheduler
+scheduler = FixtureScheduler(teams=[
+    'Chennai Super Kings', 'Mumbai Indians', 'Royal Challengers Bengaluru', 'Kolkata Knight Riders',
+    'Delhi Capitals', 'Sunrisers Hyderabad', 'Punjab Kings', 'Rajasthan Royals',
+    'Lucknow Super Giants', 'Gujarat Titans'
+])
+sched = scheduler.schedule()
+print(f"Generated {len(sched)} matches for 10 teams")

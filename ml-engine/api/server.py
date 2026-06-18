@@ -60,6 +60,14 @@ except Exception as e:
     selection_model = None
     print(f"Failed to load Selection Engine: {e}")
 
+# Load Fixture Scheduler
+try:
+    from models.fixtures.scheduler_model import FixtureScheduler
+    fixture_scheduler_loaded = True
+except Exception as e:
+    fixture_scheduler_loaded = False
+    print(f"Failed to load Fixture Scheduler: {e}")
+
 class AuctionState(BaseModel):
     team_id: str
     player_features: dict
@@ -171,7 +179,8 @@ async def health_check():
         "rl_model_loaded": rl_model is not None,
         "match_simulator_loaded": match_simulator is not None,
         "retention_model_loaded": retention_model is not None,
-        "selection_model_loaded": selection_model is not None
+        "selection_model_loaded": selection_model is not None,
+        "fixture_scheduler_loaded": fixture_scheduler_loaded
     }
 
 # --- Match Simulation Endpoints ---
@@ -258,6 +267,29 @@ async def select_playing11(payload: SquadPayload):
         "venue": payload.venue,
         "selected_xi": [x for x in final_roster if x['selected']],
         "bench": [x for x in final_roster if not x['selected']]
+    }
+
+# --- Match Scheduling Endpoints ---
+
+class ScheduleRequest(BaseModel):
+    teams: list
+    start_date: str = "2026-03-22"
+
+@app.post("/api/schedule/generate")
+async def generate_schedule(payload: ScheduleRequest):
+    if not fixture_scheduler_loaded:
+        raise HTTPException(status_code=500, detail="Fixture Scheduler not loaded")
+    
+    if len(payload.teams) != 10:
+        raise HTTPException(status_code=400, detail="Standard IPL group format requires exactly 10 teams.")
+        
+    scheduler = FixtureScheduler(teams=payload.teams, start_date=payload.start_date)
+    schedule = scheduler.schedule()
+    
+    return {
+        "status": "success",
+        "total_matches": len(schedule),
+        "schedule": schedule
     }
 
 

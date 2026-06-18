@@ -150,8 +150,14 @@ async def get_auction_valuations(payload: AuctionValuationsPayload):
     valuations = {}
     for team in payload.teams:
         team_id = team.get("team_id")
+        purse_remaining = team.get("purse_remaining")
         # Apply Franchise DNA
         adjusted_val = apply_franchise_dna(team_id, payload.player_features, base_val)
+        
+        # Cap the valuation at the team's remaining purse so we don't suggest impossible bids
+        if purse_remaining is not None:
+            adjusted_val = min(adjusted_val, float(purse_remaining))
+            
         valuations[team_id] = round(adjusted_val, 2)
         
     return {

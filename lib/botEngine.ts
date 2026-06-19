@@ -16,6 +16,19 @@ const BOT_USERNAMES = [
     'Lucknow Super Giants', 'Gujarat Titans',
 ];
 
+export const FRANCHISE_ICONS: Record<string, string[]> = {
+    'Chennai Super Kings': ['Ruturaj Gaikwad', 'MS Dhoni', 'Sanju Samson'],
+    'Gujarat Titans': ['Shubman Gill', 'Rashid Khan'],
+    'Mumbai Indians': ['Jasprit Bumrah', 'Suryakumar Yadav', 'Rohit Sharma', 'Hardik Pandya'],
+    'Kolkata Knight Riders': ['Rinku Singh', 'Sunil Narine'],
+    'Royal Challengers Bengaluru': ['Virat Kohli'],
+    'Delhi Capitals': ['KL Rahul', 'Axar Patel'],
+    'Sunrisers Hyderabad': ['Heinrich Klaasen', 'Pat Cummins'],
+    'Punjab Kings': ['Shreyas Iyer', 'Arshdeep Singh'],
+    'Rajasthan Royals': ['Yashasvi Jaiswal', 'Ravindra Jadeja'],
+    'Lucknow Super Giants': ['Rishabh Pant', 'Nicholas Pooran'],
+};
+
 export function isBotUser(username: string): boolean {
     return BOT_USERNAMES.includes(username);
 }
@@ -51,6 +64,58 @@ export function getTeamHomeStadiumId(teamName: string): string | undefined {
  * Calls /api/auction/valuations with a single team and returns the value in Crores.
  * Falls back to basePrice * 2 if the ML engine is unreachable.
  */
+/**
+ * Computes a robust skill-based heuristic valuation for a player.
+ * Integrates team need and team-specific variance to avoid identical bidding.
+ */
+export function getHeuristicBotMaxBid(
+    player: CricketPlayer,
+    team: AuctionTeam,
+    availablePurse: number
+): number {
+    const skill = Math.max(player.battingSkill || 0, player.bowlingSkill || 0);
+    let fallback = 0;
+    if (skill >= 90) {
+        fallback = 14 + (skill - 90) * 0.8; // 14-22 Cr
+    } else if (skill >= 80) {
+        fallback = 8 + (skill - 80) * 0.6; // 8-14 Cr
+    } else if (skill >= 70) {
+        fallback = 4 + (skill - 70) * 0.4; // 4-8 Cr
+    } else {
+        fallback = Math.max(player.basePrice, 1 + skill * 0.04); // 1-3.8 Cr
+    }
+
+    // Apply team need multiplier
+    const stadiumId = getTeamHomeStadiumId(team.teamName);
+    const fillScore = playerFillScore(player, team.squad, stadiumId);
+    
+    // Scale valuation based on fill score (need).
+    const needMult = 0.7 + Math.min(1.3, fillScore) * 0.5; // ranges roughly from 0.7 to 1.35
+    fallback *= needMult;
+
+    // Apply team-specific stable variance
+    const teamSeed = team.teamName.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+    const playerSeed = player.id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+    const hash = (teamSeed + playerSeed) % 100; // 0 to 99
+    const varianceFactor = 0.85 + (hash / 99) * 0.3; // 0.85 to 1.15
+
+    fallback *= varianceFactor;
+
+    // Ensure it's at least the base price
+    fallback = Math.max(player.basePrice, fallback);
+
+    // Cap at available purse
+    fallback = Math.min(fallback, availablePurse);
+
+    // Round to BID_INCREMENT
+    return Math.floor(fallback / BID_INCREMENT) * BID_INCREMENT;
+}
+
+/**
+ * Fetches the ML-predicted market valuation for a single player+team pair.
+ * Calls /api/auction/valuations with a single team and returns the value in Crores.
+ * Falls back to getHeuristicBotMaxBid if the ML engine is unreachable.
+ */
 export async function getMlBotMaxBid(
     player: CricketPlayer,
     team: AuctionTeam
@@ -81,13 +146,22 @@ export async function getMlBotMaxBid(
         return Math.floor(mlVal / BID_INCREMENT) * BID_INCREMENT;
     }
 
-    // Fallback: minimal heuristic if ML engine is unreachable
-    const fallback = Math.min(player.basePrice * 2, availablePurse);
-    return Math.floor(fallback / BID_INCREMENT) * BID_INCREMENT;
+    // Fallback: proper skill-based heuristic if ML engine is unreachable
+    return getHeuristicBotMaxBid(player, team, availablePurse);
 }
 
 export async function getMlBotValuations(player: CricketPlayer, teams: AuctionTeam[]): Promise<Record<string, number>> {
     const mlEngineUrl = process.env.ML_ENGINE_URL || 'http://127.0.0.1:8000';
+    const fallbackValuations: Record<string, number> = {};
+    
+    for (const team of teams) {
+        const comp = getSquadComposition(team.squad);
+        const slotsNeeded = Math.max(0, IPL_MIN_SQUAD - comp.total);
+        const minReserve = Math.max(0, (slotsNeeded - 1) * 0.5);
+        const availablePurse = team.purse - minReserve;
+        fallbackValuations[team.userId] = getHeuristicBotMaxBid(player, team, availablePurse);
+    }
+
     try {
         const playerFeatures = {
             overall_rating: Math.max(player.battingSkill || 0, player.bowlingSkill || 0),
@@ -98,11 +172,16 @@ export async function getMlBotValuations(player: CricketPlayer, teams: AuctionTe
         };
         const teamPayload = teams.map(t => ({ team_id: t.userId, purse_remaining: t.purse * 100 })); // Convert Cr to Lakhs
         
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 3000);
+        
         const res = await fetch(`${mlEngineUrl}/api/auction/valuations`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ player_features: playerFeatures, teams: teamPayload })
+            body: JSON.stringify({ player_features: playerFeatures, teams: teamPayload }),
+            signal: controller.signal
         });
+        clearTimeout(timeoutId);
         
         if (res.ok) {
             const data = await res.json();
@@ -112,12 +191,18 @@ export async function getMlBotValuations(player: CricketPlayer, teams: AuctionTe
                     valuationsInCr[key] = (val as number) / 100; // Convert Lakhs back to Cr
                 }
             }
+            // Fill missing or zero values with fallback
+            for (const team of teams) {
+                if (valuationsInCr[team.userId] === undefined || valuationsInCr[team.userId] <= 0) {
+                    valuationsInCr[team.userId] = fallbackValuations[team.userId];
+                }
+            }
             return valuationsInCr;
         }
     } catch (e) {
-        console.error('Failed to fetch ML bot valuations', e);
+        console.error('Failed to fetch ML bot valuations, using fallbacks', e);
     }
-    return {};
+    return fallbackValuations;
 }
 
 // Removed shouldBotBid heuristic in favor of direct ML integration
@@ -184,6 +269,7 @@ export async function runBotBidding(roomCode: string): Promise<AuctionState | nu
 
             let shouldBid = false;
             let bidAmount = 0;
+            let success = false;
             
             try {
                 const controller = new AbortController();
@@ -199,6 +285,7 @@ export async function runBotBidding(roomCode: string): Promise<AuctionState | nu
                 if (res.ok) {
                     const data = await res.json();
                     const decision = data.decision;
+                    success = true;
                     
                     if (decision !== 'PASS' && decision !== 'STOP') {
                         shouldBid = true;
@@ -210,38 +297,63 @@ export async function runBotBidding(roomCode: string): Promise<AuctionState | nu
                         
                         const baseAmountForBid = !state.currentBidder ? state.currentBid : state.currentBid + increment;
                         bidAmount = Math.round(baseAmountForBid * 100) / 100;
-                        
-                        if (bidAmount > freshTeam.purse) {
-                            bidAmount = freshTeam.purse;
-                        }
-                        
-                        const minBid = !state.currentBidder ? state.currentBid : state.currentBid + BID_INCREMENT;
-                        if (bidAmount < minBid) {
-                            shouldBid = false;
-                        }
                     }
                 }
             } catch (e) {
-                console.error('Failed to get ML bot decision', e);
+                console.error('Failed to get ML bot decision, falling back to heuristic', e);
+            }
+
+            // Fallback heuristic if ML call was unsuccessful or returned bad response
+            if (!success) {
+                const maxBid = await getMlBotMaxBid(state.currentPlayer, freshTeam);
+                const minBidRequired = !state.currentBidder ? state.currentBid : state.currentBid + BID_INCREMENT;
+                
+                if (maxBid >= minBidRequired) {
+                    // Decide bid with 90% probability to add natural variety
+                    if (Math.random() < 0.9) {
+                        shouldBid = true;
+                        
+                        // Decide increment based on how much headroom we have
+                        const headroom = maxBid - state.currentBid;
+                        let increment = BID_INCREMENT;
+                        if (headroom >= 4.0 && Math.random() < 0.4) {
+                            increment = BID_INCREMENT * 8; // Aggressive
+                        } else if (headroom >= 2.0 && Math.random() < 0.5) {
+                            increment = BID_INCREMENT * 4; // Medium
+                        } else if (headroom >= 1.0 && Math.random() < 0.6) {
+                            increment = BID_INCREMENT * 2; // Small
+                        }
+                        
+                        const baseAmountForBid = !state.currentBidder ? state.currentBid : state.currentBid + increment;
+                        bidAmount = Math.round(baseAmountForBid * 100) / 100;
+                    }
+                }
             }
 
             if (shouldBid) {
-                const result = await placeBid(
-                    roomCode,
-                    botTeam.userId,
-                    botTeam.username,
-                    botTeam.teamName,
-                    bidAmount
-                );
-                if (result.success) {
-                    biddingActive = true;
-                    state = result.state;
-                    
-                    // Broadcast the new bid immediately for real-time interactivity
-                    emitToRoom(roomCode, 'auction_update', { state });
-                    
-                    // Add a realistic delay between bids so humans can track the progress
-                    await delay(1200);
+                if (bidAmount > freshTeam.purse) {
+                    bidAmount = freshTeam.purse;
+                }
+                
+                const minBid = !state.currentBidder ? state.currentBid : state.currentBid + BID_INCREMENT;
+                if (bidAmount >= minBid) {
+                    const result = await placeBid(
+                        roomCode,
+                        botTeam.userId,
+                        botTeam.username,
+                        botTeam.teamName,
+                        bidAmount
+                    );
+                    if (result.success) {
+                        biddingActive = true;
+                        state = result.state;
+                        
+                        // Broadcast the new bid immediately for real-time interactivity
+                        emitToRoom(roomCode, 'auction_update', { state });
+                        
+                        // Add a realistic delay between bids so humans can track the progress
+                        await delay(1200);
+                    }
                 }
             }
         }
@@ -628,52 +740,61 @@ export async function runBotRetentions(roomCode: string): Promise<void> {
             
             let shouldRetain = false;
 
-            // --- Attempt 1: ML Engine Retention Decision ---
-            try {
-                // Approximate form score using the logic from python (skill - 20)
-                const formScore = Math.max(0, Math.min(100, skill - 15)); 
-                
-                const payload = {
-                    team_id: team.userId,
-                    player_features: {
-                        overall_rating: skill,
-                        age: (player as any).age || 25,
-                        is_uncapped: isUncapped ? 1 : 0,
-                        is_overseas: isOverseas ? 1 : 0,
-                        form_score: formScore,
-                        current_retained_count: team.retained.length,
-                        current_overseas_retained_count: team.retained.filter(r => r.nationality !== 'Indian').length
+            // --- Check Franchise Icon Status First ---
+            const icons = FRANCHISE_ICONS[team.teamName];
+            if (icons && icons.some(iconName => iconName.toLowerCase() === player.name.toLowerCase())) {
+                shouldRetain = true;
+            }
+
+            if (!shouldRetain) {
+                // --- Attempt 1: ML Engine Retention Decision ---
+                try {
+                    // Approximate form score using the logic from python (skill - 20)
+                    const formScore = Math.max(0, Math.min(100, skill - 15)); 
+                    
+                    const payload = {
+                        team_id: team.userId,
+                        player_features: {
+                            overall_rating: skill,
+                            age: (player as any).age || 25,
+                            is_uncapped: isUncapped ? 1 : 0,
+                            is_overseas: isOverseas ? 1 : 0,
+                            form_score: formScore,
+                            current_retained_count: team.retained.length,
+                            current_overseas_retained_count: team.retained.filter(r => r.nationality !== 'Indian').length
+                        }
+                    };
+
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), 3000);
+                    
+                    const response = await fetch(`${mlEngineUrl}/api/retention/decide`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload),
+                        signal: controller.signal
+                    });
+                    clearTimeout(timeoutId);
+
+                    if (response.ok) {
+                        const data = await response.json();
+                        shouldRetain = !!data.retain;
+                    } else {
+                        throw new Error('ML endpoint returned non-ok status');
                     }
-                };
-
-                const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 3000);
-                
-                const response = await fetch(`${mlEngineUrl}/api/retention/decide`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload),
-                    signal: controller.signal
-                });
-                clearTimeout(timeoutId);
-
-                if (response.ok) {
-                    const data = await response.json();
-                    shouldRetain = !!data.retain;
-                } else {
-                    throw new Error('ML endpoint returned non-ok status');
+                } catch (error) {
+                    // --- Attempt 2: Fallback to Heuristics ---
+                    console.warn(`Falling back to heuristic retention for ${player.name}`);
+                    if (skill >= 85) shouldRetain = true;
+                    else if (skill >= 78 && team.retained.length < 4) shouldRetain = true;
+                    else if (isUncapped && skill >= 70 && team.retained.length < 5) shouldRetain = true;
                 }
-            } catch (error) {
-                // --- Attempt 2: Fallback to Heuristics ---
-                console.warn(`Falling back to heuristic retention for ${player.name}`);
-                if (skill >= 92) shouldRetain = true;
-                else if (skill >= 87 && team.retained.length < 3) shouldRetain = true;
-                else if (isUncapped && skill >= 80 && team.retained.length < 5) shouldRetain = true;
+            }
 
-                if (shouldRetain && isOverseas) {
-                    const overseasCount = team.retained.filter(r => r.nationality !== 'Indian').length;
-                    if (overseasCount >= 2) shouldRetain = false;
-                }
+            // Enforce overseas retention limit (max 2)
+            if (shouldRetain && isOverseas) {
+                const overseasCount = team.retained.filter(r => r.nationality !== 'Indian').length;
+                if (overseasCount >= 2) shouldRetain = false;
             }
 
             if (shouldRetain) {

@@ -5,8 +5,8 @@ import sys
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(BASE_DIR)
 
-from models.ball_outcome_model import BallOutcomeModel
-from models.wicket_engine import WicketEngine
+from models.match_sim.ball_outcome_model import BallOutcomeModel
+from models.match_sim.wicket_engine import WicketEngine
 from simulator.matchup_venue import MatchupVenueEngine
 from simulator.dynamic_behavior import DynamicBehaviorEngine
 from simulator.commentary import CommentaryEngine

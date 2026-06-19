@@ -56,6 +56,9 @@ export default function LoginPage() {
 
             if (res.status === 200 && data.requiresPin) {
                 setPhase('pin-verify');
+            } else if (res.status === 200 && data.isNewUser) {
+                setIsNewUser(true);
+                setPhase('pin-set');
             } else if (res.ok && data.userId) {
                 // User exists but has no PIN (legacy or skipped)
                 setIsNewUser(false);

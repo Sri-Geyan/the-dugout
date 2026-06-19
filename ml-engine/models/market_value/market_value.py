@@ -19,6 +19,8 @@ def generate_market_training_data():
         p.role,
         p.basePrice,
         p.dynamicRating,
+        p.dynamicBattingRating,
+        p.dynamicBowlingRating,
         p.age,
         m.impact_total
     FROM players p
@@ -29,12 +31,14 @@ def generate_market_training_data():
 
     np.random.seed(42)
     
-    # Base Price in Lakhs (Assumes DB stores in INR, so divide by 100000)
-    # E.g. 20000000 -> 200 Lakhs
-    df['base_price'] = df['basePrice'] / 100000
+    # Base Price in Lakhs. Check if stored in INR or Cr.
+    if (df['basePrice'] > 1000).any():
+        df['base_price'] = df['basePrice'] / 100000
+    else:
+        df['base_price'] = df['basePrice'] * 100
     df['base_price'] = df['base_price'].fillna(20)
     
-    df['overall_rating'] = df['dynamicRating'].fillna(50)
+    df['overall_rating'] = df[['dynamicBattingRating', 'dynamicBowlingRating']].max(axis=1).fillna(50)
     
     df['age'] = df['age'].fillna(26)
     df.loc[df['age'] > 50, 'age'] = 26
@@ -77,18 +81,17 @@ def generate_market_training_data():
     def calculate_target_price(row):
         rating_factor = max(0, row['overall_rating'] - 50)
         
-        # Exponential curve for elite ratings (>85)
-        if row['overall_rating'] > 85:
-            rating_factor = rating_factor ** 1.5
+        # Exponential curve for elite ratings
+        rating_contrib = rating_factor * (6 + (rating_factor ** 1.26) * 0.38)
             
         age_penalty = max(0, row['age'] - 27) * 5
         youth_bonus = max(0, 24 - row['age']) * 10
         
         form_bonus = row['form'] * 20
-        scarcity_bonus = row['scarcity'] * 5
+        scarcity_bonus = row['scarcity'] * 4.5
         
         # Base calculation
-        val = row['base_price'] + (rating_factor * 8) + youth_bonus - age_penalty + form_bonus + scarcity_bonus
+        val = row['base_price'] + rating_contrib + youth_bonus - age_penalty + form_bonus + scarcity_bonus
         
         # Cap logic and noise
         val = val * np.random.uniform(0.8, 1.2)
@@ -103,7 +106,7 @@ class MarketValueModel:
         if model_path is None:
             model_path = os.path.join(base_dir, "xgboost_market_model.json")
         self.model_path = model_path
-        self.model = xgb.XGBRegressor(objective='reg:squarederror', n_estimators=100, max_depth=6, learning_rate=0.1)
+        self.model = xgb.XGBRegressor(objective='reg:squarederror', n_estimators=150, max_depth=8, learning_rate=0.1)
         self.is_trained = False
         
         if os.path.exists(self.model_path):
@@ -124,6 +127,15 @@ class MarketValueModel:
             noise_df['form'] = np.clip(noise_df['form'] + np.random.normal(0, 1, len(df)), -10, 10)
             noise_df['target_value'] = np.clip(noise_df['target_value'] * np.random.uniform(0.9, 1.1), noise_df['base_price'], 2500)
             dfs.append(noise_df)
+            
+        # Oversample elite players (overall_rating >= 80) to train the model more strongly on premium valuations
+        elite_df = df[df['overall_rating'] >= 80]
+        if len(elite_df) > 0:
+            for _ in range(30):
+                noise_df = elite_df.copy()
+                noise_df['form'] = np.clip(noise_df['form'] + np.random.normal(0, 1, len(elite_df)), -10, 10)
+                noise_df['target_value'] = np.clip(noise_df['target_value'] * np.random.uniform(0.95, 1.05), noise_df['base_price'], 2500)
+                dfs.append(noise_df)
             
         final_df = pd.concat(dfs, ignore_index=True)
         

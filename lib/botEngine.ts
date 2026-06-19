@@ -16,6 +16,22 @@ const BOT_USERNAMES = [
     'Lucknow Super Giants', 'Gujarat Titans',
 ];
 
+export function getPlayerScarcity(role: string): number {
+    const counts: Record<string, number> = {
+        'BOWLER': 133,
+        'BATSMAN': 88,
+        'ALL_ROUNDER': 45,
+        'WICKET_KEEPER': 34
+    };
+    const total = 300;
+    const count = counts[role] || 50;
+    let scarcity = 100 - ((count / total) * 100);
+    if (role === 'ALL_ROUNDER') {
+        scarcity += 20;
+    }
+    return Math.max(0, Math.min(100, scarcity));
+}
+
 
 export function isBotUser(username: string): boolean {
     return BOT_USERNAMES.includes(username);
@@ -103,7 +119,7 @@ export async function getMlBotValuations(player: CricketPlayer, teams: AuctionTe
         const playerFeatures = {
             overall_rating: Math.max(player.battingSkill || 0, player.bowlingSkill || 0),
             age: player.age || 25,
-            scarcity: 50,
+            scarcity: getPlayerScarcity(player.role),
             form: 0,
             base_price: player.basePrice * 100 // Convert Cr to Lakhs
         };
@@ -192,7 +208,7 @@ export async function runBotBidding(roomCode: string): Promise<AuctionState | nu
             const playerFeatures = {
                 overall_rating: Math.max(state.currentPlayer.battingSkill || 0, state.currentPlayer.bowlingSkill || 0),
                 age: state.currentPlayer.age || 25,
-                scarcity: 50,
+                scarcity: getPlayerScarcity(state.currentPlayer.role),
                 form: 0,
                 base_price: state.currentPlayer.basePrice * 100
             };
@@ -780,7 +796,7 @@ export async function runBotBargainDecisions(roomCode: string): Promise<AuctionS
             player_features: {
                 overall_rating: Math.max(state.currentPlayer.battingSkill || 0, state.currentPlayer.bowlingSkill || 0),
                 age: state.currentPlayer.age || 25,
-                scarcity: 50,
+                scarcity: getPlayerScarcity(state.currentPlayer.role),
                 form: 0,
                 base_price: state.currentPlayer.basePrice * 100
             },

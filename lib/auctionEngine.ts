@@ -1,7 +1,7 @@
 import redis from './redis';
 import { CricketPlayer, getAllPlayers } from '@/lib/playersDb';
 import { canAddOverseas } from './squadUtils';
-import { getBotMaxHighBid, isBotUser, getMlBotValuations } from './botEngine';
+import { isBotUser, getMlBotValuations } from './botEngine';
 
 // ======================================================
 // IPL-Style Auction Slot Definitions
@@ -531,7 +531,7 @@ async function simulateBiddingWar(player: CricketPlayer, state: AuctionState): P
         const isCurrentHigh = state.currentBidder?.userId === team.userId;
         const isBot = isBotUser(team.username);
         
-        let botMax = isBot ? (mlValuations[team.userId] || getBotMaxHighBid(player, team)) : (isCurrentHigh ? state.currentBid : 0);
+        let botMax = isBot ? (mlValuations[team.userId] || Math.min(player.basePrice * 2, team.purse)) : (isCurrentHigh ? state.currentBid : 0);
         
         // Critical: Never let a bot bid more than its actual remaining purse
         if (isBot) {

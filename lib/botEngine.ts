@@ -43,80 +43,47 @@ export function getTeamHomeStadiumId(teamName: string): string | undefined {
 }
 
 // ======================================================
-// Bot Bidding Strategy
+// Bot Bidding Strategy — ML-Driven
 // ======================================================
 
-interface BotPersonality {
-    aggression: number;      // 0.4–1.3: affects bid probability
-    maxOverpay: number;      // how much over base price they'll go (multiplier)
-    rolePreferences: Record<string, number>; // multiplier for role desire
-}
-
-function generatePersonality(teamName: string): BotPersonality {
-    // Seed based on team name for consistency
-    const hash = teamName.split('').reduce((a, c) => a + c.charCodeAt(0), 0);
-    const aggression = 0.8 + (hash % 50) / 100; // 0.8 to 1.3
-
-    return {
-        aggression,
-        maxOverpay: 1.5 + aggression * 1.5, // 2.25x to 3.45x base price
-        rolePreferences: {
-            BATSMAN: 1.1,
-            BOWLER: 1.0,
-            ALL_ROUNDER: 1.4, // Increased as requested
-            WICKET_KEEPER: 1.0,
-        },
-    };
-}
-
-
-
-
-export function getBotMaxHighBid(
+/**
+ * Fetches the ML-predicted market valuation for a single player+team pair.
+ * Calls /api/auction/valuations with a single team and returns the value in Crores.
+ * Falls back to basePrice * 2 if the ML engine is unreachable.
+ */
+export async function getMlBotMaxBid(
     player: CricketPlayer,
     team: AuctionTeam
-): number {
-    const personality = generatePersonality(team.teamName);
+): Promise<number> {
     const comp = getSquadComposition(team.squad);
 
-    // Hard blocks
+    // Hard blocks — no ML needed
     if (comp.total >= IPL_MAX_SQUAD) return 0;
     if (player.nationality !== 'Indian' && !canAddOverseas(team.squad)) return 0;
 
     // Keep enough purse for filling remaining mandatory slots
     const slotsNeeded = Math.max(0, IPL_MIN_SQUAD - comp.total);
-    const avgSlotCost = 0.5;
-    const minReserve = Math.max(0, (slotsNeeded - 1) * avgSlotCost);
+    const minReserve = Math.max(0, (slotsNeeded - 1) * 0.5);
     const availablePurse = team.purse - minReserve;
-
     if (availablePurse <= player.basePrice) return 0;
 
     const stadiumId = getTeamHomeStadiumId(team.teamName);
-    // Calculate fill score — 0 means squad is full or no need
     const fillScore = playerFillScore(player, team.squad, stadiumId);
     if (fillScore === 0) return 0;
 
-    const skill = Math.max(player.battingSkill || 0, player.bowlingSkill || 0);
-    const maxBidRaw = Math.min(
-        player.basePrice * personality.maxOverpay * fillScore,
-        availablePurse * 0.35 // Reduced from 0.75: cap single-player spend to 35% of purse
-    );
+    // Fetch ML valuation for this single team
+    const valuations = await getMlBotValuations(player, [team]);
+    let mlVal = valuations[team.userId];
 
-    // Smoother skill-based capping
-    // Above 90: full potential
-    // 85-90: slight cap
-    // 75-85: heavy cap
-    // Below 75: strict base-price based cap
-    let skillCap = maxBidRaw;
-    if (skill < 75) skillCap = Math.min(maxBidRaw, player.basePrice * 2.5);
-    else if (skill < 85) skillCap = Math.min(maxBidRaw, player.basePrice * 5);
-    else if (skill < 90) skillCap = Math.min(maxBidRaw, player.basePrice * 10);
-    
-    // Add a bit of randomness to max bid so bots don't always bid the exact same amount
-    const jitter = 0.95 + Math.random() * 0.1; // +/- 5% (tighter jitter)
-    const finalMax = Math.max(player.basePrice, skillCap * jitter);
+    if (mlVal && mlVal > 0) {
+        // Cap at available purse
+        mlVal = Math.min(mlVal, availablePurse);
+        return Math.floor(mlVal / BID_INCREMENT) * BID_INCREMENT;
+    }
 
-    return Math.floor(finalMax / BID_INCREMENT) * BID_INCREMENT;
+    // Fallback: minimal heuristic if ML engine is unreachable
+    const fallback = Math.min(player.basePrice * 2, availablePurse);
+    return Math.floor(fallback / BID_INCREMENT) * BID_INCREMENT;
 }
 
 export async function getMlBotValuations(player: CricketPlayer, teams: AuctionTeam[]): Promise<Record<string, number>> {
@@ -153,33 +120,7 @@ export async function getMlBotValuations(player: CricketPlayer, teams: AuctionTe
     return {};
 }
 
-function shouldBotBid(
-    player: CricketPlayer,
-    currentBid: number,
-    hasCurrentBidder: boolean,
-    team: AuctionTeam,
-    personality: BotPersonality
-): { shouldBid: boolean; bidAmount: number } {
-    const skillCap = getBotMaxHighBid(player, team);
-
-    const bidAmount = !hasCurrentBidder
-        ? currentBid
-        : Math.round((currentBid + BID_INCREMENT) * 100) / 100;
-    if (bidAmount > skillCap) return { shouldBid: false, bidAmount: 0 };
-
-    const comp = getSquadComposition(team.squad);
-    const squadsNeedFactor = comp.total < IPL_MIN_SQUAD ? 1.4 : 1.0;
-    const bidRatio = bidAmount / Math.max(skillCap, bidAmount);
-    
-    // Base probability: (1.2 - bidRatio) ensures even at limit (ratio=1) there's a 20% chance
-    let bidProbability = Math.max(0, (1.2 - bidRatio) * personality.aggression * squadsNeedFactor);
-
-    if (!hasCurrentBidder) bidProbability *= 2.0;
-    
-    const willBid = Math.random() < bidProbability;
-
-    return { shouldBid: willBid, bidAmount };
-}
+// Removed shouldBotBid heuristic in favor of direct ML integration
 
 // ======================================================
 // Run Bot Bidding Loop
@@ -222,14 +163,67 @@ export async function runBotBidding(roomCode: string): Promise<AuctionState | nu
             const freshTeam = state.teams.find(t => t.userId === botTeam.userId);
             if (!freshTeam) continue;
 
-            const personality = generatePersonality(freshTeam.teamName);
-            const { shouldBid, bidAmount } = shouldBotBid(
-                state.currentPlayer,
-                state.currentBid,
-                !!state.currentBidder,
-                freshTeam,
-                personality
-            );
+            const mlEngineUrl = process.env.ML_ENGINE_URL || 'http://127.0.0.1:8000';
+            const playerFeatures = {
+                overall_rating: Math.max(state.currentPlayer.battingSkill || 0, state.currentPlayer.bowlingSkill || 0),
+                age: state.currentPlayer.age || 25,
+                scarcity: 50,
+                form: 0,
+                base_price: state.currentPlayer.basePrice * 100
+            };
+            const fillScore = playerFillScore(state.currentPlayer, freshTeam.squad, getTeamHomeStadiumId(freshTeam.teamName));
+            
+            const payload = {
+                team_id: freshTeam.userId,
+                player_features: playerFeatures,
+                current_bid: state.currentBid * 100,
+                purse_remaining: freshTeam.purse * 100,
+                scarcity_score: 0.5,
+                team_needs_score: fillScore / 10.0 // Normalize roughly 0-1
+            };
+
+            let shouldBid = false;
+            let bidAmount = 0;
+            
+            try {
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 3000);
+                const res = await fetch(`${mlEngineUrl}/api/auction/decide`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload),
+                    signal: controller.signal
+                });
+                clearTimeout(timeoutId);
+                
+                if (res.ok) {
+                    const data = await res.json();
+                    const decision = data.decision;
+                    
+                    if (decision !== 'PASS' && decision !== 'STOP') {
+                        shouldBid = true;
+                        
+                        let increment = BID_INCREMENT; // 0.25 Cr
+                        if (decision === 'RAISE_SMALL') increment = BID_INCREMENT * 2;
+                        if (decision === 'RAISE_MEDIUM') increment = BID_INCREMENT * 4;
+                        if (decision === 'RAISE_AGGRESSIVE') increment = BID_INCREMENT * 8;
+                        
+                        const baseAmountForBid = !state.currentBidder ? state.currentBid : state.currentBid + increment;
+                        bidAmount = Math.round(baseAmountForBid * 100) / 100;
+                        
+                        if (bidAmount > freshTeam.purse) {
+                            bidAmount = freshTeam.purse;
+                        }
+                        
+                        const minBid = !state.currentBidder ? state.currentBid : state.currentBid + BID_INCREMENT;
+                        if (bidAmount < minBid) {
+                            shouldBid = false;
+                        }
+                    }
+                }
+            } catch (e) {
+                console.error('Failed to get ML bot decision', e);
+            }
 
             if (shouldBid) {
                 const result = await placeBid(
@@ -713,15 +707,15 @@ export async function runBotRtmDecisions(roomCode: string): Promise<AuctionState
     // Small delay for realism and visibility
     await new Promise(r => setTimeout(r, 2000));
 
-    // Evaluate if bot should use RTM
-    const baseMax = getBotMaxHighBid(state.currentPlayer, botTeam);
+    // Evaluate if bot should use RTM via ML valuation
+    const mlMax = await getMlBotMaxBid(state.currentPlayer, botTeam);
     
-    // RTM is "guaranteed" purchase, so we might be a bit more willing, but respect overall cap heuristics
-    const maxRtmPrice = Math.min(baseMax * 1.1, botTeam.purse); 
+    // RTM is "guaranteed" purchase — ML valuation is the cap
+    const maxRtmPrice = Math.min(mlMax, botTeam.purse); 
 
     const shouldRtm = state.currentBid <= maxRtmPrice && botTeam.purse >= state.currentBid;
 
-    console.log(`[Bot RTM] ${botTeam.teamName} deciding on ${state.currentPlayer.name}. Bid: ${state.currentBid}, Max: ${maxRtmPrice.toFixed(2)}. Decision: ${shouldRtm}`);
+    console.log(`[Bot RTM] ${botTeam.teamName} deciding on ${state.currentPlayer.name}. Bid: ${state.currentBid}, ML Max: ${maxRtmPrice.toFixed(2)}. Decision: ${shouldRtm}`);
 
     const updatedState = await handleRtm(roomCode, shouldRtm);
     if (updatedState) {
@@ -746,24 +740,60 @@ export async function runBotBargainDecisions(roomCode: string): Promise<AuctionS
     // Delay for human highest bidder to see the bargain UI
     await new Promise(r => setTimeout(r, 2000));
 
-    // Evaluate if bot should increase price
-    const baseMax = getBotMaxHighBid(state.currentPlayer, botTeam);
+    // Get ML valuation as the cap for bargaining
+    const mlMax = await getMlBotMaxBid(state.currentPlayer, botTeam);
+    const maxBargainPrice = Math.min(mlMax, botTeam.purse);
 
-    // Max bargaining price — slightly higher since they are close to losing the player
-    const maxBargainPrice = Math.min(baseMax * 1.25, botTeam.purse);
-
-    // Decide how much to increase. IPL 2025 rule: any amount >= current bid.
-    // Bot will try to increase by a significant amount if they really want the player,
-    // otherwise they stay at current bid.
+    // Use the RL agent to decide the raise action
     let bargainAmount = state.currentBid;
     if (maxBargainPrice > state.currentBid) {
-        // Increase by a random amount between 0.5 and 2.0 Cr
-        const increase = Math.max(0.25, Math.round((Math.random() * 1.5 + 0.5) / 0.25) * 0.25);
-        bargainAmount = Math.min(state.currentBid + increase, maxBargainPrice, botTeam.purse);
-        bargainAmount = Math.round(bargainAmount / 0.25) * 0.25;
+        const mlEngineUrl = process.env.ML_ENGINE_URL || 'http://127.0.0.1:8000';
+        const fillScore = playerFillScore(state.currentPlayer, botTeam.squad, getTeamHomeStadiumId(botTeam.teamName));
+        const payload = {
+            team_id: botTeam.userId,
+            player_features: {
+                overall_rating: Math.max(state.currentPlayer.battingSkill || 0, state.currentPlayer.bowlingSkill || 0),
+                age: state.currentPlayer.age || 25,
+                scarcity: 50,
+                form: 0,
+                base_price: state.currentPlayer.basePrice * 100
+            },
+            current_bid: state.currentBid * 100,
+            purse_remaining: botTeam.purse * 100,
+            scarcity_score: 0.5,
+            team_needs_score: fillScore / 10.0
+        };
+
+        try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 3000);
+            const res = await fetch(`${mlEngineUrl}/api/auction/decide`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+                signal: controller.signal
+            });
+            clearTimeout(timeoutId);
+
+            if (res.ok) {
+                const data = await res.json();
+                const decision = data.decision;
+                let increment = BID_INCREMENT;
+                if (decision === 'RAISE_SMALL') increment = BID_INCREMENT * 2;
+                if (decision === 'RAISE_MEDIUM') increment = BID_INCREMENT * 4;
+                if (decision === 'RAISE_AGGRESSIVE') increment = BID_INCREMENT * 8;
+
+                bargainAmount = Math.min(state.currentBid + increment, maxBargainPrice, botTeam.purse);
+                bargainAmount = Math.round(bargainAmount / 0.25) * 0.25;
+            }
+        } catch (e) {
+            // Fallback: small raise
+            bargainAmount = Math.min(state.currentBid + BID_INCREMENT, maxBargainPrice, botTeam.purse);
+            bargainAmount = Math.round(bargainAmount / 0.25) * 0.25;
+        }
     }
 
-    console.log(`[Bot Bargain] ${botTeam.teamName} deciding on ${state.currentPlayer.name}. Bid: ${state.currentBid}, Bargain: ${bargainAmount}, Max: ${maxBargainPrice.toFixed(2)}`);
+    console.log(`[Bot Bargain] ${botTeam.teamName} deciding on ${state.currentPlayer.name}. Bid: ${state.currentBid}, Bargain: ${bargainAmount}, ML Max: ${maxBargainPrice.toFixed(2)}`);
 
     const updatedState = await handleBargain(roomCode, bargainAmount);
     if (updatedState) {
@@ -785,14 +815,14 @@ export async function runBotFinalMatchDecisions(roomCode: string): Promise<Aucti
     const botTeam = state.teams.find(t => t.userId === state.rtmOriginalTeamId);
     if (!botTeam || !isBotUser(botTeam.username)) return state;
 
-    // Evaluate if bot should match final bargain price
-    const baseMax = getBotMaxHighBid(state.currentPlayer, botTeam);
+    // Evaluate if bot should match final bargain price via ML valuation
+    const mlMax = await getMlBotMaxBid(state.currentPlayer, botTeam);
 
-    const maxFinalPrice = Math.min(baseMax * 1.15, botTeam.purse);
+    const maxFinalPrice = Math.min(mlMax, botTeam.purse);
 
     const shouldMatch = state.rtmBargainBid <= maxFinalPrice && botTeam.purse >= state.rtmBargainBid;
 
-    console.log(`[Bot Final Match] ${botTeam.teamName} deciding on ${state.currentPlayer.name}. Bargain Price: ${state.rtmBargainBid}, Max: ${maxFinalPrice.toFixed(2)}. Decision: ${shouldMatch}`);
+    console.log(`[Bot Final Match] ${botTeam.teamName} deciding on ${state.currentPlayer.name}. Bargain Price: ${state.rtmBargainBid}, ML Max: ${maxFinalPrice.toFixed(2)}. Decision: ${shouldMatch}`);
 
     const updatedState = await handleFinalMatch(roomCode, shouldMatch);
     if (updatedState) {

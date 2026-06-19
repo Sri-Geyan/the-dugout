@@ -515,12 +515,19 @@ export default function AuctionPage() {
                                         </div>
                                     </div>
                                     {/* Purse bar */}
-                                    <div className="h-1 rounded-full" style={{ background: 'var(--color-border)' }}>
-                                        <div className="h-full rounded-full transition-all duration-300" style={{
-                                            width: `${(team.purse / 100) * 100}%`,
-                                            background: team.purse < 10 ? 'var(--color-danger)' : teamColor,
-                                        }} />
-                                    </div>
+                                    {(() => {
+                                        const maxPurse = 120;
+                                        const pct = Math.min(100, (team.purse / maxPurse) * 100);
+                                        const barColor = pct < 15 ? 'var(--color-danger)' : pct < 40 ? '#f59e0b' : teamColor;
+                                        return (
+                                            <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.06)' }}>
+                                                <div className="h-full rounded-full transition-all duration-500 ease-out" style={{
+                                                    width: `${pct}%`,
+                                                    background: `linear-gradient(90deg, ${barColor}, ${barColor}cc)`,
+                                                }} />
+                                            </div>
+                                        );
+                                    })()}
                                 </div>
                             );
                         })}

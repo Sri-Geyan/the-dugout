@@ -137,20 +137,10 @@ def main():
         bat_r = int(row['batting_rating'])
         bowl_r = int(row['bowling_rating'])
 
-        # Reset ratings
+        # Always assign both individual ratings for all roles
         dyn_r = None
-        dyn_bat_r = None
-        dyn_bowl_r = None
-
-        if role == "ALL_ROUNDER":
-            dyn_bat_r = bat_r
-            dyn_bowl_r = bowl_r
-        elif role in ["BATSMAN", "WICKET_KEEPER"]:
-            dyn_r = bat_r
-        elif role == "BOWLER":
-            dyn_r = bowl_r
-        else:
-            dyn_r = bat_r
+        dyn_bat_r = bat_r
+        dyn_bowl_r = bowl_r
 
         cursor.execute("""
             UPDATE players 

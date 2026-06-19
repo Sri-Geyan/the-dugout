@@ -176,9 +176,13 @@ export default function PlayerCard({ player, compact = false, showBasePrice = tr
 
                 {/* Legacy Skills (Fallback or small footprint) */}
                 <div className="flex gap-4 mt-4 text-[10px] uppercase font-black tracking-widest text-white/30 justify-center">
-                    <span>Base BAT: {player.battingSkill}</span>
-                    <span>•</span>
-                    <span>Base BOWL: {player.bowlingSkill}</span>
+                    {(player.role === 'BATSMAN' || player.role === 'WICKET_KEEPER' || player.role === 'ALL_ROUNDER') && (
+                        <span>Base BAT: {player.battingSkill}</span>
+                    )}
+                    {player.role === 'ALL_ROUNDER' && <span>•</span>}
+                    {(player.role === 'BOWLER' || player.role === 'ALL_ROUNDER') && (
+                        <span>Base BOWL: {player.bowlingSkill}</span>
+                    )}
                 </div>
             </div>
         </div>

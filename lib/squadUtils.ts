@@ -4,6 +4,22 @@ export const IPL_MAX_OVERSEAS = 8;
 export const IPL_MIN_SQUAD = 21;
 export const IPL_MAX_SQUAD = 25;
 
+export function getTeamShortName(teamName: string): string {
+    const mapping: Record<string, string> = {
+        'Chennai Super Kings': 'CSK',
+        'Mumbai Indians': 'MI',
+        'Royal Challengers Bengaluru': 'RCB',
+        'Kolkata Knight Riders': 'KKR',
+        'Delhi Capitals': 'DC',
+        'Sunrisers Hyderabad': 'SRH',
+        'Punjab Kings': 'PBKS',
+        'Rajasthan Royals': 'RR',
+        'Lucknow Super Giants': 'LSG',
+        'Gujarat Titans': 'GT'
+    };
+    return mapping[teamName] || teamName;
+}
+
 export interface SquadComposition {
     total: number;
     overseas: number;
@@ -95,7 +111,7 @@ export function analyzeSquadNeeds(
 
     // Hard-coded minimums for a balanced 25-player squad
     const needs: Record<string, number> = {
-        WICKET_KEEPER: comp.wicketKeepers < 1 ? 1.8 : comp.wicketKeepers < 2 ? 1.3 : 0.4,
+        WICKET_KEEPER: comp.wicketKeepers < 1 ? 1.8 : comp.wicketKeepers < 2 ? 1.2 : 0.0,
         BATSMAN: (comp.batsmen < 4 ? 1.5 : comp.batsmen < 6 ? 1.1 : 0.6) * batMultiplier,
         BOWLER: comp.bowlers < 5 ? 1.5 : comp.bowlers < 8 ? 1.1 : 0.6,
         ALL_ROUNDER: (comp.allRounders < 3 ? 1.6 : comp.allRounders < 6 ? 1.2 : 0.6) * ((batMultiplier + paceMultiplier + (pacers < 3 ? 1.5 : spinMultiplier)) / 3),

@@ -153,7 +153,7 @@ export async function POST(request: NextRequest) {
                                         bowlingSkill: s.player.bowlingSkill,
                                         nationality: s.player.nationality,
                                     }));
-                                    const selection = await botSelectPlaying11(squad);
+                                    const selection = await botSelectPlaying11(squad, undefined, undefined, uId, teamData.teamName);
                                     const key = `selection:${roomCode}:${fixture.id}:${uId}`;
                                     await redisObj.set(key, JSON.stringify(selection), 'EX', 86400);
                                 }
@@ -272,7 +272,7 @@ export async function POST(request: NextRequest) {
                                     battingSkill: s.player.battingSkill, bowlingSkill: s.player.bowlingSkill,
                                     nationality: s.player.nationality
                                 }));
-                                const selection = await botSelectPlaying11(squad);
+                                const selection = await botSelectPlaying11(squad, undefined, undefined, uId, teamData.teamName);
                                 await redis.set(selKey, JSON.stringify(selection), 'EX', 86400);
                             }
                         }

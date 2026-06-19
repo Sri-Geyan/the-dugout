@@ -4,7 +4,7 @@ import { getRoomState } from './roomManager';
 import { emitToRoom } from './socket-server';
 import type { MatchState, BatterState, BowlerState, MatchPlayer } from './matchEngine';
 import { getRetentionState, retainPlayer, confirmRetentions, getRetentionEligiblePool } from './retentionEngine';
-import { canAddOverseas, playerFillScore, getSquadComposition, IPL_MAX_SQUAD, IPL_MIN_SQUAD } from './squadUtils';
+import { canAddOverseas, playerFillScore, getSquadComposition, IPL_MAX_SQUAD, IPL_MIN_SQUAD, getTeamShortName } from './squadUtils';
 
 // ======================================================
 // Bot Detection
@@ -107,7 +107,7 @@ export async function getMlBotValuations(player: CricketPlayer, teams: AuctionTe
             form: 0,
             base_price: player.basePrice * 100 // Convert Cr to Lakhs
         };
-        const teamPayload = teams.map(t => ({ team_id: t.userId, purse_remaining: t.purse * 100 })); // Convert Cr to Lakhs
+        const teamPayload = teams.map(t => ({ team_id: getTeamShortName(t.teamName), purse_remaining: t.purse * 100 })); // Convert Cr to Lakhs
         
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 3000);
@@ -125,7 +125,10 @@ export async function getMlBotValuations(player: CricketPlayer, teams: AuctionTe
             const valuationsInCr: Record<string, number> = {};
             if (data.team_valuations) {
                 for (const [key, val] of Object.entries(data.team_valuations)) {
-                    valuationsInCr[key] = (val as number) / 100; // Convert Lakhs back to Cr
+                    const matchingTeam = teams.find(t => getTeamShortName(t.teamName) === key);
+                    if (matchingTeam) {
+                        valuationsInCr[matchingTeam.userId] = (val as number) / 100; // Convert Lakhs back to Cr
+                    }
                 }
             }
             // Fill missing or zero values with fallback (basePrice)
@@ -196,7 +199,7 @@ export async function runBotBidding(roomCode: string): Promise<AuctionState | nu
             const fillScore = playerFillScore(state.currentPlayer, freshTeam.squad, getTeamHomeStadiumId(freshTeam.teamName));
             
             const payload = {
-                team_id: freshTeam.userId,
+                team_id: getTeamShortName(freshTeam.teamName),
                 player_features: playerFeatures,
                 current_bid: state.currentBid * 100,
                 purse_remaining: freshTeam.purse * 100,
@@ -379,7 +382,8 @@ export async function botSelectPlaying11(
     squad: EnrichedPlayer[], 
     pitchType: string = 'BALANCED', 
     tossResult?: { winnerId: string; decision: 'bat' | 'bowl' },
-    teamUserId?: string
+    teamUserId?: string,
+    teamName?: string
 ): Promise<{
     selectedIds: string[];
     battingOrder: string[];
@@ -395,8 +399,10 @@ export async function botSelectPlaying11(
     else if (pitchType === 'BOWLING') venue = 'Eden Gardens, Kolkata';
     else if (pitchType === 'SPINNING') venue = 'MA Chidambaram Stadium, Chepauk, Chennai';
 
+    const resolvedTeamId = teamName ? getTeamShortName(teamName) : (teamUserId ? getTeamShortName(teamUserId) : 'bot_team');
+
     const payload = {
-        team_id: teamUserId || 'bot_team',
+        team_id: resolvedTeamId,
         venue: venue,
         players: squad.slice(0, IPL_MAX_SQUAD).map(p => ({
             player_id: p.id,
@@ -770,7 +776,7 @@ export async function runBotBargainDecisions(roomCode: string): Promise<AuctionS
         const mlEngineUrl = process.env.ML_ENGINE_URL || 'http://127.0.0.1:8000';
         const fillScore = playerFillScore(state.currentPlayer, botTeam.squad, getTeamHomeStadiumId(botTeam.teamName));
         const payload = {
-            team_id: botTeam.userId,
+            team_id: getTeamShortName(botTeam.teamName),
             player_features: {
                 overall_rating: Math.max(state.currentPlayer.battingSkill || 0, state.currentPlayer.bowlingSkill || 0),
                 age: state.currentPlayer.age || 25,
@@ -919,7 +925,7 @@ export async function ensureBotSelections(roomCode: string, fixtureId: string, t
     leagueState?.fixtures.find(f => f.id === fixtureId);
     // In a real app we might store pitch in fixture, but for now default or use room settings
     
-    const selection = await botSelectPlaying11(squad, pitchType, tossResult, teamUserId);
+    const selection = await botSelectPlaying11(squad, pitchType, tossResult, teamUserId, teamData.teamName);
     await redisObj.set(key, JSON.stringify(selection), 'EX', 86400);
     return selection;
 }

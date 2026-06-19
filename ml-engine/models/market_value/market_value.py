@@ -84,8 +84,19 @@ def generate_market_training_data():
         # Exponential curve for elite ratings
         rating_contrib = rating_factor * (6 + (rating_factor ** 1.26) * 0.38)
             
-        age_penalty = max(0, row['age'] - 27) * 5
-        youth_bonus = max(0, 24 - row['age']) * 10
+        age = row['age']
+        if age <= 28:
+            age_penalty = 0
+            youth_bonus = max(0, 24 - age) * 12
+        elif age <= 32:
+            age_penalty = (age - 28) * 15
+            youth_bonus = 0
+        elif age <= 35:
+            age_penalty = 60 + (age - 32) * 100
+            youth_bonus = 0
+        else:
+            age_penalty = 360 + (age - 35) * 350
+            youth_bonus = 0
         
         form_bonus = row['form'] * 20
         scarcity_bonus = row['scarcity'] * 4.5

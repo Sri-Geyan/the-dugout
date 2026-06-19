@@ -93,6 +93,21 @@ export async function joinRoom(code: string, userId: string, username: string): 
     return state;
 }
 
+const getTeamIdFromName = (name: string): string | undefined => {
+    const n = name.toLowerCase();
+    if (n.includes('chennai') || n.includes('csk')) return 'csk';
+    if (n.includes('mumbai') || n.includes('mi')) return 'mi';
+    if (n.includes('royal challengers') || n.includes('rcb')) return 'rcb';
+    if (n.includes('kolkata') || n.includes('kkr')) return 'kkr';
+    if (n.includes('delhi') || n.includes('dc')) return 'dc';
+    if (n.includes('sunrisers') || n.includes('srh')) return 'srh';
+    if (n.includes('punjab') || n.includes('pbks')) return 'pbks';
+    if (n.includes('rajasthan') || n.includes('rr')) return 'rr';
+    if (n.includes('lucknow') || n.includes('lsg')) return 'lsg';
+    if (n.includes('gujarat') || n.includes('gt')) return 'gt';
+    return undefined;
+};
+
 export async function getRoomState(code: string): Promise<RoomState | null> {
     const cached = await redis.get(`room:${code}`);
     if (cached) return JSON.parse(cached);
@@ -115,16 +130,32 @@ export async function getRoomState(code: string): Promise<RoomState | null> {
 
     if (!dbRoom) return null;
 
+    // Fetch team mappings for this room to associate them with players
+    let teams: any[] = [];
+    try {
+        teams = await prisma.team.findMany({
+            where: { roomId: dbRoom.id }
+        });
+    } catch (err) {
+        console.error('Prisma getRoomState teams fetch error:', err);
+    }
+    const teamMap = new Map<string, any>(teams.map(t => [t.userId, t]));
+
     const state: RoomState = {
         id: dbRoom.id,
         code: dbRoom.code,
         hostId: dbRoom.hostId,
         status: dbRoom.status.toLowerCase(),
         maxPlayers: dbRoom.maxPlayers,
-        players: dbRoom.players.map(p => ({
-            userId: p.userId,
-            username: p.user.username
-        })),
+        players: dbRoom.players.map(p => {
+            const team = teamMap.get(p.userId);
+            return {
+                userId: p.userId,
+                username: p.user.username,
+                teamId: team ? getTeamIdFromName(team.name) : undefined,
+                teamName: team?.name
+            };
+        }),
         createdAt: dbRoom.createdAt.toISOString()
     };
 

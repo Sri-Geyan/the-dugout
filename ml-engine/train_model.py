@@ -103,6 +103,16 @@ def main():
     df['raw_bat_score'] = np.where(df['has_mcp_bat'], df['mcp_bat_score'] + df['life_bat_score'], df['life_bat_score'] * 2.0)
     df['raw_bowl_score'] = np.where(df['has_mcp_bowl'], df['mcp_bowl_score'] + df['life_bowl_score'], df['life_bowl_score'] * 2.0)
 
+    # Apply strike rate discount for players with substantial runs (>500) if strike rate is low (<135)
+    raw_runs = df_raw['lifetime_runs']
+    raw_sr = df_raw['lifetime_bat_sr']
+    sr_mult = np.where(
+        raw_runs > 500,
+        np.where(raw_sr < 115, 0.70, np.minimum(1.0, 0.70 + (raw_sr - 115) * (0.30 / 20.0))),
+        1.0
+    )
+    df['raw_bat_score'] = df['raw_bat_score'] * sr_mult
+
     # Scale scores from 50 to 100
     final_scaler_bat = MinMaxScaler(feature_range=(50, 100))
     final_scaler_bowl = MinMaxScaler(feature_range=(50, 100))

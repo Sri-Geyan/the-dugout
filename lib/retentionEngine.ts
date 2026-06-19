@@ -307,6 +307,7 @@ export function getRetentionEligiblePool(teamName: string) {
             playerId: iplPlayer?.id ?? null,
             battingSkill: iplPlayer?.battingSkill ?? 50,
             bowlingSkill: iplPlayer?.bowlingSkill ?? 50,
+            age: iplPlayer?.age ?? 25,
         };
     }).filter(Boolean);
 }

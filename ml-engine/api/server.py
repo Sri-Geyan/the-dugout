@@ -94,16 +94,19 @@ async def decide_bid(state: AuctionState):
     
     obs = np.array([norm_bid, norm_purse, norm_val, state.team_needs_score, state.scarcity_score], dtype=np.float32)
     
-    # 4. Get decision from RL model
-    if rl_model:
-        action, _ = rl_model.predict(obs, deterministic=True)
-        action_val = int(action)
-    else:
-        # Fallback heuristic if model isn't trained yet
-        if state.current_bid < adjusted_val and state.purse_remaining > state.current_bid:
-            action_val = 1 # BID
+    # 4. Get decision from Market Value (XGBoost) model-driven policy
+    if state.current_bid < adjusted_val and state.purse_remaining > state.current_bid:
+        headroom = adjusted_val - state.current_bid
+        if headroom >= 400.0:
+            action_val = 4  # RAISE_AGGRESSIVE
+        elif headroom >= 200.0:
+            action_val = 3  # RAISE_MEDIUM
+        elif headroom >= 100.0:
+            action_val = 2  # RAISE_SMALL
         else:
-            action_val = 0 # PASS
+            action_val = 1  # BID
+    else:
+        action_val = 0  # PASS
             
     # Map action to string
     action_map = {

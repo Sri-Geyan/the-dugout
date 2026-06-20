@@ -121,7 +121,8 @@ export async function getMlBotValuations(player: CricketPlayer, teams: AuctionTe
             age: player.age || 25,
             scarcity: getPlayerScarcity(player.role),
             form: 0,
-            base_price: player.basePrice * 100 // Convert Cr to Lakhs
+            base_price: player.basePrice * 100, // Convert Cr to Lakhs
+            strike_rate: player.battingStats?.strikeRate || 135.0
         };
         const teamPayload = teams.map(t => ({ team_id: getTeamShortName(t.teamName), purse_remaining: t.purse * 100 })); // Convert Cr to Lakhs
         
@@ -210,7 +211,8 @@ export async function runBotBidding(roomCode: string): Promise<AuctionState | nu
                 age: state.currentPlayer.age || 25,
                 scarcity: getPlayerScarcity(state.currentPlayer.role),
                 form: 0,
-                base_price: state.currentPlayer.basePrice * 100
+                base_price: state.currentPlayer.basePrice * 100,
+                strike_rate: state.currentPlayer.battingStats?.strikeRate || 135.0
             };
             const fillScore = playerFillScore(state.currentPlayer, freshTeam.squad, getTeamHomeStadiumId(freshTeam.teamName));
             
@@ -798,7 +800,8 @@ export async function runBotBargainDecisions(roomCode: string): Promise<AuctionS
                 age: state.currentPlayer.age || 25,
                 scarcity: getPlayerScarcity(state.currentPlayer.role),
                 form: 0,
-                base_price: state.currentPlayer.basePrice * 100
+                base_price: state.currentPlayer.basePrice * 100,
+                strike_rate: state.currentPlayer.battingStats?.strikeRate || 135.0
             },
             current_bid: state.currentBid * 100,
             purse_remaining: botTeam.purse * 100,

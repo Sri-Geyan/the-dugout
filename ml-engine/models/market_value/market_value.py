@@ -22,9 +22,11 @@ def generate_market_training_data():
         p.dynamicBattingRating,
         p.dynamicBowlingRating,
         p.age,
-        m.impact_total
+        m.impact_total,
+        b.strikeRate as strike_rate
     FROM players p
     LEFT JOIN mcp_features m ON p.id = m.player_id
+    LEFT JOIN batting_stats b ON p.id = b.player_id
     """
     df = pd.read_sql_query(query, conn)
     conn.close()
@@ -43,6 +45,8 @@ def generate_market_training_data():
     df['age'] = df['age'].fillna(26)
     df.loc[df['age'] > 50, 'age'] = 26
     df.loc[df['age'] < 16, 'age'] = 26
+
+    df['strike_rate'] = df['strike_rate'].fillna(135.0)
     
     # Calculate scarcity based on role distribution
     role_counts = df['role'].value_counts()
@@ -74,10 +78,6 @@ def generate_market_training_data():
     df['form'] = df.apply(calculate_form, axis=1)
     
     # Define Target Variable (Synthetic market value based on heuristics for training)
-    # Formula: Rating boosts value, Scarcity boosts value, Youth boosts value, Form boosts value
-    # Max price around 2500 Lakhs (25 Crores)
-    # High skill players get massive exponential multiplier
-    
     def calculate_target_price(row):
         rating_factor = max(0, row['overall_rating'] - 50)
         
@@ -88,21 +88,30 @@ def generate_market_training_data():
         if age <= 28:
             age_penalty = 0
             youth_bonus = max(0, 24 - age) * 12
-        elif age <= 32:
+            age_mult = 1.0
+        else:
             age_penalty = (age - 28) * 15
             youth_bonus = 0
-        elif age <= 35:
-            age_penalty = 60 + (age - 32) * 100
-            youth_bonus = 0
-        else:
-            age_penalty = 360 + (age - 35) * 350
-            youth_bonus = 0
+            # Multiplicative age penalty
+            age_mult = max(0.15, 1.0 - (age - 28) * 0.07)
         
+        # Strike rate discount for batting roles
+        sr_mult = 1.0
+        if row['role'] in ['BATSMAN', 'WICKET_KEEPER', 'ALL_ROUNDER'] or "allrounder" in str(row['role']).lower():
+            sr = row['strike_rate']
+            if sr < 135.0:
+                sr_mult = max(0.60, 0.70 + (sr - 110) * 0.012)
+        
+        # Experience/Captaincy leadership bonus
+        experience_bonus = 0
+        if age >= 34 and row['overall_rating'] >= 75:
+            experience_bonus = 100 # +1.0 Cr
+            
         form_bonus = row['form'] * 20
-        scarcity_bonus = row['scarcity'] * 4.5
+        scarcity_bonus = row['scarcity'] * 2.0
         
-        # Base calculation
-        val = row['base_price'] + rating_contrib + youth_bonus - age_penalty + form_bonus + scarcity_bonus
+        # Base calculation with multiplicative modifiers
+        val = row['base_price'] + (rating_contrib * age_mult * sr_mult) + youth_bonus + experience_bonus - age_penalty + form_bonus + scarcity_bonus
         
         # Cap logic and noise
         val = val * np.random.uniform(0.8, 1.2)
@@ -128,6 +137,7 @@ class MarketValueModel:
         """
         Trains model using realistic augmented data from players.db
         """
+        self.model = xgb.XGBRegressor(objective='reg:squarederror', n_estimators=150, max_depth=8, learning_rate=0.1)
         print("Generating market dataset from players.db...")
         df = generate_market_training_data()
         
@@ -148,6 +158,58 @@ class MarketValueModel:
                 noise_df['target_value'] = np.clip(noise_df['target_value'] * np.random.uniform(0.95, 1.05), noise_df['base_price'], 2500)
                 dfs.append(noise_df)
             
+        # Generate synthetic grid of players to ensure out-of-distribution generalization
+        print("Generating synthetic grid for full feature space coverage...")
+        synthetic_rows = []
+        for r in range(50, 101, 5):
+            for a in range(18, 41, 2):
+                for sc in [20, 50, 75]:
+                    for bp in [20, 50, 100, 200]:
+                        for sr in [110, 125, 135, 150]:
+                            for f in [-5, 0, 5]:
+                                # Calculate synthetic target value
+                                rating_factor = max(0, r - 50)
+                                rating_contrib = rating_factor * (6 + (rating_factor ** 1.26) * 0.38)
+                                
+                                if a <= 28:
+                                    age_penalty = 0
+                                    youth_bonus = max(0, 24 - a) * 12
+                                    age_mult = 1.0
+                                else:
+                                    age_penalty = (a - 28) * 15
+                                    youth_bonus = 0
+                                    age_mult = max(0.15, 1.0 - (a - 28) * 0.07)
+                                    
+                                sr_mult = 1.0
+                                if sr < 135.0:
+                                    sr_mult = max(0.60, 0.70 + (sr - 110) * 0.012)
+                                    
+                                exp_bonus = 100 if (a >= 34 and r >= 75) else 0
+                                
+                                val = bp + (rating_contrib * age_mult * sr_mult) + youth_bonus + exp_bonus - age_penalty + (f * 20) + (sc * 2.0)
+                                val = np.clip(val, bp, 2500)
+                                
+                                synthetic_rows.append({
+                                    'id': f'SYN-{r}-{a}-{sc}-{bp}-{sr}-{f}',
+                                    'name': 'Synthetic Player',
+                                    'role': 'BATSMAN',  # Default to enable strike rate checks
+                                    'basePrice': bp / 100.0,
+                                    'dynamicRating': r,
+                                    'dynamicBattingRating': r,
+                                    'dynamicBowlingRating': 50,
+                                    'age': a,
+                                    'impact_total': 0.0,
+                                    'base_price': float(bp),
+                                    'overall_rating': r,
+                                    'scarcity': float(sc),
+                                    'form': float(f),
+                                    'strike_rate': float(sr),
+                                    'target_value': float(val)
+                                })
+        
+        synth_df = pd.DataFrame(synthetic_rows)
+        dfs.append(synth_df)
+        
         final_df = pd.concat(dfs, ignore_index=True)
         
         # Save dataset
@@ -158,7 +220,7 @@ class MarketValueModel:
         final_df.to_csv(csv_path, index=False)
         print(f"Saved market value training data (augmented to {len(final_df)} rows) to {csv_path}")
 
-        features = ['overall_rating', 'age', 'scarcity', 'form', 'base_price']
+        features = ['overall_rating', 'age', 'scarcity', 'form', 'base_price', 'strike_rate']
         X = final_df[features]
         y = final_df['target_value']
 
@@ -176,10 +238,13 @@ class MarketValueModel:
             self.train()
             
         df = pd.DataFrame([features])
-        cols = ['overall_rating', 'age', 'scarcity', 'form', 'base_price']
+        cols = ['overall_rating', 'age', 'scarcity', 'form', 'base_price', 'strike_rate']
         for c in cols:
             if c not in df.columns:
-                df[c] = 0
+                if c == 'strike_rate':
+                    df[c] = 135.0
+                else:
+                    df[c] = 0
                 
         pred = self.model.predict(df[cols])
         return max(float(pred[0]), features.get('base_price', 20.0))
